@@ -67,6 +67,71 @@ function diagnosticsWith(outputAccess: OutputAccessCheck) {
 }
 
 describe("buildDiagnostics", () => {
+  it("passes executable access when exporter detection launched the binary", () => {
+    const item = diagnosticsWith({
+      path: options.outputPath,
+      resolvedPath: options.outputPath,
+      writable: true,
+      checkedAt: "1",
+      detail: "Output folder is writable.",
+      error: null,
+    }).find((diagnostic) => diagnostic.id === "executable-access");
+
+    expect(item).toMatchObject({
+      detail: "The exporter launched successfully and reported 4.2.0.",
+      state: "passed",
+    });
+  });
+
+  it("marks executable access as actionable when a candidate binary cannot launch", () => {
+    const item = buildDiagnostics(
+      snapshot,
+      {
+        found: false,
+        path: "D:/Tools/imessage-exporter.exe",
+        version: null,
+        error: "Access is denied.",
+        managed: false,
+        source: "custom",
+      },
+      null,
+      target,
+      "D:/Tools/imessage-exporter.exe",
+      options,
+      managedState,
+    ).find((diagnostic) => diagnostic.id === "executable-access");
+
+    expect(item).toMatchObject({
+      detail:
+        "ChatExportMate found a candidate binary but could not launch it: Access is denied.",
+      state: "action",
+    });
+  });
+
+  it("warns that executable access cannot be checked before an exporter is available", () => {
+    const item = buildDiagnostics(
+      snapshot,
+      {
+        found: false,
+        path: null,
+        version: null,
+        error: "imessage-exporter was not found",
+        managed: false,
+        source: "path",
+      },
+      null,
+      target,
+      "",
+      options,
+      managedState,
+    ).find((diagnostic) => diagnostic.id === "executable-access");
+
+    expect(item).toMatchObject({
+      detail: "Install or select imessage-exporter before checking whether ChatExportMate can launch it.",
+      state: "warning",
+    });
+  });
+
   it("passes output access when the destination is writable", () => {
     const item = diagnosticsWith({
       path: options.outputPath,

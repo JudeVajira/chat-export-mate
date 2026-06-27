@@ -43,6 +43,7 @@ export function buildDiagnostics(
         : probe.error ?? "imessage-exporter was not found",
       state: probe.found ? "passed" : "action",
     },
+    buildExecutableAccessDiagnostic(probe),
     {
       id: "managed-store",
       label: "Managed exporter",
@@ -99,6 +100,37 @@ export function buildDiagnostics(
       state: "passed",
     },
   ];
+}
+
+function buildExecutableAccessDiagnostic(probe: ExporterProbe): DiagnosticItem {
+  if (probe.found) {
+    return {
+      id: "executable-access",
+      label: "Executable access",
+      detail: probe.version
+        ? `The exporter launched successfully and reported ${probe.version}.`
+        : "The exporter launched successfully.",
+      state: "passed",
+    };
+  }
+
+  if (probe.path) {
+    return {
+      id: "executable-access",
+      label: "Executable access",
+      detail: probe.error
+        ? `ChatExportMate found a candidate binary but could not launch it: ${probe.error}`
+        : "ChatExportMate found a candidate binary but could not verify it can launch.",
+      state: "action",
+    };
+  }
+
+  return {
+    id: "executable-access",
+    label: "Executable access",
+    detail: "Install or select imessage-exporter before checking whether ChatExportMate can launch it.",
+    state: "warning",
+  };
 }
 
 function outputAccessState(outputAccess: OutputAccessCheck): DiagnosticItem["state"] {
