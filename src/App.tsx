@@ -63,6 +63,7 @@ function App() {
   const [dryRun, setDryRun] = useState(true);
   const [checkingRelease, setCheckingRelease] = useState(false);
   const [installingExporter, setInstallingExporter] = useState(false);
+  const [checkingOutputAccess, setCheckingOutputAccess] = useState(false);
   const [runningDiagnostics, setRunningDiagnostics] = useState(false);
   const [activatingManagedVersion, setActivatingManagedVersion] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -305,6 +306,18 @@ function App() {
     return nextOutputAccess;
   }
 
+  async function checkCurrentOutputAccess() {
+    setCheckingOutputAccess(true);
+    try {
+      const nextOutputAccess = await refreshOutputAccess(options.outputPath);
+      addLog(nextOutputAccess.writable ? "info" : "warn", nextOutputAccess.detail);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not check output folder access.");
+    } finally {
+      setCheckingOutputAccess(false);
+    }
+  }
+
   async function openStoredLog(log: StoredLogEntry) {
     try {
       await openLocalPath(log.path);
@@ -430,8 +443,10 @@ function App() {
             <div id="export">
               <ExportConfigurator
                 canRun={exportReady}
+                checkingOutputAccess={checkingOutputAccess}
                 dryRun={dryRun}
                 isRunning={isExporting}
+                onCheckOutputAccess={checkCurrentOutputAccess}
                 onChange={setOptions}
                 onDryRunChange={setDryRun}
                 onOpenOutput={openExportFolder}

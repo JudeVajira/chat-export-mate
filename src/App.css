@@ -380,6 +380,61 @@ fieldset {
   padding: 0;
 }
 
+.advanced-options {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #edf1f5;
+  padding-top: 14px;
+}
+
+.advanced-options-heading h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 820;
+}
+
+.advanced-option-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1.1fr);
+  gap: 12px;
+}
+
+.checkbox-stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+
+.checkbox-option {
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0 10px;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.checkbox-option input {
+  width: 16px;
+  min-height: 16px;
+  flex: 0 0 auto;
+}
+
+.checkbox-option span {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 legend,
 .field span,
 .field-label {
@@ -764,7 +819,12 @@ dd {
   }
 
   .config-grid,
+  .advanced-option-grid,
   .button-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkbox-stack {
     grid-template-columns: 1fr;
   }
 

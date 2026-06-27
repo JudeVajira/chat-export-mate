@@ -1,4 +1,4 @@
-import { FolderOpen, Play, RotateCcw } from "lucide-react";
+import { FolderOpen, Play, ShieldCheck } from "lucide-react";
 import type {
   AttachmentCopyMethod,
   ExportFormat,
@@ -10,8 +10,10 @@ interface ExportConfiguratorProps {
   options: ExportOptions;
   onChange: (options: ExportOptions) => void;
   canRun: boolean;
+  checkingOutputAccess: boolean;
   dryRun: boolean;
   isRunning: boolean;
+  onCheckOutputAccess: () => void;
   onDryRunChange: (value: boolean) => void;
   onPickAttachmentRoot: () => void;
   onPickDatabase: () => void;
@@ -28,8 +30,10 @@ export function ExportConfigurator({
   options,
   onChange,
   canRun,
+  checkingOutputAccess,
   dryRun,
   isRunning,
+  onCheckOutputAccess,
   onDryRunChange,
   onPickAttachmentRoot,
   onPickDatabase,
@@ -200,13 +204,69 @@ export function ExportConfigurator({
             value={options.endDate}
           />
         </label>
+
+        <div className="advanced-options span-2">
+          <div className="advanced-options-heading">
+            <h3>Advanced options</h3>
+          </div>
+          <div className="advanced-option-grid">
+            <label className="field">
+              <span>Custom export name</span>
+              <input
+                onChange={(event) => update("customName", event.currentTarget.value)}
+                placeholder="Optional display name"
+                value={options.customName}
+              />
+            </label>
+
+            <div className="checkbox-stack">
+              <label className="checkbox-option">
+                <input
+                  checked={options.useCallerId}
+                  onChange={(event) => update("useCallerId", event.currentTarget.checked)}
+                  type="checkbox"
+                />
+                <span>Use caller ID</span>
+              </label>
+              <label className="checkbox-option">
+                <input
+                  checked={options.noLazyImages}
+                  onChange={(event) => update("noLazyImages", event.currentTarget.checked)}
+                  type="checkbox"
+                />
+                <span>Printer-ready images</span>
+              </label>
+              <label className="checkbox-option">
+                <input
+                  checked={options.ignoreDiskWarning}
+                  onChange={(event) => update("ignoreDiskWarning", event.currentTarget.checked)}
+                  type="checkbox"
+                />
+                <span>Bypass disk check</span>
+              </label>
+              <label className="checkbox-option">
+                <input
+                  checked={options.noProgress}
+                  onChange={(event) => update("noProgress", event.currentTarget.checked)}
+                  type="checkbox"
+                />
+                <span>Quiet progress output</span>
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="action-row">
         <div className="action-row-group">
-          <button className="button button--secondary" onClick={() => onChange(options)} type="button">
-            <RotateCcw aria-hidden="true" />
-            Refresh preview
+          <button
+            className="button button--secondary"
+            disabled={checkingOutputAccess}
+            onClick={onCheckOutputAccess}
+            type="button"
+          >
+            <ShieldCheck aria-hidden="true" />
+            {checkingOutputAccess ? "Checking" : "Check access"}
           </button>
           <button className="button button--secondary" onClick={onOpenOutput} type="button">
             <FolderOpen aria-hidden="true" />

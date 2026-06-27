@@ -58,6 +58,24 @@ describe("buildExporterCommand", () => {
     expect(issues.map((issue) => issue.field)).toEqual(["endDate", "customName"]);
   });
 
+  it("builds advanced identity and safety arguments", () => {
+    const command = buildExporterCommand("imessage-exporter", {
+      ...baseOptions,
+      customName: "Jude",
+      ignoreDiskWarning: true,
+      noLazyImages: false,
+      noProgress: false,
+      useCallerId: false,
+    });
+
+    expect(command.args).toContain("-m");
+    expect(command.args).toContain("Jude");
+    expect(command.args).toContain("-b");
+    expect(command.args).not.toContain("-i");
+    expect(command.args).not.toContain("-l");
+    expect(command.args).not.toContain("--no-progress");
+  });
+
   it("builds upstream diagnostic arguments with optional source paths", () => {
     const command = buildDiagnosticCommand("imessage-exporter", {
       ...baseOptions,
