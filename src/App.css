@@ -657,6 +657,27 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(31, 100, 216, 0.14);
 }
 
+.field--error input,
+.field--error select {
+  border-color: #dc2626;
+}
+
+.field--error input:focus,
+.field--error select:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.field-error-list {
+  display: grid;
+  gap: 3px;
+  margin: 7px 0 0;
+  padding-left: 18px;
+  color: #b42318;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .input-with-action {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 38px;

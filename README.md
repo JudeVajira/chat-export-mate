@@ -93,6 +93,8 @@ The setup panel includes a permission guide for the selected export source and d
 
 The Windows development harness cannot verify Apple privacy permissions; it keeps those checks as review guidance until the app is run on the Mac that contains the Messages database or backup.
 
+Configuration problems are shown both in preflight summaries and next to the form fields that need correction, so users do not need to inspect the generated command to understand what to fix.
+
 ## Export Runs And Logs
 
 When dry-run mode is off, the desktop app executes the selected `imessage-exporter` binary through the Tauri backend. Each export attempt captures:

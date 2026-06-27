@@ -37,26 +37,27 @@ export function validateExportOptions(
     });
   }
 
-  if (options.startDate && !datePattern.test(options.startDate)) {
+  const parsedStartDate = parseDateOnly(options.startDate);
+  const parsedEndDate = parseDateOnly(options.endDate);
+
+  if (options.startDate && !parsedStartDate) {
     issues.push({
       field: "startDate",
-      message: "Start date must use YYYY-MM-DD.",
+      message: "Start date must be a valid calendar date in YYYY-MM-DD format.",
     });
   }
 
-  if (options.endDate && !datePattern.test(options.endDate)) {
+  if (options.endDate && !parsedEndDate) {
     issues.push({
       field: "endDate",
-      message: "End date must use YYYY-MM-DD.",
+      message: "End date must be a valid calendar date in YYYY-MM-DD format.",
     });
   }
 
   if (
-    options.startDate &&
-    options.endDate &&
-    datePattern.test(options.startDate) &&
-    datePattern.test(options.endDate) &&
-    options.startDate >= options.endDate
+    parsedStartDate &&
+    parsedEndDate &&
+    parsedStartDate.getTime() >= parsedEndDate.getTime()
   ) {
     issues.push({
       field: "endDate",
@@ -153,6 +154,26 @@ function pushValue(args: string[], flag: string, value?: string): void {
 function isChatDatabasePath(value: string): boolean {
   const normalized = value.trim().toLowerCase().replace(/\\/gu, "/");
   return normalized === "chat.db" || normalized.endsWith("/chat.db");
+}
+
+function parseDateOnly(value?: string): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const match = datePattern.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+    ? date
+    : null;
 }
 
 function quoteForDisplay(value: string): string {

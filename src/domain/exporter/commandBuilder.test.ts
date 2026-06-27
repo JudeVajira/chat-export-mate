@@ -58,6 +58,25 @@ describe("buildExporterCommand", () => {
     expect(issues.map((issue) => issue.field)).toEqual(["endDate", "customName"]);
   });
 
+  it("validates impossible calendar dates", () => {
+    const issues = validateExportOptions("imessage-exporter", {
+      ...baseOptions,
+      startDate: "2024-02-31",
+      endDate: "2024-13-01",
+    });
+
+    expect(issues).toEqual([
+      {
+        field: "startDate",
+        message: "Start date must be a valid calendar date in YYYY-MM-DD format.",
+      },
+      {
+        field: "endDate",
+        message: "End date must be a valid calendar date in YYYY-MM-DD format.",
+      },
+    ]);
+  });
+
   it("validates platform-specific source paths", () => {
     expect(
       validateExportOptions("imessage-exporter", {

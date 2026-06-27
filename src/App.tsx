@@ -61,6 +61,7 @@ import {
   startRunProgress,
 } from "./domain/exporter/runProgress";
 import type { RunProgress } from "./domain/exporter/runProgress";
+import { groupValidationIssues } from "./domain/exporter/validation";
 import type {
   ExporterProbe,
   ExporterRelease,
@@ -147,6 +148,7 @@ function App() {
     [executablePath, options],
   );
   const issues = useMemo(() => validateExportOptions(executablePath, options), [executablePath, options]);
+  const issueMap = useMemo(() => groupValidationIssues(issues), [issues]);
   const target = useMemo(() => detectRuntimeTarget(snapshot), [snapshot]);
   const selectedAsset = useMemo(() => (release ? selectBestAsset(release, target) : null), [release, target]);
   const diagnostics = useMemo(
@@ -749,6 +751,7 @@ function App() {
                 checkingOutputAccess={checkingOutputAccess}
                 dryRun={dryRun}
                 isRunning={isExporting}
+                issueMap={issueMap}
                 onCheckOutputAccess={checkCurrentOutputAccess}
                 onChange={setOptions}
                 onDryRunChange={setDryRun}

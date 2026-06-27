@@ -6,6 +6,8 @@ import type {
   ExportPlatform,
 } from "../domain/exporter/types";
 import type { ExportPreflightSummary } from "../domain/exporter/preflight";
+import { validationMessagesFor } from "../domain/exporter/validation";
+import type { ValidationIssueMap } from "../domain/exporter/validation";
 
 interface ExportConfiguratorProps {
   options: ExportOptions;
@@ -13,6 +15,7 @@ interface ExportConfiguratorProps {
   checkingOutputAccess: boolean;
   dryRun: boolean;
   isRunning: boolean;
+  issueMap: ValidationIssueMap;
   onCheckOutputAccess: () => void;
   onDryRunChange: (value: boolean) => void;
   onPickAttachmentRoot: () => void;
@@ -33,6 +36,7 @@ export function ExportConfigurator({
   checkingOutputAccess,
   dryRun,
   isRunning,
+  issueMap,
   onCheckOutputAccess,
   onDryRunChange,
   onPickAttachmentRoot,
@@ -71,6 +75,11 @@ export function ExportConfigurator({
       : preflight.state === "blocked"
         ? TriangleAlert
         : CircleAlert;
+  const outputIssues = validationMessagesFor(issueMap, "outputPath");
+  const sourceIssues = validationMessagesFor(issueMap, "databasePath");
+  const startDateIssues = validationMessagesFor(issueMap, "startDate");
+  const endDateIssues = validationMessagesFor(issueMap, "endDate");
+  const customNameIssues = validationMessagesFor(issueMap, "customName");
 
   return (
     <section className="panel export-panel" aria-labelledby="export-title">
@@ -122,12 +131,14 @@ export function ExportConfigurator({
           </div>
         </fieldset>
 
-        <div className="field span-2">
+        <div className={`field span-2 ${outputIssues.length > 0 ? "field--error" : ""}`}>
           <label className="field-label" htmlFor="output-folder">
             Output folder
           </label>
           <div className="input-with-action">
             <input
+              aria-describedby={outputIssues.length > 0 ? "output-folder-errors" : undefined}
+              aria-invalid={outputIssues.length > 0}
               id="output-folder"
               onChange={(event) => update("outputPath", event.currentTarget.value)}
               value={options.outputPath}
@@ -141,14 +152,17 @@ export function ExportConfigurator({
               <FolderOpen aria-hidden="true" />
             </button>
           </div>
+          <FieldIssues fieldId="output-folder" issues={outputIssues} />
         </div>
 
-        <div className="field span-2">
+        <div className={`field span-2 ${sourceIssues.length > 0 ? "field--error" : ""}`}>
           <label className="field-label" htmlFor="custom-source">
             {sourceLabel}
           </label>
           <div className="input-with-action">
             <input
+              aria-describedby={sourceIssues.length > 0 ? "custom-source-errors" : undefined}
+              aria-invalid={sourceIssues.length > 0}
               id="custom-source"
               onChange={(event) => update("databasePath", event.currentTarget.value)}
               placeholder={sourcePlaceholder}
@@ -164,6 +178,7 @@ export function ExportConfigurator({
             </button>
           </div>
           <p className="field-hint">{sourceHint}</p>
+          <FieldIssues fieldId="custom-source" issues={sourceIssues} />
         </div>
 
         <label className="field">
@@ -222,22 +237,30 @@ export function ExportConfigurator({
           </p>
         </div>
 
-        <label className="field">
+        <label className={`field ${startDateIssues.length > 0 ? "field--error" : ""}`} htmlFor="start-date">
           <span>Start date</span>
           <input
+            aria-describedby={startDateIssues.length > 0 ? "start-date-errors" : undefined}
+            aria-invalid={startDateIssues.length > 0}
+            id="start-date"
             onChange={(event) => update("startDate", event.currentTarget.value)}
             placeholder="YYYY-MM-DD"
             value={options.startDate}
           />
+          <FieldIssues fieldId="start-date" issues={startDateIssues} />
         </label>
 
-        <label className="field">
+        <label className={`field ${endDateIssues.length > 0 ? "field--error" : ""}`} htmlFor="end-date">
           <span>End date</span>
           <input
+            aria-describedby={endDateIssues.length > 0 ? "end-date-errors" : undefined}
+            aria-invalid={endDateIssues.length > 0}
+            id="end-date"
             onChange={(event) => update("endDate", event.currentTarget.value)}
             placeholder="YYYY-MM-DD"
             value={options.endDate}
           />
+          <FieldIssues fieldId="end-date" issues={endDateIssues} />
         </label>
 
         <div className="advanced-options span-2">
@@ -245,13 +268,20 @@ export function ExportConfigurator({
             <h3>Advanced options</h3>
           </div>
           <div className="advanced-option-grid">
-            <label className="field">
+            <label
+              className={`field ${customNameIssues.length > 0 ? "field--error" : ""}`}
+              htmlFor="custom-export-name"
+            >
               <span>Custom export name</span>
               <input
+                aria-describedby={customNameIssues.length > 0 ? "custom-export-name-errors" : undefined}
+                aria-invalid={customNameIssues.length > 0}
+                id="custom-export-name"
                 onChange={(event) => update("customName", event.currentTarget.value)}
                 placeholder="Optional display name"
                 value={options.customName}
               />
+              <FieldIssues fieldId="custom-export-name" issues={customNameIssues} />
             </label>
 
             <div className="checkbox-stack">
@@ -343,5 +373,19 @@ export function ExportConfigurator({
         </button>
       </div>
     </section>
+  );
+}
+
+function FieldIssues({ fieldId, issues }: { fieldId: string; issues: string[] }) {
+  if (issues.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className="field-error-list" id={`${fieldId}-errors`}>
+      {issues.map((issue) => (
+        <li key={issue}>{issue}</li>
+      ))}
+    </ul>
   );
 }
