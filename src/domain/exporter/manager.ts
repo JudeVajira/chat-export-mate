@@ -15,6 +15,34 @@ export function getInstallActionLabel(
   return updateAvailable ? "Update exporter" : "Reinstall exporter";
 }
 
+export function getReleaseStatusLabel(
+  checkingRelease: boolean,
+  latestVersion: string | null | undefined,
+): string {
+  if (checkingRelease) {
+    return "checking release";
+  }
+
+  return latestVersion ? `latest ${latestVersion}` : "release unchecked";
+}
+
+export function getUpdateStatusLabel(
+  checkingRelease: boolean,
+  releaseChecked: boolean,
+  updateAvailable: boolean,
+  exporterFound: boolean,
+): string {
+  if (checkingRelease) {
+    return "Checking";
+  }
+
+  if (updateAvailable || (releaseChecked && !exporterFound)) {
+    return "Available";
+  }
+
+  return releaseChecked ? "Current" : "Unchecked";
+}
+
 export function describeProbeSource(probe: ExporterProbe): string {
   if (probe.managed || probe.source === "managed") {
     return "Managed";

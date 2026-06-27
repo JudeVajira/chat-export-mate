@@ -4,6 +4,8 @@ import {
   describeManagedState,
   getActivatableManagedVersions,
   getInstallActionLabel,
+  getReleaseStatusLabel,
+  getUpdateStatusLabel,
   isCustomExporterProbe,
   isManagedStoreReady,
 } from "./manager";
@@ -23,6 +25,17 @@ describe("exporter manager helpers", () => {
     expect(getInstallActionLabel({ found: true, source: "path" }, false)).toBe(
       "Install managed copy",
     );
+  });
+
+  it("labels release and update status while startup checks are running", () => {
+    expect(getReleaseStatusLabel(true, null)).toBe("checking release");
+    expect(getReleaseStatusLabel(false, "4.2.0")).toBe("latest 4.2.0");
+    expect(getReleaseStatusLabel(false, null)).toBe("release unchecked");
+    expect(getUpdateStatusLabel(true, false, false, false)).toBe("Checking");
+    expect(getUpdateStatusLabel(false, true, true, true)).toBe("Available");
+    expect(getUpdateStatusLabel(false, true, false, false)).toBe("Available");
+    expect(getUpdateStatusLabel(false, true, false, true)).toBe("Current");
+    expect(getUpdateStatusLabel(false, false, false, false)).toBe("Unchecked");
   });
 
   it("describes where a detected exporter came from", () => {

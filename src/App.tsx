@@ -27,7 +27,11 @@ import {
   validateExportOptions,
 } from "./domain/exporter/commandBuilder";
 import { buildDiagnostics } from "./domain/exporter/diagnostics";
-import { getInstallActionLabel } from "./domain/exporter/manager";
+import {
+  getInstallActionLabel,
+  getReleaseStatusLabel,
+  getUpdateStatusLabel,
+} from "./domain/exporter/manager";
 import {
   applyExportPreferences,
   createExportPreferences,
@@ -147,6 +151,13 @@ function App() {
   );
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
+  const releaseStatusLabel = getReleaseStatusLabel(checkingRelease, release?.version);
+  const updateStatusLabel = getUpdateStatusLabel(
+    checkingRelease,
+    Boolean(release),
+    updateAvailable,
+    probe.found,
+  );
   const exportReady = issues.length === 0 && probe.found && outputAccess.writable;
 
   useEffect(() => {
@@ -179,7 +190,10 @@ function App() {
 
   async function bootstrapWorkspace() {
     const startupOptions = await restoreExportPreferences();
-    await Promise.all([refreshHealthChecks(startupOptions.outputPath), refreshStoredLogs(false)]);
+    const healthCheckPromise = refreshHealthChecks(startupOptions.outputPath);
+    const releasePromise = refreshLatestRelease(false);
+    await Promise.all([healthCheckPromise, releasePromise, refreshStoredLogs(false)]);
+    announceStartupReleaseStatus(await healthCheckPromise, await releasePromise);
     setPreferencesLoaded(true);
   }
 
@@ -271,16 +285,38 @@ function App() {
   }
 
   async function checkRelease() {
+    await refreshLatestRelease(true);
+  }
+
+  async function refreshLatestRelease(announce: boolean): Promise<ExporterRelease | null> {
     setCheckingRelease(true);
     try {
       const latest = await checkLatestExporterRelease();
       setRelease(latest);
-      addLog("info", `Release ${latest.version} checked from GitHub.`);
+      if (announce) {
+        addLog("info", `Release ${latest.version} checked from GitHub.`);
+      }
+      return latest;
     } catch (error) {
-      addLog("error", error instanceof Error ? error.message : "Release lookup failed.");
+      const message = error instanceof Error ? error.message : "Release lookup failed.";
+      addLog(announce ? "error" : "warn", message);
+      return null;
     } finally {
       setCheckingRelease(false);
     }
+  }
+
+  function announceStartupReleaseStatus(nextProbe: ExporterProbe, latest: ExporterRelease | null) {
+    if (!latest) {
+      return;
+    }
+
+    if (isUpdateAvailable(nextProbe.version, latest.version)) {
+      addLog("warn", `imessage-exporter ${latest.version} is available.`);
+      return;
+    }
+
+    addLog("info", `Release ${latest.version} checked from GitHub.`);
   }
 
   async function installOrUpdateExporter() {
@@ -582,7 +618,7 @@ function App() {
             </div>
             <div className="status-cluster">
               <DownloadCloud aria-hidden="true" />
-              <span>{release ? `latest ${release.version}` : "release unchecked"}</span>
+              <span>{releaseStatusLabel}</span>
             </div>
             <div className="status-cluster">
               <Lock aria-hidden="true" />
@@ -604,7 +640,7 @@ function App() {
           </div>
           <div>
             <span>Update</span>
-            <strong>{updateAvailable ? "Available" : release ? "Current" : "Unchecked"}</strong>
+            <strong>{updateStatusLabel}</strong>
           </div>
           <div>
             <span>Mode</span>

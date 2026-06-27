@@ -17,6 +17,12 @@ This repository currently contains the initial Tauri + React + TypeScript applic
 
 Rust is required for `pnpm tauri dev` and desktop builds. Frontend build and Vitest checks can run before Rust is installed.
 
+On Windows, install Rust with `rustup` and run full Tauri builds from a Visual Studio Build Tools developer environment so MSVC library paths are available. If a regular shell fails with `cannot open file 'msvcrt.lib'`, start the environment first:
+
+```powershell
+cmd /d /s /c '"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 && set "PATH=%USERPROFILE%\.cargo\bin;%PATH%" && pnpm tauri build'
+```
+
 ## Install
 
 ```powershell
@@ -55,6 +61,8 @@ local paths.
 ## Managed Exporter Storage
 
 ChatExportMate manages downloaded `imessage-exporter` binaries under the app data directory exposed by Tauri. The current backend stores binaries in versioned folders and keeps an `active-version.txt` pointer so previous versions remain available for rollback work.
+
+On startup, ChatExportMate checks the latest upstream release metadata so the desktop UI can show whether an update is available. This check does not run exports or install binaries by itself.
 
 The managed exporter flow is:
 
