@@ -108,6 +108,8 @@ Run logs are written under the app data directory in `run-logs/export-run-<times
 
 The Latest result panel summarizes dry runs, exports, diagnostics, and preflight failures in plain English, with suggested fixes and saved log paths when a run creates a log. After a desktop export, it can open the exported folder and the saved run log directly from the result.
 
+The Progress panel shows the current operation steps while ChatExportMate prepares a dry run, runs an export, runs diagnostics, installs an exporter, or activates a stored managed version. Real exports show setup review, destination access, exporter execution, local log capture, and completion/error state.
+
 The History panel lists saved local export and diagnostic logs when running inside Tauri. Logs stay on the machine and can be opened from the app for troubleshooting or bug reports.
 
 The History panel can also create a local support bundle under the app data directory in `support-bundles/support-bundle-<timestamp>/`. A bundle copies saved run and diagnostic logs and adds a manifest with system/exporter context plus a reminder to review logs before sharing.

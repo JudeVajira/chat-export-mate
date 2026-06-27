@@ -17,6 +17,7 @@ import { CommandPreview } from "./components/CommandPreview";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { ExportConfigurator } from "./components/ExportConfigurator";
 import { type LogEntry, LogTimeline } from "./components/LogTimeline";
+import { RunProgressPanel } from "./components/RunProgressPanel";
 import { RunResultPanel } from "./components/RunResultPanel";
 import { SetupChecklist } from "./components/SetupChecklist";
 import { StatusPill } from "./components/StatusPill";
@@ -53,6 +54,13 @@ import {
   summarizeExportRunResult,
 } from "./domain/exporter/runResults";
 import type { RunSummary } from "./domain/exporter/runResults";
+import {
+  advanceRunProgress,
+  completeRunProgress,
+  failRunProgress,
+  startRunProgress,
+} from "./domain/exporter/runProgress";
+import type { RunProgress } from "./domain/exporter/runProgress";
 import type {
   ExporterProbe,
   ExporterRelease,
@@ -126,6 +134,7 @@ function App() {
   const [logs, setLogs] = useState<LogEntry[]>([...initialLogEntries]);
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
   const [latestRunSummary, setLatestRunSummary] = useState<RunSummary | null>(null);
+  const [runProgress, setRunProgress] = useState<RunProgress | null>(null);
   const [outputAccess, setOutputAccess] = useState<OutputAccessCheck>(
     previewOutputAccess(defaultExportOptions.outputPath),
   );
@@ -255,7 +264,11 @@ function App() {
 
   async function runDiagnostics() {
     setRunningDiagnostics(true);
+    let progress = startRunProgress("diagnostics");
+    setRunProgress(progress);
     try {
+      progress = advanceRunProgress(progress, "refresh-checks");
+      setRunProgress(progress);
       const nextProbe = await refreshHealthChecks();
       if (!nextProbe.found) {
         const summary = createRunBlockedSummary({
@@ -267,16 +280,26 @@ function App() {
           message: "Install or select imessage-exporter before running upstream diagnostics.",
         });
         setLatestRunSummary(summary);
+        setRunProgress(failRunProgress(progress, "refresh-checks", summary.detail));
         addLog("warn", summary.message);
         return;
       }
 
+      progress = advanceRunProgress(progress, "run-diagnostics");
+      setRunProgress(progress);
       const result = await runExporterDiagnostics({
         ...diagnosticCommand,
         executablePath: nextProbe.path ?? diagnosticCommand.executablePath,
       });
+      progress = advanceRunProgress(progress, "save-log");
+      setRunProgress(progress);
       const summary = summarizeDiagnosticRunResult(result);
       setLatestRunSummary(summary);
+      setRunProgress(
+        result.success
+          ? completeRunProgress(progress, "Diagnostics completed and the local log was saved.")
+          : failRunProgress(progress, "run-diagnostics", summary.detail),
+      );
       addLog(summary.level, summary.message);
       await refreshStoredLogs(false);
     } catch (error) {
@@ -290,6 +313,7 @@ function App() {
         message: detail,
       });
       setLatestRunSummary(summary);
+      setRunProgress(failRunProgress(progress, "run-diagnostics", summary.detail));
       addLog("error", summary.message);
     } finally {
       setRunningDiagnostics(false);
@@ -333,13 +357,20 @@ function App() {
 
   async function installOrUpdateExporter() {
     setInstallingExporter(true);
+    let progress = startRunProgress("managed-install");
+    setRunProgress(progress);
     try {
+      progress = advanceRunProgress(progress, "download");
+      setRunProgress(progress);
       const result = await installLatestExporter();
+      progress = advanceRunProgress(progress, "verify");
+      setRunProgress(progress);
       setRelease(result.release);
       setProbe(result.probe);
       setManagedState(result.state);
       const summary = summarizeManagedInstallResult(result);
       setLatestRunSummary(summary);
+      setRunProgress(completeRunProgress(progress, summary.detail));
       addLog(summary.level, summary.message);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Exporter install failed.";
@@ -349,6 +380,7 @@ function App() {
         suggestedFix: "Check the latest release, confirm network access, then try the managed install again.",
       });
       setLatestRunSummary(summary);
+      setRunProgress(failRunProgress(progress, "download", summary.detail));
       addLog("error", summary.message);
     } finally {
       setInstallingExporter(false);
@@ -357,12 +389,19 @@ function App() {
 
   async function activateManagedVersion(version: string) {
     setActivatingManagedVersion(version);
+    let progress = startRunProgress("managed-activation");
+    setRunProgress(progress);
     try {
+      progress = advanceRunProgress(progress, "verify");
+      setRunProgress(progress);
       const result = await activateManagedExporterVersion(version);
+      progress = advanceRunProgress(progress, "activate");
+      setRunProgress(progress);
       setProbe(result.probe);
       setManagedState(result.state);
       const summary = summarizeManagedActivationResult(version, result);
       setLatestRunSummary(summary);
+      setRunProgress(completeRunProgress(progress, summary.detail));
       addLog(summary.level, summary.message);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Managed exporter rollback failed.";
@@ -372,6 +411,7 @@ function App() {
         suggestedFix: "Choose another stored version or reinstall the latest managed exporter.",
       });
       setLatestRunSummary(summary);
+      setRunProgress(failRunProgress(progress, "verify", summary.detail));
       addLog("error", summary.message);
     } finally {
       setActivatingManagedVersion(null);
@@ -419,14 +459,20 @@ function App() {
 
   async function runExport() {
     if (dryRun) {
+      const progress = startRunProgress("dry-run");
       const summary = createDryRunSummary(command.args.length);
       setLatestRunSummary(summary);
+      setRunProgress(completeRunProgress(progress, summary.detail));
       addLog(summary.level, summary.message);
       return;
     }
 
     setIsExporting(true);
+    let progress = startRunProgress("export");
+    setRunProgress(progress);
     try {
+      progress = advanceRunProgress(progress, "output-access");
+      setRunProgress(progress);
       const nextOutputAccess = await refreshOutputAccess(options.outputPath);
       if (!nextOutputAccess.writable) {
         const summary = createRunBlockedSummary({
@@ -438,16 +484,26 @@ function App() {
           message: `Output access check failed. ${nextOutputAccess.detail}`,
         });
         setLatestRunSummary(summary);
+        setRunProgress(failRunProgress(progress, "output-access", summary.detail));
         addLog(summary.level, summary.message);
         return;
       }
 
+      progress = advanceRunProgress(progress, "run-exporter");
+      setRunProgress(progress);
       const result = await executeExporter({
         ...command,
         outputPath: options.outputPath,
       });
+      progress = advanceRunProgress(progress, "save-log");
+      setRunProgress(progress);
       const summary = summarizeExportRunResult(result);
       setLatestRunSummary(summary);
+      setRunProgress(
+        result.success
+          ? completeRunProgress(progress, "Export completed and the local run log was saved.")
+          : failRunProgress(progress, "run-exporter", summary.detail),
+      );
       addLog(summary.level, summary.message);
       await refreshStoredLogs(false);
     } catch (error) {
@@ -461,6 +517,7 @@ function App() {
         message: detail,
       });
       setLatestRunSummary(summary);
+      setRunProgress(failRunProgress(progress, "run-exporter", summary.detail));
       addLog("error", summary.message);
     } finally {
       setIsExporting(false);
@@ -704,6 +761,7 @@ function App() {
                 preflight={preflight}
               />
             </div>
+            <RunProgressPanel progress={runProgress} />
             <CommandPreview command={command} issues={issues} />
             <RunResultPanel
               onOpenLog={openLatestRunLog}

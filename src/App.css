@@ -774,6 +774,104 @@ pre {
   overflow: hidden;
 }
 
+.progress-panel {
+  overflow: hidden;
+}
+
+.section-heading--progress {
+  align-items: center;
+}
+
+.progress-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.progress-state--active {
+  background: #dceafe;
+  color: #174ea6;
+}
+
+.progress-state--completed {
+  background: #dff6ec;
+  color: #126a4d;
+}
+
+.progress-state--failed {
+  background: #fee2e2;
+  color: #b42318;
+}
+
+.progress-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.progress-detail {
+  margin: 0;
+  color: #475569;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.progress-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.progress-step svg {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: #94a3b8;
+}
+
+.progress-step--active svg {
+  color: #1f64d8;
+}
+
+.progress-step--completed svg {
+  color: #15845e;
+}
+
+.progress-step--failed svg {
+  color: #b42318;
+}
+
+.progress-step strong {
+  display: block;
+  color: #172033;
+  font-size: 0.84rem;
+  font-weight: 820;
+}
+
+.progress-step p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 .result-body {
   display: grid;
   gap: 14px;
