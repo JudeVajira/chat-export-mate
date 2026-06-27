@@ -498,7 +498,8 @@ dd {
 
 .preflight-main p,
 .preflight-list,
-.preflight-notes {
+.preflight-notes,
+.preflight-action-detail {
   margin: 0;
   color: #64748b;
   font-size: 0.84rem;
@@ -523,6 +524,12 @@ dd {
   border-radius: 999px;
   background: #f8fafc;
   padding: 4px 8px;
+}
+
+.preflight-action-detail {
+  border-top: 1px solid #edf1f5;
+  padding-top: 10px;
+  padding-left: 42px;
 }
 
 fieldset {

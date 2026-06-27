@@ -10,6 +10,12 @@ const readyDiagnostics: DiagnosticItem[] = [
     state: "passed",
   },
   {
+    id: "asset",
+    label: "Download asset",
+    detail: "imessage-exporter.exe selected for x86_64-pc-windows-gnu",
+    state: "passed",
+  },
+  {
     id: "configuration",
     label: "Configuration",
     detail: "Export options are ready",
@@ -31,6 +37,7 @@ describe("buildExportPreflightSummary", () => {
       actionLabel: "Start export",
       canRunExport: true,
       blockingReasons: [],
+      recommendedAction: null,
     });
   });
 
@@ -85,6 +92,71 @@ describe("buildExportPreflightSummary", () => {
         "Exporter: imessage-exporter was not found",
         "Configuration: Choose an output folder for exported files.",
       ],
+    });
+  });
+
+  it("recommends installing the managed exporter when the exporter is missing and an asset is available", () => {
+    expect(
+      buildExportPreflightSummary(
+        [
+          {
+            id: "exporter",
+            label: "Exporter",
+            detail: "imessage-exporter was not found",
+            state: "action",
+          },
+          {
+            id: "asset",
+            label: "Download asset",
+            detail: "imessage-exporter.exe selected for x86_64-pc-windows-gnu",
+            state: "passed",
+          },
+          {
+            id: "configuration",
+            label: "Configuration",
+            detail: "Export options are ready",
+            state: "passed",
+          },
+          {
+            id: "output-access",
+            label: "Output access",
+            detail: "Output folder is writable.",
+            state: "passed",
+          },
+        ],
+        false,
+      ),
+    ).toMatchObject({
+      state: "blocked",
+      actionLabel: "Resolve preflight",
+      recommendedAction: {
+        id: "install-exporter",
+        label: "Install exporter",
+      },
+    });
+  });
+
+  it("does not recommend managed install when no compatible release asset is available", () => {
+    expect(
+      buildExportPreflightSummary(
+        [
+          {
+            id: "exporter",
+            label: "Exporter",
+            detail: "imessage-exporter was not found",
+            state: "action",
+          },
+          {
+            id: "asset",
+            label: "Download asset",
+            detail: "No compatible prebuilt asset selected for this platform",
+            state: "action",
+          },
+        ],
+        false,
+      ),
+    ).toMatchObject({
+      recommendedAction: null,
     });
   });
 

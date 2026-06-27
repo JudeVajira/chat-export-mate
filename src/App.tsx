@@ -825,12 +825,14 @@ function App() {
               <ExportConfigurator
                 checkingOutputAccess={checkingOutputAccess}
                 dryRun={dryRun}
+                isPreparingExporter={installingExporter}
                 isRunning={isExporting}
                 issueMap={issueMap}
                 onCheckOutputAccess={checkCurrentOutputAccess}
                 onChange={setOptions}
                 onDryRunChange={setDryRun}
                 onOpenOutput={openExportFolder}
+                onPrepareExporter={installOrUpdateExporter}
                 onPickAttachmentRoot={pickAttachmentRoot}
                 onPickOutput={pickOutputFolder}
                 onPickSource={pickSourcePath}

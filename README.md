@@ -95,6 +95,8 @@ The Windows development harness cannot verify Apple privacy permissions; it keep
 
 Configuration problems are shown both in preflight summaries and next to the form fields that need correction, so users do not need to inspect the generated command to understand what to fix.
 
+When a real export is blocked only because `imessage-exporter` is missing, the Export panel offers **Install exporter** as the primary preflight action. That action uses the managed installer, verifies the downloaded binary, activates it, and returns users to the same guided export flow.
+
 ## Export Runs And Logs
 
 When dry-run mode is off, the desktop app executes the selected `imessage-exporter` binary through the Tauri backend. Each export attempt captures:

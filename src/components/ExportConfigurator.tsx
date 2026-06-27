@@ -1,4 +1,12 @@
-import { CircleAlert, CircleCheck, FolderOpen, Play, ShieldCheck, TriangleAlert } from "lucide-react";
+import {
+  CircleAlert,
+  CircleCheck,
+  DownloadCloud,
+  FolderOpen,
+  Play,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import type {
   AttachmentCopyMethod,
   ExportFormat,
@@ -15,9 +23,11 @@ interface ExportConfiguratorProps {
   checkingOutputAccess: boolean;
   dryRun: boolean;
   isRunning: boolean;
+  isPreparingExporter?: boolean;
   issueMap: ValidationIssueMap;
   onCheckOutputAccess: () => void;
   onDryRunChange: (value: boolean) => void;
+  onPrepareExporter?: () => void;
   onPickAttachmentRoot: () => void;
   onPickOutput: () => void;
   onPickSource: () => void;
@@ -36,9 +46,11 @@ export function ExportConfigurator({
   checkingOutputAccess,
   dryRun,
   isRunning,
+  isPreparingExporter = false,
   issueMap,
   onCheckOutputAccess,
   onDryRunChange,
+  onPrepareExporter,
   onPickAttachmentRoot,
   onPickOutput,
   onPickSource,
@@ -80,6 +92,20 @@ export function ExportConfigurator({
   const startDateIssues = validationMessagesFor(issueMap, "startDate");
   const endDateIssues = validationMessagesFor(issueMap, "endDate");
   const customNameIssues = validationMessagesFor(issueMap, "customName");
+  const canPrepareExporter =
+    !dryRun && preflight.recommendedAction?.id === "install-exporter" && Boolean(onPrepareExporter);
+  const primaryActionLabel = canPrepareExporter
+    ? isPreparingExporter
+      ? "Installing exporter"
+      : preflight.recommendedAction?.label ?? preflight.actionLabel
+    : isRunning
+      ? "Running export"
+      : preflight.actionLabel;
+  const primaryActionDisabled =
+    isRunning ||
+    isPreparingExporter ||
+    ((!preflight.canRunExport && !dryRun) && !canPrepareExporter);
+  const PrimaryActionIcon = canPrepareExporter ? DownloadCloud : Play;
 
   return (
     <section className="panel export-panel" aria-labelledby="export-title">
@@ -344,6 +370,9 @@ export function ExportConfigurator({
             ))}
           </div>
         ) : null}
+        {!dryRun && preflight.recommendedAction ? (
+          <p className="preflight-action-detail">{preflight.recommendedAction.detail}</p>
+        ) : null}
       </div>
 
       <div className="action-row">
@@ -364,12 +393,12 @@ export function ExportConfigurator({
         </div>
         <button
           className="button button--primary"
-          disabled={isRunning || (!preflight.canRunExport && !dryRun)}
-          onClick={onRun}
+          disabled={primaryActionDisabled}
+          onClick={canPrepareExporter ? onPrepareExporter : onRun}
           type="button"
         >
-          <Play aria-hidden="true" />
-          {isRunning ? "Running export" : preflight.actionLabel}
+          <PrimaryActionIcon aria-hidden="true" />
+          {primaryActionLabel}
         </button>
       </div>
     </section>

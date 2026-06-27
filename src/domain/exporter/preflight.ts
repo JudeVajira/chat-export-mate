@@ -10,6 +10,13 @@ export interface ExportPreflightSummary {
   canRunExport: boolean;
   blockingReasons: string[];
   nonBlockingNotes: string[];
+  recommendedAction: ExportPreflightAction | null;
+}
+
+export interface ExportPreflightAction {
+  id: "install-exporter";
+  label: string;
+  detail: string;
 }
 
 const exportBlockingCheckIds = new Set(["exporter", "configuration", "output-access"]);
@@ -27,6 +34,7 @@ export function buildExportPreflightSummary(
     .map(formatDiagnosticReason);
 
   const canRunExport = blockingReasons.length === 0;
+  const recommendedAction = findRecommendedAction(diagnostics);
 
   if (canRunExport) {
     return {
@@ -39,6 +47,7 @@ export function buildExportPreflightSummary(
       canRunExport,
       blockingReasons,
       nonBlockingNotes,
+      recommendedAction: null,
     };
   }
 
@@ -51,6 +60,7 @@ export function buildExportPreflightSummary(
       canRunExport,
       blockingReasons,
       nonBlockingNotes,
+      recommendedAction,
     };
   }
 
@@ -62,9 +72,25 @@ export function buildExportPreflightSummary(
     canRunExport,
     blockingReasons,
     nonBlockingNotes,
+    recommendedAction,
   };
 }
 
 function formatDiagnosticReason(item: DiagnosticItem): string {
   return `${item.label}: ${item.detail}`;
+}
+
+function findRecommendedAction(diagnostics: DiagnosticItem[]): ExportPreflightAction | null {
+  const exporter = diagnostics.find((item) => item.id === "exporter");
+  const asset = diagnostics.find((item) => item.id === "asset");
+
+  if (exporter?.state !== "passed" && asset?.state === "passed") {
+    return {
+      id: "install-exporter",
+      label: "Install exporter",
+      detail: "ChatExportMate can download, verify, and activate the managed imessage-exporter binary before you export.",
+    };
+  }
+
+  return null;
 }
