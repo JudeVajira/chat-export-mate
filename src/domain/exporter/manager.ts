@@ -90,3 +90,25 @@ export function isManagedStoreReady(state: ManagedExporterState): boolean {
 export function getActivatableManagedVersions(state: ManagedExporterState): string[] {
   return state.installedVersions.filter((version) => version !== state.activeVersion);
 }
+
+export function describeCachedAssets(state: ManagedExporterState): string {
+  const cachedAssets = state.cachedAssets ?? [];
+  if (cachedAssets.length === 0) {
+    return "None";
+  }
+
+  const totalBytes = cachedAssets.reduce((total, asset) => total + asset.size, 0);
+  return `${cachedAssets.length} cached ${cachedAssets.length === 1 ? "asset" : "assets"} (${formatCachedAssetSize(totalBytes)})`;
+}
+
+export function formatCachedAssetSize(size: number): string {
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  if (size >= 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${size} B`;
+}

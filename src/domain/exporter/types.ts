@@ -149,11 +149,20 @@ export interface ExporterProbe {
   source?: string;
 }
 
+export interface CachedReleaseAsset {
+  id: string;
+  version: string;
+  fileName: string;
+  path: string;
+  size: number;
+}
+
 export interface ManagedExporterState {
   installRoot: string;
   activePath?: string | null;
   activeVersion?: string | null;
   installedVersions: string[];
+  cachedAssets?: CachedReleaseAsset[];
   error?: string | null;
 }
 

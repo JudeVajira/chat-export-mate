@@ -62,6 +62,8 @@ local paths.
 
 ChatExportMate manages downloaded `imessage-exporter` binaries under the app data directory exposed by Tauri. The current backend stores binaries in versioned folders and keeps an `active-version.txt` pointer so previous versions remain available for rollback work.
 
+Downloaded release assets are cached under `exporter/cache/<version>/` in app data. Reinstalling or updating to a release reuses a cached asset when its file size still matches the GitHub release metadata, then stages and verifies the executable before activation.
+
 On startup, ChatExportMate checks the latest upstream release metadata so the desktop UI can show whether an update is available. This check does not run exports or install binaries by itself.
 
 The managed exporter flow is:
@@ -69,10 +71,11 @@ The managed exporter flow is:
 1. Check the latest upstream GitHub release.
 2. Select the prebuilt asset for the current OS and architecture.
 3. Prefer a direct executable asset, or download and extract the exporter binary from a `.tar.gz` asset when needed.
-4. Verify the downloaded binary can report its version.
-5. Store it under the versioned managed exporter directory.
-6. Activate the verified managed version.
-7. Prefer the managed binary during future exporter detection, then fall back to a verified selected binary and finally `PATH`.
+4. Cache the downloaded release asset locally for future reinstalls or updates.
+5. Verify the staged binary can report its version.
+6. Store it under the versioned managed exporter directory.
+7. Activate the verified managed version.
+8. Prefer the managed binary during future exporter detection, then fall back to a verified selected binary and finally `PATH`.
 
 Previously stored managed versions remain available in the Release channel panel and can be reactivated for rollback after the app verifies the stored binary.
 

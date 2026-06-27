@@ -47,6 +47,7 @@ const browserManagedState: ManagedExporterState = {
   activePath: null,
   activeVersion: null,
   installedVersions: [],
+  cachedAssets: [],
   error: "Managed installs are available when running inside Tauri.",
 };
 

@@ -8,7 +8,12 @@ import {
   RotateCcw,
   XCircle,
 } from "lucide-react";
-import { getActivatableManagedVersions, isCustomExporterProbe } from "../domain/exporter/manager";
+import {
+  describeCachedAssets,
+  formatCachedAssetSize,
+  getActivatableManagedVersions,
+  isCustomExporterProbe,
+} from "../domain/exporter/manager";
 import type {
   DiagnosticItem,
   ExporterProbe,
@@ -58,6 +63,7 @@ export function DiagnosticsPanel({
   onSelectCustomExporter: () => void;
 }) {
   const activatableVersions = getActivatableManagedVersions(managedState);
+  const cachedAssets = managedState.cachedAssets ?? [];
   const defaultVersion = activatableVersions[0] ?? managedState.activeVersion ?? "";
   const [selectedVersion, setSelectedVersion] = useState(defaultVersion);
 
@@ -167,7 +173,23 @@ export function DiagnosticsPanel({
                 : "None"}
             </dd>
           </div>
+          <div>
+            <dt>Cached downloads</dt>
+            <dd>{describeCachedAssets(managedState)}</dd>
+          </div>
         </dl>
+        {cachedAssets.length > 0 ? (
+          <div className="cache-list" aria-label="Cached release downloads">
+            {cachedAssets.slice(0, 3).map((asset) => (
+              <div className="cache-row" key={asset.id}>
+                <strong>{asset.version}</strong>
+                <span>
+                  {asset.fileName} - {formatCachedAssetSize(asset.size)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {managedState.installedVersions.length > 0 ? (
           <div className="version-switcher">
             <label className="field-label" htmlFor="managed-version">

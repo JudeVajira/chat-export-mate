@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeCachedAssets,
   describeProbeSource,
   describeManagedState,
+  formatCachedAssetSize,
   getActivatableManagedVersions,
   getInstallActionLabel,
   getReleaseStatusLabel,
@@ -73,5 +75,37 @@ describe("exporter manager helpers", () => {
         installedVersions: ["4.2.0", "4.1.0", "4.0.0"],
       }),
     ).toEqual(["4.1.0", "4.0.0"]);
+  });
+
+  it("summarizes cached release assets", () => {
+    expect(describeCachedAssets({ installRoot: "store", installedVersions: [] })).toBe("None");
+    expect(
+      describeCachedAssets({
+        installRoot: "store",
+        installedVersions: [],
+        cachedAssets: [
+          {
+            id: "4.2.0/imessage-exporter.exe",
+            version: "4.2.0",
+            fileName: "imessage-exporter.exe",
+            path: "store/cache/4.2.0/imessage-exporter.exe",
+            size: 5 * 1024 * 1024,
+          },
+          {
+            id: "4.1.0/imessage-exporter.exe",
+            version: "4.1.0",
+            fileName: "imessage-exporter.exe",
+            path: "store/cache/4.1.0/imessage-exporter.exe",
+            size: 1024,
+          },
+        ],
+      }),
+    ).toBe("2 cached assets (5.0 MB)");
+  });
+
+  it("formats cached asset sizes", () => {
+    expect(formatCachedAssetSize(512)).toBe("512 B");
+    expect(formatCachedAssetSize(1536)).toBe("1.5 KB");
+    expect(formatCachedAssetSize(2 * 1024 * 1024)).toBe("2.0 MB");
   });
 });

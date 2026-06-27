@@ -861,6 +861,37 @@ pre {
   padding: 14px 16px 2px;
 }
 
+.cache-list {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px 0;
+}
+
+.cache-row {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  border-top: 1px solid #edf1f5;
+  padding-top: 8px;
+}
+
+.cache-row strong,
+.cache-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cache-row strong {
+  color: #172033;
+  font-size: 0.82rem;
+}
+
+.cache-row span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
 .version-switcher-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

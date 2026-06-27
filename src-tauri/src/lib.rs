@@ -15,6 +15,7 @@ const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/ReagentX/imessage-exporter/releases/latest";
 const EXPORTER_STORE_DIR: &str = "exporter";
 const VERSIONS_DIR: &str = "versions";
+const CACHE_DIR: &str = "cache";
 const STAGING_DIR: &str = "staging";
 const ACTIVE_VERSION_FILE: &str = "active-version.txt";
 const CUSTOM_EXPORTER_FILE: &str = "custom-exporter-path.txt";
@@ -68,11 +69,22 @@ struct ExporterReleaseInfo {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct CachedReleaseAsset {
+    id: String,
+    version: String,
+    file_name: String,
+    path: String,
+    size: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ManagedExporterState {
     install_root: String,
     active_path: Option<String>,
     active_version: Option<String>,
     installed_versions: Vec<String>,
+    cached_assets: Vec<CachedReleaseAsset>,
     error: Option<String>,
 }
 
@@ -223,6 +235,7 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
 
     let root = managed_exporter_root(&app)?;
     let version = normalize_version(&release.tag_name);
+    let cache_path = cached_asset_path(&root, &version, &asset.name)?;
     let staging_dir = root
         .join(STAGING_DIR)
         .join(format!("{}-{}", version, timestamp_millis()));
@@ -230,14 +243,7 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
 
     let staging_binary_path = staging_dir.join(exporter_binary_name());
     let temp_path = staging_dir.join(format!("{}.download", exporter_binary_name()));
-    let bytes = http_client()?
-        .get(&asset.browser_download_url)
-        .send()
-        .map_err(to_string)?
-        .error_for_status()
-        .map_err(to_string)?
-        .bytes()
-        .map_err(to_string)?;
+    let bytes = read_or_download_asset(&asset, &cache_path)?;
 
     stage_downloaded_asset(&asset.name, &bytes, &temp_path, &staging_binary_path)?;
 
@@ -345,8 +351,11 @@ fn set_custom_exporter_path(
 
     let root = managed_exporter_root(&app)?;
     fs::create_dir_all(&root).map_err(to_string)?;
-    fs::write(root.join(CUSTOM_EXPORTER_FILE), path.to_string_lossy().to_string())
-        .map_err(to_string)?;
+    fs::write(
+        root.join(CUSTOM_EXPORTER_FILE),
+        path.to_string_lossy().to_string(),
+    )
+    .map_err(to_string)?;
     Ok(probe)
 }
 
@@ -435,12 +444,7 @@ fn execute_exporter(
             output.status.code(),
             output.status.success(),
         ),
-        Err(error) => (
-            String::new(),
-            error.to_string(),
-            None,
-            false,
-        ),
+        Err(error) => (String::new(), error.to_string(), None, false),
     };
 
     let log_path = write_run_log(
@@ -486,12 +490,9 @@ fn check_output_access(request: OutputAccessRequest) -> OutputAccessResult {
     let resolved_path_text = resolved_path.to_string_lossy().to_string();
     match writable_probe_directory(&resolved_path) {
         Ok((directory, target_exists)) => {
-            let probe_path = directory.join(format!(
-                ".chatexportmate-write-test-{}.tmp",
-                checked_at
-            ));
-            match fs::write(&probe_path, b"write test").and_then(|_| fs::remove_file(&probe_path))
-            {
+            let probe_path =
+                directory.join(format!(".chatexportmate-write-test-{}.tmp", checked_at));
+            match fs::write(&probe_path, b"write test").and_then(|_| fs::remove_file(&probe_path)) {
                 Ok(()) => OutputAccessResult {
                     path,
                     resolved_path: resolved_path_text,
@@ -547,12 +548,7 @@ fn run_exporter_diagnostics(
             output.status.code(),
             output.status.success(),
         ),
-        Err(error) => (
-            String::new(),
-            error.to_string(),
-            None,
-            false,
-        ),
+        Err(error) => (String::new(), error.to_string(), None, false),
     };
 
     let log_path = write_diagnostic_log(
@@ -595,8 +591,10 @@ fn create_support_bundle(app: AppHandle) -> Result<SupportBundleResult, String> 
     fs::create_dir_all(&logs_path).map_err(to_string)?;
 
     let export_log_count = copy_log_files(run_log_root(&app)?, logs_path.join(RUN_LOG_DIR))?;
-    let diagnostic_log_count =
-        copy_log_files(diagnostic_log_root(&app)?, logs_path.join(DIAGNOSTIC_LOG_DIR))?;
+    let diagnostic_log_count = copy_log_files(
+        diagnostic_log_root(&app)?,
+        logs_path.join(DIAGNOSTIC_LOG_DIR),
+    )?;
     let log_count = export_log_count + diagnostic_log_count;
     let manifest_path = bundle_path.join("manifest.txt");
 
@@ -669,7 +667,10 @@ fn writable_probe_directory(path: &Path) -> Result<(PathBuf, bool), String> {
         return Err("Output path points to a file. Choose a folder instead.".to_string());
     }
 
-    match path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    match path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         Some(parent) if parent.is_dir() => Ok((parent.to_path_buf(), false)),
         _ => Err("Output folder does not exist and its parent folder was not found.".to_string()),
     }
@@ -717,9 +718,16 @@ fn copy_log_files(source_root: PathBuf, destination_root: PathBuf) -> Result<usi
 
     fs::create_dir_all(&destination_root).map_err(to_string)?;
     let mut copied_count = 0;
-    for entry in fs::read_dir(source_root).map_err(to_string)?.filter_map(Result::ok) {
+    for entry in fs::read_dir(source_root)
+        .map_err(to_string)?
+        .filter_map(Result::ok)
+    {
         let source_path = entry.path();
-        if source_path.extension().and_then(|extension| extension.to_str()) != Some("log") {
+        if source_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            != Some("log")
+        {
             continue;
         }
 
@@ -741,6 +749,16 @@ fn support_bundle_manifest(
     diagnostic_log_count: usize,
 ) -> String {
     let managed_state = management_state(app);
+    let active_managed_version = managed_state
+        .active_version
+        .unwrap_or_else(|| "none".to_string());
+    let installed_managed_versions = if managed_state.installed_versions.is_empty() {
+        "none".to_string()
+    } else {
+        managed_state.installed_versions.join(", ")
+    };
+    let cached_asset_count = managed_state.cached_assets.len();
+
     format!(
         "ChatExportMate support bundle\n\
 created_at: {created_at}\n\
@@ -749,18 +767,13 @@ arch: {}\n\
 export_logs: {export_log_count}\n\
 diagnostic_logs: {diagnostic_log_count}\n\
 active_managed_version: {}\n\
-installed_managed_versions: {}\n\n\
+installed_managed_versions: {}\n\
+cached_release_assets: {cached_asset_count}\n\n\
 Privacy note: this bundle is created locally and is not uploaded by ChatExportMate. Logs may contain local file paths, exporter command arguments, stdout, stderr, and other troubleshooting details. Review the files before sharing them in a bug report.\n",
         env::consts::OS,
         env::consts::ARCH,
-        managed_state
-            .active_version
-            .unwrap_or_else(|| "none".to_string()),
-        if managed_state.installed_versions.is_empty() {
-            "none".to_string()
-        } else {
-            managed_state.installed_versions.join(", ")
-        }
+        active_managed_version,
+        installed_managed_versions
     )
 }
 
@@ -828,7 +841,10 @@ fn collect_stored_logs(
         return Ok(());
     }
 
-    for entry in fs::read_dir(root).map_err(to_string)?.filter_map(Result::ok) {
+    for entry in fs::read_dir(root)
+        .map_err(to_string)?
+        .filter_map(Result::ok)
+    {
         let path = entry.path();
         if path.extension().and_then(|extension| extension.to_str()) != Some("log") {
             continue;
@@ -849,12 +865,7 @@ fn collect_stored_logs(
     Ok(())
 }
 
-fn parse_stored_log(
-    kind: &str,
-    file_name: String,
-    path: PathBuf,
-    content: &str,
-) -> StoredLogEntry {
+fn parse_stored_log(kind: &str, file_name: String, path: PathBuf, content: &str) -> StoredLogEntry {
     let header = parse_log_header(content);
     StoredLogEntry {
         id: format!("{kind}:{file_name}"),
@@ -916,7 +927,11 @@ fn management_state(app: &AppHandle) -> ManagedExporterState {
             let active_version = active_managed_version(&root);
             let active_path = active_version
                 .as_ref()
-                .map(|version| root.join(VERSIONS_DIR).join(version).join(exporter_binary_name()))
+                .map(|version| {
+                    root.join(VERSIONS_DIR)
+                        .join(version)
+                        .join(exporter_binary_name())
+                })
                 .filter(|path| path.is_file())
                 .map(|path| path.to_string_lossy().to_string());
 
@@ -925,6 +940,7 @@ fn management_state(app: &AppHandle) -> ManagedExporterState {
                 active_path,
                 active_version,
                 installed_versions: installed_versions(&root),
+                cached_assets: cached_release_assets(&root),
                 error: None,
             }
         }
@@ -933,6 +949,7 @@ fn management_state(app: &AppHandle) -> ManagedExporterState {
             active_path: None,
             active_version: None,
             installed_versions: Vec::new(),
+            cached_assets: Vec::new(),
             error: Some(error),
         },
     }
@@ -978,6 +995,64 @@ fn installed_versions(root: &Path) -> Vec<String> {
     versions.sort();
     versions.reverse();
     versions
+}
+
+fn cached_release_assets(root: &Path) -> Vec<CachedReleaseAsset> {
+    let cache_root = root.join(CACHE_DIR);
+    let mut assets = Vec::new();
+
+    let Some(version_entries) = fs::read_dir(&cache_root).ok() else {
+        return assets;
+    };
+
+    for version_entry in version_entries.filter_map(Result::ok) {
+        let version_path = version_entry.path();
+        if !version_path.is_dir() {
+            continue;
+        }
+
+        let Some(version) = version_entry.file_name().into_string().ok() else {
+            continue;
+        };
+
+        let Some(asset_entries) = fs::read_dir(&version_path).ok() else {
+            continue;
+        };
+
+        for asset_entry in asset_entries.filter_map(Result::ok) {
+            let asset_path = asset_entry.path();
+            if !asset_path.is_file() {
+                continue;
+            }
+
+            let Some(file_name) = asset_entry.file_name().into_string().ok() else {
+                continue;
+            };
+            if file_name.ends_with(".download") {
+                continue;
+            }
+
+            let size = asset_entry
+                .metadata()
+                .map(|metadata| metadata.len())
+                .unwrap_or_default();
+            assets.push(CachedReleaseAsset {
+                id: format!("{version}/{file_name}"),
+                version: version.clone(),
+                file_name,
+                path: asset_path.to_string_lossy().to_string(),
+                size,
+            });
+        }
+    }
+
+    assets.sort_by(|left, right| {
+        right
+            .version
+            .cmp(&left.version)
+            .then_with(|| left.file_name.cmp(&right.file_name))
+    });
+    assets
 }
 
 fn fetch_latest_release() -> Result<GitHubRelease, String> {
@@ -1036,6 +1111,103 @@ fn select_release_asset(release: &GitHubRelease) -> Result<ReleaseAsset, String>
         .into_iter()
         .next()
         .ok_or_else(|| "No compatible release asset was selected".to_string())
+}
+
+fn cached_asset_path(root: &Path, version: &str, asset_name: &str) -> Result<PathBuf, String> {
+    Ok(root
+        .join(CACHE_DIR)
+        .join(version)
+        .join(cache_safe_asset_file_name(asset_name)?))
+}
+
+fn cache_safe_asset_file_name(asset_name: &str) -> Result<String, String> {
+    let file_name = asset_name
+        .trim()
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric()
+                || character == '.'
+                || character == '-'
+                || character == '_'
+            {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+
+    if file_name.is_empty() || file_name.chars().all(|character| character == '.') {
+        return Err("Release asset name is not usable for the local cache.".to_string());
+    }
+
+    Ok(file_name)
+}
+
+fn read_or_download_asset(asset: &ReleaseAsset, cache_path: &Path) -> Result<Vec<u8>, String> {
+    if cached_asset_is_usable(asset, cache_path) {
+        return fs::read(cache_path).map_err(to_string);
+    }
+
+    download_asset_to_cache(asset, cache_path)?;
+    fs::read(cache_path).map_err(to_string)
+}
+
+fn cached_asset_is_usable(asset: &ReleaseAsset, cache_path: &Path) -> bool {
+    let Ok(metadata) = fs::metadata(cache_path) else {
+        return false;
+    };
+
+    if !metadata.is_file() || metadata.len() == 0 {
+        return false;
+    }
+
+    asset
+        .size
+        .map(|expected_size| expected_size == metadata.len())
+        .unwrap_or(true)
+}
+
+fn download_asset_to_cache(asset: &ReleaseAsset, cache_path: &Path) -> Result<(), String> {
+    let parent = cache_path
+        .parent()
+        .ok_or_else(|| "Could not resolve the managed download cache directory.".to_string())?;
+    fs::create_dir_all(parent).map_err(to_string)?;
+
+    let bytes = http_client()?
+        .get(&asset.browser_download_url)
+        .send()
+        .map_err(to_string)?
+        .error_for_status()
+        .map_err(to_string)?
+        .bytes()
+        .map_err(to_string)?;
+
+    if let Some(expected_size) = asset.size {
+        if bytes.len() as u64 != expected_size {
+            return Err(format!(
+                "Downloaded {} bytes for {}, but GitHub reported {} bytes.",
+                bytes.len(),
+                asset.name,
+                expected_size
+            ));
+        }
+    }
+
+    let temp_path = parent.join(format!(
+        "{}.{}.download",
+        cache_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("asset"),
+        timestamp_millis()
+    ));
+
+    fs::write(&temp_path, bytes).map_err(to_string)?;
+    if cache_path.exists() {
+        fs::remove_file(cache_path).map_err(to_string)?;
+    }
+    fs::rename(temp_path, cache_path).map_err(to_string)
 }
 
 fn stage_downloaded_asset(
@@ -1168,7 +1340,11 @@ fn probe_exporter(path: PathBuf, managed: bool, source: String) -> ExporterProbe
 
 fn parse_version(raw: &str) -> Option<String> {
     raw.split_whitespace()
-        .find(|part| part.chars().next().is_some_and(|first| first.is_ascii_digit()))
+        .find(|part| {
+            part.chars()
+                .next()
+                .is_some_and(|first| first.is_ascii_digit())
+        })
         .map(|part| part.trim_start_matches('v').to_string())
 }
 
@@ -1222,4 +1398,64 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_safe_asset_file_name_replaces_unsafe_characters() {
+        assert_eq!(
+            cache_safe_asset_file_name("imessage/exporter x64.exe").unwrap(),
+            "imessage_exporter_x64.exe",
+        );
+        assert_eq!(
+            cache_safe_asset_file_name("imessage-exporter.tar.gz").unwrap(),
+            "imessage-exporter.tar.gz",
+        );
+        assert!(cache_safe_asset_file_name("...").is_err());
+    }
+
+    #[test]
+    fn cached_asset_is_usable_requires_content_and_expected_size() {
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-cache-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let asset_path = root.join("asset.bin");
+        fs::write(&asset_path, b"cached").unwrap();
+
+        assert!(cached_asset_is_usable(
+            &ReleaseAsset {
+                name: "asset.bin".to_string(),
+                browser_download_url: "https://example.test/asset.bin".to_string(),
+                size: Some(6),
+            },
+            &asset_path,
+        ));
+
+        assert!(!cached_asset_is_usable(
+            &ReleaseAsset {
+                name: "asset.bin".to_string(),
+                browser_download_url: "https://example.test/asset.bin".to_string(),
+                size: Some(7),
+            },
+            &asset_path,
+        ));
+
+        fs::write(&asset_path, b"").unwrap();
+        assert!(!cached_asset_is_usable(
+            &ReleaseAsset {
+                name: "asset.bin".to_string(),
+                browser_download_url: "https://example.test/asset.bin".to_string(),
+                size: None,
+            },
+            &asset_path,
+        ));
+
+        let _ = fs::remove_dir_all(root);
+    }
 }
