@@ -35,6 +35,17 @@ describe("release parsing", () => {
     expect(selected?.archive).toBe(false);
   });
 
+  it("falls back to archive assets when no direct binary matches the target", () => {
+    const release = parseGitHubRelease({
+      ...releaseResponse,
+      assets: releaseResponse.assets.filter((asset) => asset.name !== "imessage-exporter-x86_64-pc-windows-gnu.exe"),
+    });
+    const selected = selectBestAsset(release, { os: "windows", arch: "x64" });
+
+    expect(selected?.asset.name).toBe("imessage-exporter-x86_64-pc-windows-gnu.tar.gz");
+    expect(selected?.archive).toBe(true);
+  });
+
   it("normalizes runtime target aliases", () => {
     expect(detectRuntimeTarget({ os: "darwin", arch: "aarch64" })).toEqual({
       os: "macos",
@@ -47,4 +58,3 @@ describe("release parsing", () => {
     expect(compareVersions("4.2", "4.2.0")).toBe(0);
   });
 });
-

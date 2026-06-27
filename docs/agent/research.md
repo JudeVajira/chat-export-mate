@@ -59,5 +59,5 @@ related:
 
 - Title: imessage-exporter releases
   URL: https://github.com/ReagentX/imessage-exporter/releases
-  Why it matters: Release feed used to discover versions and downloadable exporter assets dynamically; API check found latest version `4.2.0` on 2026-06-27, but future work should re-check live.
-  Last checked: 2026-06-27 12:06 +05:30
+  Why it matters: Release feed used to discover versions and downloadable exporter assets dynamically; API check found latest version `4.2.0` with direct binaries and `.tar.gz` archives on 2026-06-27, but future work should re-check live.
+  Last checked: 2026-06-27 15:02 +05:30

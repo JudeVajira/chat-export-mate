@@ -71,7 +71,9 @@ export function buildDiagnostics(
       id: "asset",
       label: "Download asset",
       detail: selectedAsset
-        ? `${selectedAsset.asset.name} selected for ${selectedAsset.targetTriple}`
+        ? `${selectedAsset.asset.name} selected for ${selectedAsset.targetTriple}${
+            selectedAsset.archive ? "; archive will be extracted after download" : ""
+          }`
         : "No compatible prebuilt asset selected for this platform",
       state: selectedAsset ? "passed" : target.os === "linux" ? "warning" : "action",
     },

@@ -60,7 +60,7 @@ The managed exporter flow is:
 
 1. Check the latest upstream GitHub release.
 2. Select the prebuilt asset for the current OS and architecture.
-3. Download the direct executable asset.
+3. Prefer a direct executable asset, or download and extract the exporter binary from a `.tar.gz` asset when needed.
 4. Verify the downloaded binary can report its version.
 5. Store it under the versioned managed exporter directory.
 6. Activate the verified managed version.

@@ -1,11 +1,14 @@
+use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     env, fs,
+    io::Cursor,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use tar::Archive;
 use tauri::{AppHandle, Manager};
 
 const LATEST_RELEASE_URL: &str =
@@ -218,13 +221,6 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
     let release = fetch_latest_release()?;
     let asset = select_release_asset(&release)?;
 
-    if asset.name.ends_with(".tar.gz") {
-        return Err(format!(
-            "Only direct executable assets are supported for managed installs right now. Selected archive: {}",
-            asset.name
-        ));
-    }
-
     let root = managed_exporter_root(&app)?;
     let version = normalize_version(&release.tag_name);
     let staging_dir = root
@@ -243,9 +239,7 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
         .bytes()
         .map_err(to_string)?;
 
-    fs::write(&temp_path, bytes).map_err(to_string)?;
-    fs::rename(&temp_path, &staging_binary_path).map_err(to_string)?;
-    make_executable(&staging_binary_path)?;
+    stage_downloaded_asset(&asset.name, &bytes, &temp_path, &staging_binary_path)?;
 
     let staging_probe = probe_exporter(staging_binary_path.clone(), true, "managed".to_string());
     if !staging_probe.found {
@@ -1042,6 +1036,71 @@ fn select_release_asset(release: &GitHubRelease) -> Result<ReleaseAsset, String>
         .into_iter()
         .next()
         .ok_or_else(|| "No compatible release asset was selected".to_string())
+}
+
+fn stage_downloaded_asset(
+    asset_name: &str,
+    bytes: &[u8],
+    temp_path: &Path,
+    staging_binary_path: &Path,
+) -> Result<(), String> {
+    if is_tar_gz_asset(asset_name) {
+        extract_exporter_from_tar_gz(bytes, temp_path)?;
+    } else {
+        fs::write(temp_path, bytes).map_err(to_string)?;
+    }
+
+    fs::rename(temp_path, staging_binary_path).map_err(to_string)?;
+    make_executable(staging_binary_path)
+}
+
+fn extract_exporter_from_tar_gz(bytes: &[u8], temp_path: &Path) -> Result<(), String> {
+    let decoder = GzDecoder::new(Cursor::new(bytes));
+    let mut archive = Archive::new(decoder);
+    let binary_name = exporter_binary_name();
+    let mut extracted = false;
+
+    for entry in archive.entries().map_err(to_string)? {
+        let mut entry = entry.map_err(to_string)?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+
+        let is_expected_binary = {
+            let entry_path = entry.path().map_err(to_string)?;
+            entry_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|file_name| file_name == binary_name.as_str())
+        };
+
+        if !is_expected_binary {
+            continue;
+        }
+
+        if extracted {
+            return Err(format!(
+                "Downloaded archive contains more than one {} binary.",
+                binary_name
+            ));
+        }
+
+        entry.unpack(temp_path).map_err(to_string)?;
+        extracted = true;
+    }
+
+    if !extracted {
+        return Err(format!(
+            "Downloaded archive did not contain the expected {} binary.",
+            binary_name
+        ));
+    }
+
+    Ok(())
+}
+
+fn is_tar_gz_asset(asset_name: &str) -> bool {
+    asset_name.ends_with(".tar.gz")
 }
 
 fn target_triple() -> Option<String> {

@@ -59,14 +59,18 @@ export function selectBestAsset(
     return null;
   }
 
-  const directBinary = matchingAssets.find((asset) => !asset.name.endsWith(".tar.gz"));
+  const directBinary = matchingAssets.find((asset) => !isArchiveAsset(asset.name));
   const asset = directBinary ?? matchingAssets[0];
 
   return {
     asset,
     targetTriple,
-    archive: asset.name.endsWith(".tar.gz"),
+    archive: isArchiveAsset(asset.name),
   };
+}
+
+export function isArchiveAsset(assetName: string): boolean {
+  return assetName.endsWith(".tar.gz");
 }
 
 export function detectRuntimeTarget(snapshot: { os: string; arch: string }): RuntimeTarget {
@@ -131,4 +135,3 @@ function normalizeArch(arch: string): RuntimeTarget["arch"] {
   }
   return "unknown";
 }
-

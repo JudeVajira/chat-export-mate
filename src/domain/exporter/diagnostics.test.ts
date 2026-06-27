@@ -3,6 +3,7 @@ import { buildDiagnostics } from "./diagnostics";
 import type {
   ExportOptions,
   ExporterProbe,
+  ExporterRelease,
   ManagedExporterState,
   OutputAccessCheck,
   RuntimeTarget,
@@ -117,6 +118,35 @@ describe("buildDiagnostics", () => {
 
     expect(item).toMatchObject({
       detail: "Selected 4.2.0 at D:/Tools/imessage-exporter.exe",
+      state: "passed",
+    });
+  });
+
+  it("explains when the selected release asset is an archive", () => {
+    const archiveRelease: ExporterRelease = {
+      version: "4.2.0",
+      releaseUrl: "https://example.test/release",
+      assets: [
+        {
+          name: "imessage-exporter-x86_64-pc-windows-gnu.tar.gz",
+          browser_download_url: "https://example.test/windows.tar.gz",
+        },
+      ],
+    };
+
+    const item = buildDiagnostics(
+      snapshot,
+      probe,
+      archiveRelease,
+      target,
+      probe.path ?? "",
+      options,
+      managedState,
+    ).find((diagnostic) => diagnostic.id === "asset");
+
+    expect(item).toMatchObject({
+      detail:
+        "imessage-exporter-x86_64-pc-windows-gnu.tar.gz selected for x86_64-pc-windows-gnu; archive will be extracted after download",
       state: "passed",
     });
   });
