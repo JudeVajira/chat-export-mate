@@ -114,7 +114,7 @@ The Latest result panel summarizes dry runs, exports, diagnostics, and preflight
 
 The Progress panel shows the current operation steps while ChatExportMate prepares a dry run, runs an export, runs diagnostics, installs an exporter, or activates a stored managed version. Real exports show setup review, destination access, exporter execution, local log capture, and completion/error state. During desktop export and diagnostics runs, the panel also streams recent stdout/stderr lines from the exporter while preserving the complete output in the saved local log.
 
-The History panel lists saved local export and diagnostic logs when running inside Tauri. Logs stay on the machine and can be previewed or opened from the app for troubleshooting. Large log previews are capped in the UI; open the log file or create a support bundle when you need the complete file.
+The History panel lists saved local export and diagnostic logs when running inside Tauri. Logs stay on the machine and can be searched by file, path, command, output folder, status, or exit code, then previewed or opened from the app for troubleshooting. Large log previews are capped in the UI; open the log file or create a support bundle when you need the complete file.
 
 The History panel can also create a local support bundle under the app data directory in `support-bundles/support-bundle-<timestamp>/`. A bundle copies saved run and diagnostic logs and adds a manifest with system/exporter context plus a reminder to review logs before sharing.
 

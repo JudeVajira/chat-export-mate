@@ -1,7 +1,9 @@
-import { ExternalLink, FileArchive, FileText, RefreshCw, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ExternalLink, FileArchive, FileText, RefreshCw, Search, X } from "lucide-react";
 import {
   describeStoredLog,
   describeStoredLogPreview,
+  filterStoredLogs,
   sortStoredLogs,
   storedLogState,
 } from "../domain/exporter/logs";
@@ -37,7 +39,13 @@ export function LogTimeline({
   selectedLogDetail: StoredLogDetail | null;
   storedLogs: StoredLogEntry[];
 }) {
-  const sortedLogs = sortStoredLogs(storedLogs);
+  const [storedLogQuery, setStoredLogQuery] = useState("");
+  const sortedLogs = useMemo(() => sortStoredLogs(storedLogs), [storedLogs]);
+  const filteredLogs = useMemo(
+    () => filterStoredLogs(sortedLogs, storedLogQuery),
+    [sortedLogs, storedLogQuery],
+  );
+  const hasStoredLogQuery = storedLogQuery.trim().length > 0;
 
   return (
     <section className="panel log-panel" aria-labelledby="log-title">
@@ -89,13 +97,42 @@ export function LogTimeline({
             <FileText aria-hidden="true" />
             <h3>Saved local logs</h3>
           </div>
+          <div className="stored-log-toolbar">
+            <label className="stored-log-search" htmlFor="stored-log-search">
+              <Search aria-hidden="true" />
+              <input
+                aria-label="Search saved local logs"
+                id="stored-log-search"
+                onChange={(event) => setStoredLogQuery(event.currentTarget.value)}
+                placeholder="Search logs"
+                type="search"
+                value={storedLogQuery}
+              />
+            </label>
+            {hasStoredLogQuery ? (
+              <button
+                aria-label="Clear saved log search"
+                className="button button--secondary button--icon"
+                onClick={() => setStoredLogQuery("")}
+                title="Clear search"
+                type="button"
+              >
+                <X aria-hidden="true" />
+              </button>
+            ) : null}
+            <span>{formatStoredLogFilterSummary(filteredLogs.length, sortedLogs.length)}</span>
+          </div>
           {sortedLogs.length === 0 ? (
             <p className="empty-state">
               Desktop export and diagnostic logs will appear here after a run.
             </p>
+          ) : filteredLogs.length === 0 ? (
+            <p className="empty-state">
+              No saved local logs match this search.
+            </p>
           ) : (
             <div className="stored-log-list">
-              {sortedLogs.map((log) => (
+              {filteredLogs.map((log) => (
                 <div className="stored-log-row" key={log.id}>
                   <div className="stored-log-main">
                     <div className="stored-log-title">
@@ -186,4 +223,16 @@ function formatStoredLogTime(value?: string | null): string {
 
 function formatStoredLogKind(log: StoredLogEntry): string {
   return log.kind === "diagnostic" ? "Diagnostic" : "Export";
+}
+
+function formatStoredLogFilterSummary(visibleCount: number, totalCount: number): string {
+  if (totalCount === 0) {
+    return "No saved logs";
+  }
+
+  if (visibleCount === totalCount) {
+    return `${totalCount} saved ${totalCount === 1 ? "log" : "logs"}`;
+  }
+
+  return `${visibleCount} of ${totalCount} logs`;
 }

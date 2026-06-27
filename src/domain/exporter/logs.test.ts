@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeStoredLog,
   describeStoredLogPreview,
+  filterStoredLogs,
   formatByteSize,
   sortStoredLogs,
   storedLogState,
@@ -34,6 +35,49 @@ describe("sortStoredLogs", () => {
       "export:2",
       "export:1",
     ]);
+  });
+});
+
+describe("filterStoredLogs", () => {
+  const diagnosticLog: StoredLogEntry = {
+    ...exportLog,
+    id: "diagnostic:1",
+    kind: "diagnostic",
+    fileName: "diagnostic-run-1.log",
+    path: "C:/logs/diagnostic-run-1.log",
+    command: "imessage-exporter -d",
+    success: false,
+    exitCode: 1,
+    outputPath: null,
+  };
+
+  it("returns every stored log when the query is empty", () => {
+    expect(filterStoredLogs([exportLog, diagnosticLog], "   ")).toEqual([
+      exportLog,
+      diagnosticLog,
+    ]);
+  });
+
+  it("matches saved logs by file name, command, and output path", () => {
+    expect(
+      filterStoredLogs([exportLog, diagnosticLog], "export-run").map((log) => log.id),
+    ).toEqual(["export:2"]);
+    expect(
+      filterStoredLogs([exportLog, diagnosticLog], "-d").map((log) => log.id),
+    ).toEqual(["diagnostic:1"]);
+    expect(
+      filterStoredLogs([exportLog, diagnosticLog], "imessage_export").map((log) => log.id),
+    ).toEqual(["export:2"]);
+  });
+
+  it("matches status and exit-code terms together", () => {
+    expect(
+      filterStoredLogs([exportLog, diagnosticLog], "failed exit 1").map((log) => log.id),
+    ).toEqual(["diagnostic:1"]);
+  });
+
+  it("requires every search term to match the same stored log", () => {
+    expect(filterStoredLogs([exportLog, diagnosticLog], "diagnostic imessage_export")).toEqual([]);
   });
 });
 
