@@ -499,6 +499,16 @@ select:focus {
   grid-column: 1 / -1;
 }
 
+.button--compact {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.button--icon {
+  width: 38px;
+  padding: 0;
+}
+
 .button--secondary {
   border: 1px solid #cdd8e5;
   background: #ffffff;
@@ -569,6 +579,39 @@ dd {
   margin-bottom: 22px;
 }
 
+.history-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(340px, 1.1fr);
+}
+
+.history-column {
+  min-width: 0;
+}
+
+.history-column--stored {
+  border-left: 1px solid #edf1f5;
+}
+
+.history-subheading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 10px;
+}
+
+.history-subheading h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 820;
+}
+
+.history-subheading svg {
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
+
 .log-row {
   grid-template-columns: 54px minmax(0, 1fr);
   align-items: start;
@@ -587,6 +630,65 @@ dd {
 
 .log-row--error p {
   color: #b42318;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 0 16px 16px;
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.stored-log-list {
+  display: grid;
+}
+
+.stored-log-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-top: 1px solid #edf1f5;
+  padding: 14px 16px;
+}
+
+.stored-log-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.stored-log-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stored-log-title strong,
+.stored-log-main p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stored-log-title strong {
+  color: #172033;
+  font-size: 0.9rem;
+}
+
+.stored-log-main p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.stored-log-main span {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 760;
 }
 
 @media (max-width: 1080px) {
@@ -609,8 +711,14 @@ dd {
   }
 
   .content-grid,
+  .history-layout,
   .status-strip {
     grid-template-columns: 1fr;
+  }
+
+  .history-column--stored {
+    border-top: 1px solid #edf1f5;
+    border-left: 0;
   }
 
   .topbar,
@@ -647,5 +755,10 @@ dd {
   .action-row-group {
     display: grid;
     gap: 10px;
+  }
+
+  .stored-log-title {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

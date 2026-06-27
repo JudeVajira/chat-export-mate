@@ -35,6 +35,7 @@ import type {
   ExporterProbe,
   ExporterRelease,
   ManagedExporterState,
+  StoredLogEntry,
   SystemSnapshot,
 } from "./domain/exporter/types";
 import {
@@ -44,6 +45,8 @@ import {
   getExporterManagementState,
   getSystemSnapshot,
   installLatestExporter,
+  listExporterLogs,
+  openLocalPath,
   openOutputFolder,
   runExporterDiagnostics,
 } from "./services/tauriBridge";
@@ -55,6 +58,7 @@ function App() {
   const [installingExporter, setInstallingExporter] = useState(false);
   const [runningDiagnostics, setRunningDiagnostics] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
   const [managedState, setManagedState] = useState<ManagedExporterState>({
     installRoot: "",
@@ -79,6 +83,7 @@ function App() {
     source: "initial",
   });
   const [logs, setLogs] = useState<LogEntry[]>([...initialLogEntries]);
+  const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
 
   const executablePath = probe.path ?? defaultExecutablePath;
   const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
@@ -98,6 +103,7 @@ function App() {
 
   useEffect(() => {
     void refreshHealthChecks();
+    void refreshStoredLogs(false);
   }, []);
 
   async function refreshHealthChecks(): Promise<ExporterProbe> {
@@ -128,6 +134,7 @@ function App() {
       });
       const summary = summarizeDiagnosticRunResult(result);
       addLog(summary.level, summary.message);
+      await refreshStoredLogs(false);
     } catch (error) {
       addLog("error", error instanceof Error ? error.message : "Diagnostics failed before they could start.");
     } finally {
@@ -177,6 +184,7 @@ function App() {
       });
       const summary = summarizeExportRunResult(result);
       addLog(summary.level, summary.message);
+      await refreshStoredLogs(false);
     } catch (error) {
       addLog("error", error instanceof Error ? error.message : "Export failed before it could start.");
     } finally {
@@ -190,6 +198,30 @@ function App() {
       addLog("info", `Opened ${options.outputPath}.`);
     } catch (error) {
       addLog("warn", error instanceof Error ? error.message : "Could not open the output folder.");
+    }
+  }
+
+  async function refreshStoredLogs(announce = true) {
+    setLoadingStoredLogs(true);
+    try {
+      const nextLogs = await listExporterLogs();
+      setStoredLogs(nextLogs);
+      if (announce) {
+        addLog("info", `Loaded ${nextLogs.length} saved local log${nextLogs.length === 1 ? "" : "s"}.`);
+      }
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not load saved local logs.");
+    } finally {
+      setLoadingStoredLogs(false);
+    }
+  }
+
+  async function openStoredLog(log: StoredLogEntry) {
+    try {
+      await openLocalPath(log.path);
+      addLog("info", `Opened ${log.fileName}.`);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not open the selected log.");
     }
   }
 
@@ -325,7 +357,13 @@ function App() {
         </div>
 
         <div id="history">
-          <LogTimeline entries={logs} />
+          <LogTimeline
+            entries={logs}
+            loadingStoredLogs={loadingStoredLogs}
+            onOpenStoredLog={openStoredLog}
+            onRefreshStoredLogs={() => void refreshStoredLogs()}
+            storedLogs={storedLogs}
+          />
         </div>
       </div>
     </main>

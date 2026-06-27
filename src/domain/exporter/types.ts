@@ -58,6 +58,21 @@ export interface DiagnosticRunResult {
   logPath: string;
 }
 
+export type StoredLogKind = "export" | "diagnostic";
+
+export interface StoredLogEntry {
+  id: string;
+  kind: StoredLogKind;
+  fileName: string;
+  path: string;
+  command?: string | null;
+  success?: boolean | null;
+  exitCode?: number | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  outputPath?: string | null;
+}
+
 export interface ValidationIssue {
   field: keyof ExportOptions | "executablePath";
   message: string;

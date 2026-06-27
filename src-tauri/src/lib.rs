@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
     process::Command,
@@ -120,6 +121,21 @@ struct DiagnosticRunResult {
     started_at: String,
     completed_at: String,
     log_path: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredLogEntry {
+    id: String,
+    kind: String,
+    file_name: String,
+    path: String,
+    command: Option<String>,
+    success: Option<bool>,
+    exit_code: Option<i32>,
+    started_at: Option<String>,
+    completed_at: Option<String>,
+    output_path: Option<String>,
 }
 
 #[tauri::command]
@@ -318,6 +334,15 @@ fn run_exporter_diagnostics(
     })
 }
 
+#[tauri::command]
+fn list_exporter_logs(app: AppHandle) -> Result<Vec<StoredLogEntry>, String> {
+    let mut logs = Vec::new();
+    collect_stored_logs(&mut logs, run_log_root(&app)?, "export")?;
+    collect_stored_logs(&mut logs, diagnostic_log_root(&app)?, "diagnostic")?;
+    logs.sort_by(|left, right| log_sort_key(right).cmp(&log_sort_key(left)));
+    Ok(logs)
+}
+
 fn exporter_binary_name() -> String {
     if cfg!(windows) {
         "imessage-exporter.exe".to_string()
@@ -407,6 +432,97 @@ fn write_diagnostic_log(
     );
     fs::write(&log_path, content).map_err(to_string)?;
     Ok(log_path)
+}
+
+fn collect_stored_logs(
+    logs: &mut Vec<StoredLogEntry>,
+    root: PathBuf,
+    kind: &str,
+) -> Result<(), String> {
+    if !root.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(root).map_err(to_string)?.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("log") {
+            continue;
+        }
+
+        let Some(file_name) = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_string)
+        else {
+            continue;
+        };
+
+        let content = fs::read_to_string(&path).unwrap_or_default();
+        logs.push(parse_stored_log(kind, file_name, path, &content));
+    }
+
+    Ok(())
+}
+
+fn parse_stored_log(
+    kind: &str,
+    file_name: String,
+    path: PathBuf,
+    content: &str,
+) -> StoredLogEntry {
+    let header = parse_log_header(content);
+    StoredLogEntry {
+        id: format!("{kind}:{file_name}"),
+        kind: kind.to_string(),
+        file_name,
+        path: path.to_string_lossy().to_string(),
+        command: header.get("command").cloned(),
+        success: header.get("success").and_then(|value| parse_bool(value)),
+        exit_code: header
+            .get("exit_code")
+            .and_then(|value| parse_exit_code(value)),
+        started_at: header.get("started_at").cloned(),
+        completed_at: header.get("completed_at").cloned(),
+        output_path: header.get("output_path").cloned(),
+    }
+}
+
+fn parse_log_header(content: &str) -> HashMap<String, String> {
+    let mut header = HashMap::new();
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            break;
+        }
+
+        if let Some((key, value)) = line.split_once(": ") {
+            header.insert(key.to_string(), value.to_string());
+        }
+    }
+    header
+}
+
+fn parse_bool(value: &str) -> Option<bool> {
+    match value {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn parse_exit_code(value: &str) -> Option<i32> {
+    if value == "none" {
+        None
+    } else {
+        value.parse::<i32>().ok()
+    }
+}
+
+fn log_sort_key(entry: &StoredLogEntry) -> u128 {
+    entry
+        .started_at
+        .as_ref()
+        .and_then(|value| value.parse::<u128>().ok())
+        .unwrap_or_default()
 }
 
 fn management_state(app: &AppHandle) -> ManagedExporterState {
@@ -610,7 +726,8 @@ pub fn run() {
             install_latest_exporter,
             detect_exporter,
             execute_exporter,
-            run_exporter_diagnostics
+            run_exporter_diagnostics,
+            list_exporter_logs
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

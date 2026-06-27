@@ -10,6 +10,7 @@ import type {
   ExportRunResult,
   ManagedExporterState,
   ManagedInstallResult,
+  StoredLogEntry,
   SystemSnapshot,
 } from "../domain/exporter/types";
 
@@ -101,9 +102,25 @@ export async function runExporterDiagnostics(
   }
 }
 
-export async function openOutputFolder(path: string): Promise<void> {
+export async function listExporterLogs(): Promise<StoredLogEntry[]> {
   if (!isTauriRuntime()) {
-    throw new Error("Opening folders is available when running inside Tauri.");
+    return [];
+  }
+
+  try {
+    return await invoke<StoredLogEntry[]>("list_exporter_logs");
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function openOutputFolder(path: string): Promise<void> {
+  await openLocalPath(path);
+}
+
+export async function openLocalPath(path: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    throw new Error("Opening local files is available when running inside Tauri.");
   }
 
   await openPath(path);
