@@ -38,6 +38,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 # Export Execution And Logs
 
+- Export options and dry-run mode should be restored from local app data on startup and saved back after changes. Browser preview may use `localStorage`; the desktop runtime owns the app-data JSON file.
 - Non-dry-run exports execute through the Tauri backend using `std::process::Command`.
 - Every backend export attempt should write a local log under app data `run-logs/`, including command, stdout, stderr, exit code, timestamps, and output path.
 - The History UI lists persisted app-data export and diagnostic logs through a Tauri command and opens selected log files locally; browser preview should show an empty stored-log list rather than fake desktop files.
@@ -60,6 +61,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Do not require accounts or cloud services.
 - Do not add analytics by default.
 - Logs should be useful for bug reports but should keep raw details inspectable and exportable under user control.
+- Saved export preferences are local state and may include user-selected paths; do not sync or upload them by default.
 
 # Licensing And Attribution
 

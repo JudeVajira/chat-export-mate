@@ -23,6 +23,13 @@ export interface ExportOptions {
   noProgress: boolean;
 }
 
+export interface ExportPreferences {
+  schemaVersion: 1;
+  options: ExportOptions;
+  dryRun: boolean;
+  savedAt: string;
+}
+
 export interface BuiltCommand {
   executablePath: string;
   args: string[];

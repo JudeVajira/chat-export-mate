@@ -15,6 +15,7 @@ const VERSIONS_DIR: &str = "versions";
 const STAGING_DIR: &str = "staging";
 const ACTIVE_VERSION_FILE: &str = "active-version.txt";
 const CUSTOM_EXPORTER_FILE: &str = "custom-exporter-path.txt";
+const EXPORT_PREFERENCES_FILE: &str = "export-preferences.json";
 const RUN_LOG_DIR: &str = "run-logs";
 const DIAGNOSTIC_LOG_DIR: &str = "diagnostic-logs";
 const SUPPORT_BUNDLE_DIR: &str = "support-bundles";
@@ -92,6 +93,12 @@ struct ManagedActivationRequest {
 #[serde(rename_all = "camelCase")]
 struct CustomExporterPathRequest {
     path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveExportPreferencesRequest {
+    preferences: serde_json::Value,
 }
 
 #[derive(Serialize)]
@@ -359,6 +366,31 @@ fn clear_custom_exporter_path(app: AppHandle) -> Result<ExporterProbe, String> {
         }
         Err(error) => Err(error.to_string()),
     }
+}
+
+#[tauri::command]
+fn get_export_preferences(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
+    let path = export_preferences_path(&app)?;
+    if !path.is_file() {
+        return Ok(None);
+    }
+
+    fs::read_to_string(path)
+        .map_err(to_string)
+        .and_then(|content| serde_json::from_str(&content).map_err(to_string))
+        .map(Some)
+}
+
+#[tauri::command]
+fn save_export_preferences(
+    app: AppHandle,
+    request: SaveExportPreferencesRequest,
+) -> Result<serde_json::Value, String> {
+    let app_data = app.path().app_data_dir().map_err(to_string)?;
+    fs::create_dir_all(&app_data).map_err(to_string)?;
+    let content = serde_json::to_string_pretty(&request.preferences).map_err(to_string)?;
+    fs::write(app_data.join(EXPORT_PREFERENCES_FILE), content).map_err(to_string)?;
+    Ok(request.preferences)
 }
 
 fn detect_exporter_probe(app: &AppHandle) -> ExporterProbe {
@@ -674,6 +706,13 @@ fn support_bundle_root(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
         .map(|path| path.join(SUPPORT_BUNDLE_DIR))
+        .map_err(to_string)
+}
+
+fn export_preferences_path(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|path| path.join(EXPORT_PREFERENCES_FILE))
         .map_err(to_string)
 }
 
@@ -1114,6 +1153,8 @@ pub fn run() {
             detect_exporter,
             set_custom_exporter_path,
             clear_custom_exporter_path,
+            get_export_preferences,
+            save_export_preferences,
             check_output_access,
             execute_exporter,
             run_exporter_diagnostics,

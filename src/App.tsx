@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   BadgeCheck,
@@ -28,6 +28,10 @@ import {
 } from "./domain/exporter/commandBuilder";
 import { buildDiagnostics } from "./domain/exporter/diagnostics";
 import { getInstallActionLabel } from "./domain/exporter/manager";
+import {
+  applyExportPreferences,
+  createExportPreferences,
+} from "./domain/exporter/preferences";
 import {
   detectRuntimeTarget,
   isUpdateAvailable,
@@ -60,9 +64,11 @@ import {
   getSystemSnapshot,
   installLatestExporter,
   listExporterLogs,
+  loadExportPreferences,
   openLocalPath,
   openOutputFolder,
   runExporterDiagnostics,
+  saveExportPreferences,
   selectAttachmentFolder,
   selectBackupFolder,
   selectDatabaseFile,
@@ -84,6 +90,7 @@ function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [creatingSupportBundle, setCreatingSupportBundle] = useState(false);
   const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
   const [managedState, setManagedState] = useState<ManagedExporterState>({
     installRoot: "",
@@ -113,6 +120,7 @@ function App() {
   const [outputAccess, setOutputAccess] = useState<OutputAccessCheck>(
     previewOutputAccess(defaultExportOptions.outputPath),
   );
+  const lastPreferenceSaveError = useRef<string | null>(null);
 
   const executablePath = probe.path ?? defaultExecutablePath;
   const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
@@ -142,24 +150,74 @@ function App() {
   const exportReady = issues.length === 0 && probe.found && outputAccess.writable;
 
   useEffect(() => {
-    void refreshHealthChecks();
-    void refreshStoredLogs(false);
+    void bootstrapWorkspace();
   }, []);
 
   useEffect(() => {
+    if (!preferencesLoaded) {
+      return undefined;
+    }
+
     const timeout = window.setTimeout(() => {
       void refreshOutputAccess(options.outputPath);
     }, 350);
 
     return () => window.clearTimeout(timeout);
-  }, [options.outputPath]);
+  }, [options.outputPath, preferencesLoaded]);
 
-  async function refreshHealthChecks(): Promise<ExporterProbe> {
+  useEffect(() => {
+    if (!preferencesLoaded) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void persistExportPreferences();
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [dryRun, options, preferencesLoaded]);
+
+  async function bootstrapWorkspace() {
+    const startupOptions = await restoreExportPreferences();
+    await Promise.all([refreshHealthChecks(startupOptions.outputPath), refreshStoredLogs(false)]);
+    setPreferencesLoaded(true);
+  }
+
+  async function restoreExportPreferences(): Promise<typeof defaultExportOptions> {
+    try {
+      const preferences = await loadExportPreferences();
+      const restored = applyExportPreferences(defaultExportOptions, true, preferences);
+      setOptions(restored.options);
+      setDryRun(restored.dryRun);
+      if (preferences) {
+        addLog("info", "Restored export preferences from local storage.");
+      }
+      return restored.options;
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not restore export preferences.");
+      return defaultExportOptions;
+    }
+  }
+
+  async function persistExportPreferences() {
+    try {
+      await saveExportPreferences(createExportPreferences(options, dryRun));
+      lastPreferenceSaveError.current = null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save export preferences.";
+      if (lastPreferenceSaveError.current !== message) {
+        lastPreferenceSaveError.current = message;
+        addLog("warn", message);
+      }
+    }
+  }
+
+  async function refreshHealthChecks(outputPath = options.outputPath): Promise<ExporterProbe> {
     const [nextSnapshot, nextProbe, nextManagedState, nextOutputAccess] = await Promise.all([
       getSystemSnapshot(),
       detectExporter(),
       getExporterManagementState(),
-      checkOutputAccess(options.outputPath),
+      checkOutputAccess(outputPath),
     ]);
     setSnapshot(nextSnapshot);
     setProbe(nextProbe);

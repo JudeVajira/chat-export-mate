@@ -1,10 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
+import {
+  coerceExportPreferences,
+  createExportPreferences,
+  parseExportPreferences,
+} from "../domain/exporter/preferences";
 import { fetchLatestExporterRelease } from "../domain/exporter/release";
 import type {
   DiagnosticRunRequest,
   DiagnosticRunResult,
+  ExportPreferences,
   ExporterProbe,
   ExporterRelease,
   ExportRunRequest,
@@ -17,6 +23,8 @@ import type {
   SupportBundleResult,
   SystemSnapshot,
 } from "../domain/exporter/types";
+
+const browserPreferencesKey = "chatexportmate.exportPreferences.v1";
 
 const browserSnapshot: SystemSnapshot = {
   os: navigator.userAgent.includes("Windows") ? "windows" : "unknown",
@@ -51,6 +59,40 @@ export async function getSystemSnapshot(): Promise<SystemSnapshot> {
 
 export async function detectExporter(): Promise<ExporterProbe> {
   return invokeWithFallback<ExporterProbe>("detect_exporter", browserProbe);
+}
+
+export async function loadExportPreferences(): Promise<ExportPreferences | null> {
+  if (!isTauriRuntime()) {
+    return parseExportPreferences(window.localStorage.getItem(browserPreferencesKey));
+  }
+
+  try {
+    return coerceExportPreferences(await invoke<unknown>("get_export_preferences"));
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function saveExportPreferences(preferences: ExportPreferences): Promise<ExportPreferences> {
+  const normalizedPreferences = createExportPreferences(
+    preferences.options,
+    preferences.dryRun,
+    preferences.savedAt,
+  );
+
+  if (!isTauriRuntime()) {
+    window.localStorage.setItem(browserPreferencesKey, JSON.stringify(normalizedPreferences));
+    return normalizedPreferences;
+  }
+
+  try {
+    await invoke<unknown>("save_export_preferences", {
+      request: { preferences: normalizedPreferences },
+    });
+    return normalizedPreferences;
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
 }
 
 export async function setCustomExporterPath(path: string): Promise<ExporterProbe> {

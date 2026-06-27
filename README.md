@@ -68,6 +68,10 @@ Previously stored managed versions remain available in the Release channel panel
 
 If you already have `imessage-exporter`, use **Use existing** in Diagnostics. ChatExportMate verifies the selected binary with `--version`, remembers the path locally, and uses it when no managed exporter is active.
 
+## Local Export Preferences
+
+ChatExportMate restores the last export options and dry-run mode on startup. In the desktop app, preferences are stored as a local JSON file under the Tauri app data directory. Browser preview uses local browser storage for the same behavior. Preferences can include local paths and are not uploaded or synced by ChatExportMate.
+
 ## Export Runs And Logs
 
 When dry-run mode is off, the desktop app executes the selected `imessage-exporter` binary through the Tauri backend. Each export attempt captures:
