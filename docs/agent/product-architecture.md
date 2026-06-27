@@ -18,12 +18,14 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 # Architecture
 
+- This is a desktop-only Tauri app. Do not add web-app or mobile-app product surfaces, routes, packaging, or user-facing support language.
+- Vite/browser rendering is a developer harness for the Tauri frontend only. Keep it useful for layout and domain checks, but never treat it as a supported runtime.
 - Keep domain logic in TypeScript modules that can be tested without Tauri.
 - Keep Tauri commands small and focused on platform capabilities: filesystem, process execution, OS inspection, and opening paths.
 - Use interfaces/adapters for exporter binaries, GitHub release lookups, command execution, logging, and diagnostics.
 - Use fake exporter responses and dry-run data so Windows development can continue without a Messages database or iPhone backup.
 - Treat platform-specific behavior as an adapter boundary rather than a condition spread across UI components.
-- Native file and folder selection flows go through the Tauri dialog plugin via `src/services/tauriBridge.ts`; browser preview should report desktop-runtime-only behavior rather than inventing local paths.
+- Native file and folder selection flows go through the Tauri dialog plugin via `src/services/tauriBridge.ts`; the development browser harness should report desktop-runtime-only behavior rather than inventing local paths.
 - Source selection is platform-specific: macOS custom sources use a `chat.db` file picker, while iOS custom sources use a backup-folder picker. Attachment roots are macOS-only and should not be emitted for iOS commands.
 - Existing exporter binary selection also goes through `src/services/tauriBridge.ts`; the backend must verify the selected binary with `--version` before saving it.
 
@@ -34,18 +36,18 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Managed installs and rollback activation should probe the candidate binary successfully before writing `active-version.txt`.
 - Exporter detection should prefer the active managed binary, then a verified user-selected binary saved in app data, then `PATH`.
 - Prefer direct executable release assets over `.tar.gz` archives. If only an archive is available, fail with a clear managed-install error until extraction support is added.
-- Browser preview may use mock/fallback state, but Tauri desktop runtime owns filesystem writes and managed installs.
+- The Tauri desktop runtime owns filesystem writes and managed installs. Development-harness fallback state must not become a supported web-app behavior.
 
 # Export Execution And Logs
 
-- Export options and dry-run mode should be restored from local app data on startup and saved back after changes. Browser preview may use `localStorage`; the desktop runtime owns the app-data JSON file.
+- Export options and dry-run mode should be restored from local desktop app data on startup and saved back after changes. The Tauri runtime owns the app-data JSON file.
 - Non-dry-run exports execute through the Tauri backend using `std::process::Command`.
 - Every backend export attempt should write a local log under app data `run-logs/`, including command, stdout, stderr, exit code, timestamps, and output path.
-- The History UI lists persisted app-data export and diagnostic logs through a Tauri command and opens selected log files locally; browser preview should show an empty stored-log list rather than fake desktop files.
+- The History UI lists persisted app-data export and diagnostic logs through a Tauri command and opens selected log files locally; the development browser harness should show an empty stored-log list rather than fake desktop files.
 - Support bundles should be created locally under app data `support-bundles/`, copy saved logs, include a short manifest, and remind users to review logs before sharing them.
 - The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.
 - Latest export and diagnostic results should show a structured explanation, likely cause, suggested fix, saved log path when available, and optional raw details; keep the activity log concise.
-- Browser preview must not pretend to execute exports; it should return a clear desktop-runtime-only message.
+- The development browser harness must not pretend to execute exports; it should return a clear desktop-runtime-only message.
 
 # Diagnostics
 

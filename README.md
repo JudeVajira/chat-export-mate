@@ -2,6 +2,8 @@
 
 ChatExportMate is a local-first Tauri desktop companion for [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter). It does not parse iMessage data itself; it helps users install, configure, run, update, and troubleshoot the upstream exporter through a polished desktop UI.
 
+ChatExportMate is intended only as a desktop app. This repository does not target a hosted web app or a mobile app.
+
 ## Status
 
 This repository currently contains the initial Tauri + React + TypeScript application shell, domain modules, test coverage, and a guided desktop UI prototype. Windows development is supported without a local Messages database by using mock diagnostics and dry-run command previews.
@@ -30,7 +32,7 @@ pnpm install
 
 ## Run
 
-Frontend-only development:
+Frontend harness for desktop UI development:
 
 ```powershell
 pnpm dev
@@ -42,13 +44,13 @@ Desktop development after Rust/Tauri prerequisites are installed:
 pnpm tauri dev
 ```
 
-The browser preview can check the GitHub release feed and exercise dry-run UI state. Managed installs, selected exporter persistence, exporter detection from app data, opening folders, and process execution require the Tauri desktop runtime.
+`pnpm dev` is only a Vite development harness for the Tauri frontend. It is useful for layout checks and dry-run UI work, but it is not a supported web app. Managed installs, selected exporter persistence, exporter detection from app data, opening folders, and process execution require the Tauri desktop runtime.
 
 Native file and folder pickers for export destinations, custom macOS `chat.db`
 files, iOS backup folders, attachment roots, and existing `imessage-exporter`
-binaries also require the Tauri desktop runtime. In browser preview, picker
-buttons report that desktop runtime is required instead of fabricating local
-paths.
+binaries also require the Tauri desktop runtime. In the development harness,
+picker buttons report that desktop runtime is required instead of fabricating
+local paths.
 
 ## Managed Exporter Storage
 
@@ -70,7 +72,7 @@ If you already have `imessage-exporter`, use **Use existing** in Diagnostics. Ch
 
 ## Local Export Preferences
 
-ChatExportMate restores the last export options and dry-run mode on startup. In the desktop app, preferences are stored as a local JSON file under the Tauri app data directory. Browser preview uses local browser storage for the same behavior. Preferences can include local paths and are not uploaded or synced by ChatExportMate.
+ChatExportMate restores the last export options and dry-run mode on startup. In the desktop app, preferences are stored as a local JSON file under the Tauri app data directory. Preferences can include local paths and are not uploaded or synced by ChatExportMate.
 
 ## Export Runs And Logs
 
@@ -83,7 +85,7 @@ When dry-run mode is off, the desktop app executes the selected `imessage-export
 - start and completion timestamps
 - output path
 
-Run logs are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The browser preview cannot execute exports and will show a desktop-runtime message instead.
+Run logs are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The Vite development harness cannot execute exports and will show a desktop-runtime message instead.
 
 The Latest result panel summarizes dry runs, exports, diagnostics, and preflight failures in plain English, with suggested fixes and saved log paths when a run creates a log.
 
@@ -95,7 +97,7 @@ The History panel can also create a local support bundle under the app data dire
 
 The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri and writes a local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
 
-Desktop health checks probe the selected output folder, or its existing parent folder when the export folder has not been created yet, by writing and removing a small temporary file. Browser preview reports this as a desktop-runtime-only check.
+Desktop health checks probe the selected output folder, or its existing parent folder when the export folder has not been created yet, by writing and removing a small temporary file. The Vite development harness reports this as a desktop-runtime-only check.
 
 ## Verify
 

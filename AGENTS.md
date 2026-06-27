@@ -18,6 +18,8 @@ No local subtree `AGENTS.md` files exist yet.
 
 ## Project Constraints
 - ChatExportMate is a Tauri, React, TypeScript, and Rust desktop companion for `ReagentX/imessage-exporter`.
+- ChatExportMate is desktop-only. Do not build, position, or optimize it as a web app or mobile app.
+- `pnpm dev` / browser rendering is a development harness for the Tauri frontend only; it is not a supported product surface.
 - Do not reimplement iMessage parsing. The upstream `imessage-exporter` CLI remains the parsing source of truth.
 - Keep message data local. Do not add accounts, cloud sync, default analytics, or any network path for conversations.
 - Development is Windows-first today, but platform behavior must be isolated so macOS support can be added later.
@@ -34,4 +36,4 @@ No local subtree `AGENTS.md` files exist yet.
 - Build the actual desktop utility surface first; do not replace app workflows with a landing page.
 - Prefer calm, dense, readable product UI: clear status hierarchy, restrained color, stable panels, and native controls.
 - Avoid nested cards, decorative orbs, marketing hero sections, telemetry-heavy UX, and raw CLI terminology unless it helps troubleshooting.
-- For visual UI changes, capture Playwright screenshots at desktop and mobile widths and check for overflow, clipped controls, and text collisions before wrapping up.
+- For visual UI changes, capture Playwright screenshots at practical desktop window widths and check for overflow, clipped controls, and text collisions before wrapping up. Do not add mobile-specific layouts beyond ordinary responsive resilience for narrow desktop windows.
