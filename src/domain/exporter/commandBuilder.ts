@@ -115,6 +115,22 @@ export function buildExporterCommand(
   };
 }
 
+export function buildDiagnosticCommand(
+  executablePath: string,
+  options: ExportOptions,
+): BuiltCommand {
+  const args = ["-d", "-a", options.platform];
+
+  pushValue(args, "-p", options.databasePath);
+  pushValue(args, "-r", options.attachmentRoot);
+
+  return {
+    executablePath,
+    args,
+    displayCommand: formatDisplayCommand(executablePath, args),
+  };
+}
+
 export function formatDisplayCommand(executablePath: string, args: string[]): string {
   return [executablePath, ...args].map(quoteForDisplay).join(" ");
 }

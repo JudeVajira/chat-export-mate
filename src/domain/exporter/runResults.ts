@@ -1,5 +1,5 @@
 import { translateExporterError } from "./errors";
-import type { ExportRunResult } from "./types";
+import type { DiagnosticRunResult, ExportRunResult } from "./types";
 
 export type RunSummary = {
   level: "info" | "error";
@@ -21,3 +21,17 @@ export function summarizeExportRunResult(result: ExportRunResult): RunSummary {
   };
 }
 
+export function summarizeDiagnosticRunResult(result: DiagnosticRunResult): RunSummary {
+  if (result.success) {
+    return {
+      level: "info",
+      message: `Exporter diagnostics completed with exit code ${result.exitCode ?? 0}. Log saved to ${result.logPath}.`,
+    };
+  }
+
+  const translated = translateExporterError(result.stderr || result.stdout || "Diagnostics exited without details.");
+  return {
+    level: "error",
+    message: `Diagnostics failed. ${translated.title}: ${translated.suggestedFix} Log saved to ${result.logPath}.`,
+  };
+}

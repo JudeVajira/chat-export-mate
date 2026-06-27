@@ -45,6 +45,19 @@ export interface ExportRunResult {
   outputPath: string;
 }
 
+export interface DiagnosticRunRequest extends BuiltCommand {}
+
+export interface DiagnosticRunResult {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode?: number | null;
+  success: boolean;
+  startedAt: string;
+  completedAt: string;
+  logPath: string;
+}
+
 export interface ValidationIssue {
   field: keyof ExportOptions | "executablePath";
   message: string;

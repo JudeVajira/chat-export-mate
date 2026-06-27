@@ -14,6 +14,7 @@ export function DiagnosticsPanel({
   managedState,
   checkingRelease,
   installingExporter,
+  runningDiagnostics,
   installActionLabel,
   onCheckRelease,
   onInstallLatest,
@@ -25,6 +26,7 @@ export function DiagnosticsPanel({
   managedState: ManagedExporterState;
   checkingRelease: boolean;
   installingExporter: boolean;
+  runningDiagnostics: boolean;
   installActionLabel: string;
   onCheckRelease: () => void;
   onInstallLatest: () => void;
@@ -54,9 +56,14 @@ export function DiagnosticsPanel({
         </div>
 
         <div className="button-grid">
-          <button className="button button--secondary" onClick={onRunDiagnostics} type="button">
+          <button
+            className="button button--secondary"
+            disabled={runningDiagnostics}
+            onClick={onRunDiagnostics}
+            type="button"
+          >
             <RefreshCw aria-hidden="true" />
-            Run diagnostics
+            {runningDiagnostics ? "Running" : "Run diagnostics"}
           </button>
           <button
             className="button button--secondary"

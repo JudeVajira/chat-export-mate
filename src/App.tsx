@@ -18,7 +18,11 @@ import { type LogEntry, LogTimeline } from "./components/LogTimeline";
 import { SetupChecklist } from "./components/SetupChecklist";
 import { StatusPill } from "./components/StatusPill";
 import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "./data/mockWorkspace";
-import { buildExporterCommand, validateExportOptions } from "./domain/exporter/commandBuilder";
+import {
+  buildDiagnosticCommand,
+  buildExporterCommand,
+  validateExportOptions,
+} from "./domain/exporter/commandBuilder";
 import { buildDiagnostics } from "./domain/exporter/diagnostics";
 import { getInstallActionLabel } from "./domain/exporter/manager";
 import {
@@ -26,7 +30,7 @@ import {
   isUpdateAvailable,
   selectBestAsset,
 } from "./domain/exporter/release";
-import { summarizeExportRunResult } from "./domain/exporter/runResults";
+import { summarizeDiagnosticRunResult, summarizeExportRunResult } from "./domain/exporter/runResults";
 import type {
   ExporterProbe,
   ExporterRelease,
@@ -41,6 +45,7 @@ import {
   getSystemSnapshot,
   installLatestExporter,
   openOutputFolder,
+  runExporterDiagnostics,
 } from "./services/tauriBridge";
 
 function App() {
@@ -48,6 +53,7 @@ function App() {
   const [dryRun, setDryRun] = useState(true);
   const [checkingRelease, setCheckingRelease] = useState(false);
   const [installingExporter, setInstallingExporter] = useState(false);
+  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
   const [managedState, setManagedState] = useState<ManagedExporterState>({
@@ -76,6 +82,10 @@ function App() {
 
   const executablePath = probe.path ?? defaultExecutablePath;
   const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
+  const diagnosticCommand = useMemo(
+    () => buildDiagnosticCommand(executablePath, options),
+    [executablePath, options],
+  );
   const issues = useMemo(() => validateExportOptions(executablePath, options), [executablePath, options]);
   const target = useMemo(() => detectRuntimeTarget(snapshot), [snapshot]);
   const selectedAsset = useMemo(() => (release ? selectBestAsset(release, target) : null), [release, target]);
@@ -87,10 +97,10 @@ function App() {
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
 
   useEffect(() => {
-    void runDiagnostics();
+    void refreshHealthChecks();
   }, []);
 
-  async function runDiagnostics() {
+  async function refreshHealthChecks(): Promise<ExporterProbe> {
     const [nextSnapshot, nextProbe, nextManagedState] = await Promise.all([
       getSystemSnapshot(),
       detectExporter(),
@@ -100,6 +110,29 @@ function App() {
     setProbe(nextProbe);
     setManagedState(nextManagedState);
     addLog(nextProbe.found ? "info" : "warn", nextProbe.found ? "Exporter detected." : "Exporter was not detected.");
+    return nextProbe;
+  }
+
+  async function runDiagnostics() {
+    setRunningDiagnostics(true);
+    try {
+      const nextProbe = await refreshHealthChecks();
+      if (!nextProbe.found) {
+        addLog("warn", "Install or select imessage-exporter before running upstream diagnostics.");
+        return;
+      }
+
+      const result = await runExporterDiagnostics({
+        ...diagnosticCommand,
+        executablePath: nextProbe.path ?? diagnosticCommand.executablePath,
+      });
+      const summary = summarizeDiagnosticRunResult(result);
+      addLog(summary.level, summary.message);
+    } catch (error) {
+      addLog("error", error instanceof Error ? error.message : "Diagnostics failed before they could start.");
+    } finally {
+      setRunningDiagnostics(false);
+    }
   }
 
   async function checkRelease() {
@@ -285,6 +318,7 @@ function App() {
               onInstallLatest={installOrUpdateExporter}
               onRunDiagnostics={runDiagnostics}
               release={release}
+              runningDiagnostics={runningDiagnostics}
               selectedAsset={selectedAsset}
             />
           </div>

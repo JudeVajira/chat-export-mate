@@ -39,6 +39,13 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.
 - Browser preview must not pretend to execute exports; it should return a clear desktop-runtime-only message.
 
+# Diagnostics
+
+- App-level health checks refresh platform, managed store, release, configuration, and privacy state.
+- Upstream diagnostics execute `imessage-exporter -d` through Tauri only when an exporter binary is available.
+- Diagnostic attempts write local app data logs under `diagnostic-logs/` and should be summarized through testable domain helpers.
+- Startup should refresh health checks only; it should not run upstream diagnostics until the user clicks **Run diagnostics**.
+
 # Privacy
 
 - Do not upload messages, exports, logs containing message content, or user-selected paths by default.

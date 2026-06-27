@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { fetchLatestExporterRelease } from "../domain/exporter/release";
 import type {
+  DiagnosticRunRequest,
+  DiagnosticRunResult,
   ExporterProbe,
   ExporterRelease,
   ExportRunRequest,
@@ -80,6 +82,20 @@ export async function executeExporter(request: ExportRunRequest): Promise<Export
 
   try {
     return await invoke<ExportRunResult>("execute_exporter", { request });
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function runExporterDiagnostics(
+  request: DiagnosticRunRequest,
+): Promise<DiagnosticRunResult> {
+  if (!isTauriRuntime()) {
+    throw new Error("Exporter diagnostics can only run inside the Tauri desktop app.");
+  }
+
+  try {
+    return await invoke<DiagnosticRunResult>("run_exporter_diagnostics", { request });
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }

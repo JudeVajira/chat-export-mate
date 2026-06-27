@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { summarizeExportRunResult } from "./runResults";
-import type { ExportRunResult } from "./types";
+import { summarizeDiagnosticRunResult, summarizeExportRunResult } from "./runResults";
+import type { DiagnosticRunResult, ExportRunResult } from "./types";
 
 const baseResult: ExportRunResult = {
   command: "imessage-exporter -f html",
@@ -36,3 +36,35 @@ describe("summarizeExportRunResult", () => {
   });
 });
 
+describe("summarizeDiagnosticRunResult", () => {
+  const diagnosticResult: DiagnosticRunResult = {
+    command: "imessage-exporter -d",
+    stdout: "Diagnostics look good",
+    stderr: "",
+    exitCode: 0,
+    success: true,
+    startedAt: "1",
+    completedAt: "2",
+    logPath: "C:/logs/diagnostic-run-1.log",
+  };
+
+  it("returns a success summary for upstream diagnostics", () => {
+    expect(summarizeDiagnosticRunResult(diagnosticResult)).toEqual({
+      level: "info",
+      message:
+        "Exporter diagnostics completed with exit code 0. Log saved to C:/logs/diagnostic-run-1.log.",
+    });
+  });
+
+  it("translates diagnostic failures", () => {
+    const summary = summarizeDiagnosticRunResult({
+      ...diagnosticResult,
+      success: false,
+      exitCode: 1,
+      stderr: "chat.db not found",
+    });
+
+    expect(summary.level).toBe("error");
+    expect(summary.message).toContain("The selected Messages source could not be found");
+  });
+});

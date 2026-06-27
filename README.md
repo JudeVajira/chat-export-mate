@@ -69,6 +69,10 @@ When dry-run mode is off, the desktop app executes the selected `imessage-export
 
 Run logs are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The browser preview cannot execute exports and will show a desktop-runtime message instead.
 
+## Diagnostics
+
+The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, managed binary state, release metadata, command configuration, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri and writes a local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
+
 ## Verify
 
 ```powershell

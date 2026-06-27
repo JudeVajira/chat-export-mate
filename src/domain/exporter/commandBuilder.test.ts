@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildExporterCommand, validateExportOptions } from "./commandBuilder";
+import { buildDiagnosticCommand, buildExporterCommand, validateExportOptions } from "./commandBuilder";
 import type { ExportOptions } from "./types";
 
 const baseOptions: ExportOptions = {
@@ -57,5 +57,21 @@ describe("buildExporterCommand", () => {
 
     expect(issues.map((issue) => issue.field)).toEqual(["endDate", "customName"]);
   });
-});
 
+  it("builds upstream diagnostic arguments with optional source paths", () => {
+    const command = buildDiagnosticCommand("imessage-exporter", {
+      ...baseOptions,
+      attachmentRoot: "/Users/me/Library/Messages",
+    });
+
+    expect(command.args).toEqual([
+      "-d",
+      "-a",
+      "macOS",
+      "-p",
+      "/Users/me/Library/Messages/chat.db",
+      "-r",
+      "/Users/me/Library/Messages",
+    ]);
+  });
+});
