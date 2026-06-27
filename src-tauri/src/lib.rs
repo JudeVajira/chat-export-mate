@@ -1,0 +1,385 @@
+use serde::{Deserialize, Serialize};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+    time::Duration,
+};
+use tauri::{AppHandle, Manager};
+
+const LATEST_RELEASE_URL: &str =
+    "https://api.github.com/repos/ReagentX/imessage-exporter/releases/latest";
+const EXPORTER_STORE_DIR: &str = "exporter";
+const VERSIONS_DIR: &str = "versions";
+const ACTIVE_VERSION_FILE: &str = "active-version.txt";
+
+#[derive(Serialize)]
+struct SystemSnapshot {
+    os: String,
+    arch: String,
+    family: String,
+    default_exporter_name: String,
+}
+
+#[derive(Serialize)]
+struct ExporterProbe {
+    found: bool,
+    path: Option<String>,
+    version: Option<String>,
+    raw_version_output: Option<String>,
+    error: Option<String>,
+    managed: bool,
+    source: String,
+}
+
+#[derive(Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    html_url: String,
+    published_at: Option<String>,
+    assets: Vec<ReleaseAsset>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct ReleaseAsset {
+    name: String,
+    browser_download_url: String,
+    size: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExporterReleaseInfo {
+    version: String,
+    release_url: String,
+    published_at: Option<String>,
+    assets: Vec<ReleaseAsset>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ManagedExporterState {
+    install_root: String,
+    active_path: Option<String>,
+    active_version: Option<String>,
+    installed_versions: Vec<String>,
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ManagedInstallResult {
+    release: ExporterReleaseInfo,
+    asset_name: String,
+    binary_path: String,
+    probe: ExporterProbe,
+    state: ManagedExporterState,
+}
+
+#[tauri::command]
+fn get_system_snapshot() -> SystemSnapshot {
+    SystemSnapshot {
+        os: env::consts::OS.to_string(),
+        arch: env::consts::ARCH.to_string(),
+        family: env::consts::FAMILY.to_string(),
+        default_exporter_name: exporter_binary_name(),
+    }
+}
+
+#[tauri::command]
+fn get_exporter_management_state(app: AppHandle) -> ManagedExporterState {
+    management_state(&app)
+}
+
+#[tauri::command]
+fn check_latest_exporter_release() -> Result<ExporterReleaseInfo, String> {
+    fetch_latest_release().map(release_info)
+}
+
+#[tauri::command]
+fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, String> {
+    let release = fetch_latest_release()?;
+    let asset = select_release_asset(&release)?;
+
+    if asset.name.ends_with(".tar.gz") {
+        return Err(format!(
+            "Only direct executable assets are supported for managed installs right now. Selected archive: {}",
+            asset.name
+        ));
+    }
+
+    let root = managed_exporter_root(&app)?;
+    let version = normalize_version(&release.tag_name);
+    let version_dir = root.join(VERSIONS_DIR).join(&version);
+    fs::create_dir_all(&version_dir).map_err(to_string)?;
+
+    let binary_path = version_dir.join(exporter_binary_name());
+    let temp_path = version_dir.join(format!("{}.download", exporter_binary_name()));
+    let bytes = http_client()?
+        .get(&asset.browser_download_url)
+        .send()
+        .map_err(to_string)?
+        .error_for_status()
+        .map_err(to_string)?
+        .bytes()
+        .map_err(to_string)?;
+
+    fs::write(&temp_path, bytes).map_err(to_string)?;
+    if binary_path.exists() {
+        fs::remove_file(&binary_path).map_err(to_string)?;
+    }
+    fs::rename(&temp_path, &binary_path).map_err(to_string)?;
+    make_executable(&binary_path)?;
+    fs::write(root.join(ACTIVE_VERSION_FILE), &version).map_err(to_string)?;
+
+    let probe = probe_exporter(binary_path.clone(), true, "managed".to_string());
+    Ok(ManagedInstallResult {
+        release: release_info(release),
+        asset_name: asset.name,
+        binary_path: binary_path.to_string_lossy().to_string(),
+        probe,
+        state: management_state(&app),
+    })
+}
+
+#[tauri::command]
+fn detect_exporter(app: AppHandle) -> ExporterProbe {
+    if let Some(path) = active_managed_exporter_path(&app) {
+        let probe = probe_exporter(path, true, "managed".to_string());
+        if probe.found {
+            return probe;
+        }
+    }
+
+    match find_on_path(&exporter_binary_name()) {
+        Some(path) => probe_exporter(path, false, "path".to_string()),
+        None => ExporterProbe {
+            found: false,
+            path: None,
+            version: None,
+            raw_version_output: None,
+            error: Some("imessage-exporter was not found on PATH".to_string()),
+            managed: false,
+            source: "missing".to_string(),
+        },
+    }
+}
+
+fn exporter_binary_name() -> String {
+    if cfg!(windows) {
+        "imessage-exporter.exe".to_string()
+    } else {
+        "imessage-exporter".to_string()
+    }
+}
+
+fn find_on_path(binary_name: &str) -> Option<PathBuf> {
+    let path_var = env::var_os("PATH")?;
+    env::split_paths(&path_var)
+        .map(|directory| directory.join(binary_name))
+        .find(|candidate| candidate.is_file())
+}
+
+fn managed_exporter_root(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|path| path.join(EXPORTER_STORE_DIR))
+        .map_err(to_string)
+}
+
+fn management_state(app: &AppHandle) -> ManagedExporterState {
+    match managed_exporter_root(app) {
+        Ok(root) => {
+            let active_version = active_managed_version(&root);
+            let active_path = active_version
+                .as_ref()
+                .map(|version| root.join(VERSIONS_DIR).join(version).join(exporter_binary_name()))
+                .filter(|path| path.is_file())
+                .map(|path| path.to_string_lossy().to_string());
+
+            ManagedExporterState {
+                install_root: root.to_string_lossy().to_string(),
+                active_path,
+                active_version,
+                installed_versions: installed_versions(&root),
+                error: None,
+            }
+        }
+        Err(error) => ManagedExporterState {
+            install_root: String::new(),
+            active_path: None,
+            active_version: None,
+            installed_versions: Vec::new(),
+            error: Some(error),
+        },
+    }
+}
+
+fn active_managed_exporter_path(app: &AppHandle) -> Option<PathBuf> {
+    let root = managed_exporter_root(app).ok()?;
+    let version = active_managed_version(&root)?;
+    let path = root.join(VERSIONS_DIR).join(version).join(exporter_binary_name());
+    path.is_file().then_some(path)
+}
+
+fn active_managed_version(root: &Path) -> Option<String> {
+    fs::read_to_string(root.join(ACTIVE_VERSION_FILE))
+        .ok()
+        .map(|version| version.trim().to_string())
+        .filter(|version| !version.is_empty())
+}
+
+fn installed_versions(root: &Path) -> Vec<String> {
+    let mut versions = fs::read_dir(root.join(VERSIONS_DIR))
+        .ok()
+        .into_iter()
+        .flat_map(|entries| entries.filter_map(Result::ok))
+        .filter(|entry| entry.path().is_dir())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect::<Vec<_>>();
+    versions.sort();
+    versions.reverse();
+    versions
+}
+
+fn fetch_latest_release() -> Result<GitHubRelease, String> {
+    http_client()?
+        .get(LATEST_RELEASE_URL)
+        .send()
+        .map_err(to_string)?
+        .error_for_status()
+        .map_err(to_string)?
+        .json::<GitHubRelease>()
+        .map_err(to_string)
+}
+
+fn http_client() -> Result<reqwest::blocking::Client, String> {
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .user_agent("ChatExportMate/0.1")
+        .build()
+        .map_err(to_string)
+}
+
+fn release_info(release: GitHubRelease) -> ExporterReleaseInfo {
+    ExporterReleaseInfo {
+        version: normalize_version(&release.tag_name),
+        release_url: release.html_url,
+        published_at: release.published_at,
+        assets: release.assets,
+    }
+}
+
+fn select_release_asset(release: &GitHubRelease) -> Result<ReleaseAsset, String> {
+    let target = target_triple().ok_or_else(|| {
+        format!(
+            "No prebuilt imessage-exporter asset is known for {} {}",
+            env::consts::OS,
+            env::consts::ARCH
+        )
+    })?;
+
+    let mut matching_assets = release
+        .assets
+        .iter()
+        .filter(|asset| asset.name.contains(&target))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if matching_assets.is_empty() {
+        return Err(format!(
+            "Release {} does not include an asset for {}",
+            release.tag_name, target
+        ));
+    }
+
+    matching_assets.sort_by_key(|asset| asset.name.ends_with(".tar.gz"));
+    matching_assets
+        .into_iter()
+        .next()
+        .ok_or_else(|| "No compatible release asset was selected".to_string())
+}
+
+fn target_triple() -> Option<String> {
+    match (env::consts::OS, env::consts::ARCH) {
+        ("windows", "x86_64") => Some("x86_64-pc-windows-gnu".to_string()),
+        ("macos", "x86_64") => Some("x86_64-apple-darwin".to_string()),
+        ("macos", "aarch64") => Some("aarch64-apple-darwin".to_string()),
+        _ => None,
+    }
+}
+
+fn normalize_version(version: &str) -> String {
+    version.trim().trim_start_matches('v').to_string()
+}
+
+fn probe_exporter(path: PathBuf, managed: bool, source: String) -> ExporterProbe {
+    match Command::new(&path).arg("--version").output() {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let raw = if stdout.is_empty() { stderr } else { stdout };
+            ExporterProbe {
+                found: output.status.success(),
+                path: Some(path.to_string_lossy().to_string()),
+                version: parse_version(&raw),
+                raw_version_output: if raw.is_empty() { None } else { Some(raw) },
+                error: if output.status.success() {
+                    None
+                } else {
+                    Some(format!("version check exited with {}", output.status))
+                },
+                managed,
+                source,
+            }
+        }
+        Err(error) => ExporterProbe {
+            found: false,
+            path: Some(path.to_string_lossy().to_string()),
+            version: None,
+            raw_version_output: None,
+            error: Some(error.to_string()),
+            managed,
+            source,
+        },
+    }
+}
+
+fn parse_version(raw: &str) -> Option<String> {
+    raw.split_whitespace()
+        .find(|part| part.chars().next().is_some_and(|first| first.is_ascii_digit()))
+        .map(|part| part.trim_start_matches('v').to_string())
+}
+
+#[cfg(unix)]
+fn make_executable(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut permissions = fs::metadata(path).map_err(to_string)?.permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions).map_err(to_string)
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+fn to_string(error: impl ToString) -> String {
+    error.to_string()
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            get_system_snapshot,
+            get_exporter_management_state,
+            check_latest_exporter_release,
+            install_latest_exporter,
+            detect_exporter
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

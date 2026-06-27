@@ -1,0 +1,92 @@
+import { validateExportOptions } from "./commandBuilder";
+import { isUpdateAvailable, selectBestAsset } from "./release";
+import type {
+  DiagnosticItem,
+  ExportOptions,
+  ExporterProbe,
+  ExporterRelease,
+  ManagedExporterState,
+  RuntimeTarget,
+  SystemSnapshot,
+} from "./types";
+import { describeManagedState, isManagedStoreReady } from "./manager";
+
+export function buildDiagnostics(
+  snapshot: SystemSnapshot,
+  probe: ExporterProbe,
+  release: ExporterRelease | null,
+  target: RuntimeTarget,
+  executablePath: string,
+  options: ExportOptions,
+  managedState?: ManagedExporterState,
+): DiagnosticItem[] {
+  const validationIssues = validateExportOptions(executablePath, options);
+  const selectedAsset = release ? selectBestAsset(release, target) : null;
+  const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
+
+  return [
+    {
+      id: "platform",
+      label: "Platform",
+      detail: `${snapshot.os} ${snapshot.arch}`,
+      state: target.os === "unknown" || target.arch === "unknown" ? "warning" : "passed",
+    },
+    {
+      id: "exporter",
+      label: "Exporter",
+      detail: probe.found
+        ? `${probe.managed ? "Managed" : "PATH"} ${probe.version ?? "unknown version"} at ${
+            probe.path ?? "detected path"
+          }`
+        : probe.error ?? "imessage-exporter was not found",
+      state: probe.found ? "passed" : "action",
+    },
+    {
+      id: "managed-store",
+      label: "Managed exporter",
+      detail: managedState
+        ? describeManagedState(managedState)
+        : "Managed exporter store has not been checked",
+      state: managedState
+        ? managedState.activeVersion
+          ? "passed"
+          : isManagedStoreReady(managedState)
+            ? "warning"
+            : "action"
+        : "warning",
+    },
+    {
+      id: "release",
+      label: "Latest release",
+      detail: release
+        ? updateAvailable
+          ? `Version ${release.version} is available`
+          : `Version ${release.version} checked`
+        : "Release feed has not been checked",
+      state: release ? (updateAvailable ? "warning" : "passed") : "warning",
+    },
+    {
+      id: "asset",
+      label: "Download asset",
+      detail: selectedAsset
+        ? `${selectedAsset.asset.name} selected for ${selectedAsset.targetTriple}`
+        : "No compatible prebuilt asset selected for this platform",
+      state: selectedAsset ? "passed" : target.os === "linux" ? "warning" : "action",
+    },
+    {
+      id: "configuration",
+      label: "Configuration",
+      detail:
+        validationIssues.length === 0
+          ? "Export options are ready"
+          : validationIssues.map((issue) => issue.message).join(" "),
+      state: validationIssues.length === 0 ? "passed" : "action",
+    },
+    {
+      id: "privacy",
+      label: "Privacy",
+      detail: "No message data leaves this device",
+      state: "passed",
+    },
+  ];
+}
