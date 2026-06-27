@@ -14,6 +14,7 @@ import type {
   ManagedInstallResult,
   OutputAccessCheck,
   StoredLogEntry,
+  SupportBundleResult,
   SystemSnapshot,
 } from "../domain/exporter/types";
 
@@ -149,6 +150,18 @@ export async function listExporterLogs(): Promise<StoredLogEntry[]> {
 
   try {
     return await invoke<StoredLogEntry[]>("list_exporter_logs");
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function createSupportBundle(): Promise<SupportBundleResult> {
+  if (!isTauriRuntime()) {
+    throw new Error("Support bundles are available when running inside Tauri.");
+  }
+
+  try {
+    return await invoke<SupportBundleResult>("create_support_bundle");
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }

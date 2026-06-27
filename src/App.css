@@ -265,6 +265,13 @@ dd {
   letter-spacing: 0;
 }
 
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .section-heading--compact {
   padding-bottom: 0;
   border-bottom: 0;
@@ -777,6 +784,12 @@ dd {
   .action-row-group {
     display: grid;
     gap: 10px;
+  }
+
+  .section-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 
   .version-switcher-controls {

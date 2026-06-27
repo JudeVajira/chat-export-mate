@@ -82,6 +82,13 @@ export interface StoredLogEntry {
   outputPath?: string | null;
 }
 
+export interface SupportBundleResult {
+  bundlePath: string;
+  manifestPath: string;
+  logCount: number;
+  createdAt: string;
+}
+
 export interface ValidationIssue {
   field: keyof ExportOptions | "executablePath";
   message: string;

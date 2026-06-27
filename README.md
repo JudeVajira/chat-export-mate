@@ -77,6 +77,8 @@ Run logs are written under the app data directory in `run-logs/export-run-<times
 
 The History panel lists saved local export and diagnostic logs when running inside Tauri. Logs stay on the machine and can be opened from the app for troubleshooting or bug reports.
 
+The History panel can also create a local support bundle under the app data directory in `support-bundles/support-bundle-<timestamp>/`. A bundle copies saved run and diagnostic logs and adds a manifest with system/exporter context plus a reminder to review logs before sharing.
+
 ## Diagnostics
 
 The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri and writes a local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.

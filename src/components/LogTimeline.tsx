@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, RefreshCw } from "lucide-react";
+import { ExternalLink, FileArchive, FileText, RefreshCw } from "lucide-react";
 import {
   describeStoredLog,
   sortStoredLogs,
@@ -15,13 +15,17 @@ export interface LogEntry {
 
 export function LogTimeline({
   entries,
+  creatingSupportBundle,
   loadingStoredLogs,
+  onCreateSupportBundle,
   onOpenStoredLog,
   onRefreshStoredLogs,
   storedLogs,
 }: {
   entries: LogEntry[];
+  creatingSupportBundle: boolean;
   loadingStoredLogs: boolean;
+  onCreateSupportBundle: () => void;
   onOpenStoredLog: (log: StoredLogEntry) => void;
   onRefreshStoredLogs: () => void;
   storedLogs: StoredLogEntry[];
@@ -35,15 +39,26 @@ export function LogTimeline({
           <p className="section-kicker">Logs</p>
           <h2 id="log-title">Run history</h2>
         </div>
-        <button
-          className="button button--secondary button--compact"
-          disabled={loadingStoredLogs}
-          onClick={onRefreshStoredLogs}
-          type="button"
-        >
-          <RefreshCw aria-hidden="true" />
-          {loadingStoredLogs ? "Loading" : "Refresh"}
-        </button>
+        <div className="section-actions">
+          <button
+            className="button button--secondary button--compact"
+            disabled={creatingSupportBundle}
+            onClick={onCreateSupportBundle}
+            type="button"
+          >
+            <FileArchive aria-hidden="true" />
+            {creatingSupportBundle ? "Exporting" : "Export bundle"}
+          </button>
+          <button
+            className="button button--secondary button--compact"
+            disabled={loadingStoredLogs}
+            onClick={onRefreshStoredLogs}
+            type="button"
+          >
+            <RefreshCw aria-hidden="true" />
+            {loadingStoredLogs ? "Loading" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       <div className="history-layout">

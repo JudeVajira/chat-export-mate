@@ -43,6 +43,7 @@ import {
   activateManagedExporterVersion,
   checkOutputAccess,
   checkLatestExporterRelease,
+  createSupportBundle,
   detectExporter,
   executeExporter,
   getExporterManagementState,
@@ -65,6 +66,7 @@ function App() {
   const [runningDiagnostics, setRunningDiagnostics] = useState(false);
   const [activatingManagedVersion, setActivatingManagedVersion] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [creatingSupportBundle, setCreatingSupportBundle] = useState(false);
   const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
   const [managedState, setManagedState] = useState<ManagedExporterState>({
@@ -312,6 +314,20 @@ function App() {
     }
   }
 
+  async function exportSupportBundle() {
+    setCreatingSupportBundle(true);
+    try {
+      const bundle = await createSupportBundle();
+      addLog("info", `Created support bundle with ${bundle.logCount} log${bundle.logCount === 1 ? "" : "s"}.`);
+      await openLocalPath(bundle.bundlePath);
+      addLog("info", `Opened ${bundle.bundlePath}.`);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not create the support bundle.");
+    } finally {
+      setCreatingSupportBundle(false);
+    }
+  }
+
   function addLog(level: LogEntry["level"], message: string) {
     const time = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
@@ -450,8 +466,10 @@ function App() {
 
         <div id="history">
           <LogTimeline
+            creatingSupportBundle={creatingSupportBundle}
             entries={logs}
             loadingStoredLogs={loadingStoredLogs}
+            onCreateSupportBundle={exportSupportBundle}
             onOpenStoredLog={openStoredLog}
             onRefreshStoredLogs={() => void refreshStoredLogs()}
             storedLogs={storedLogs}

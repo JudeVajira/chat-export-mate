@@ -16,6 +16,7 @@ const STAGING_DIR: &str = "staging";
 const ACTIVE_VERSION_FILE: &str = "active-version.txt";
 const RUN_LOG_DIR: &str = "run-logs";
 const DIAGNOSTIC_LOG_DIR: &str = "diagnostic-logs";
+const SUPPORT_BUNDLE_DIR: &str = "support-bundles";
 
 #[derive(Serialize)]
 struct SystemSnapshot {
@@ -167,6 +168,15 @@ struct StoredLogEntry {
     started_at: Option<String>,
     completed_at: Option<String>,
     output_path: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SupportBundleResult {
+    bundle_path: String,
+    manifest_path: String,
+    log_count: usize,
+    created_at: String,
 }
 
 #[tauri::command]
@@ -494,6 +504,33 @@ fn list_exporter_logs(app: AppHandle) -> Result<Vec<StoredLogEntry>, String> {
     Ok(logs)
 }
 
+#[tauri::command]
+fn create_support_bundle(app: AppHandle) -> Result<SupportBundleResult, String> {
+    let created_at = timestamp_millis();
+    let bundle_path = support_bundle_root(&app)?.join(format!("support-bundle-{created_at}"));
+    let logs_path = bundle_path.join("logs");
+    fs::create_dir_all(&logs_path).map_err(to_string)?;
+
+    let export_log_count = copy_log_files(run_log_root(&app)?, logs_path.join(RUN_LOG_DIR))?;
+    let diagnostic_log_count =
+        copy_log_files(diagnostic_log_root(&app)?, logs_path.join(DIAGNOSTIC_LOG_DIR))?;
+    let log_count = export_log_count + diagnostic_log_count;
+    let manifest_path = bundle_path.join("manifest.txt");
+
+    fs::write(
+        &manifest_path,
+        support_bundle_manifest(&app, &created_at, export_log_count, diagnostic_log_count),
+    )
+    .map_err(to_string)?;
+
+    Ok(SupportBundleResult {
+        bundle_path: bundle_path.to_string_lossy().to_string(),
+        manifest_path: manifest_path.to_string_lossy().to_string(),
+        log_count,
+        created_at,
+    })
+}
+
 fn exporter_binary_name() -> String {
     if cfg!(windows) {
         "imessage-exporter.exe".to_string()
@@ -574,6 +611,67 @@ fn diagnostic_log_root(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map(|path| path.join(DIAGNOSTIC_LOG_DIR))
         .map_err(to_string)
+}
+
+fn support_bundle_root(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|path| path.join(SUPPORT_BUNDLE_DIR))
+        .map_err(to_string)
+}
+
+fn copy_log_files(source_root: PathBuf, destination_root: PathBuf) -> Result<usize, String> {
+    if !source_root.exists() {
+        return Ok(0);
+    }
+
+    fs::create_dir_all(&destination_root).map_err(to_string)?;
+    let mut copied_count = 0;
+    for entry in fs::read_dir(source_root).map_err(to_string)?.filter_map(Result::ok) {
+        let source_path = entry.path();
+        if source_path.extension().and_then(|extension| extension.to_str()) != Some("log") {
+            continue;
+        }
+
+        let Some(file_name) = source_path.file_name() else {
+            continue;
+        };
+
+        fs::copy(&source_path, destination_root.join(file_name)).map_err(to_string)?;
+        copied_count += 1;
+    }
+
+    Ok(copied_count)
+}
+
+fn support_bundle_manifest(
+    app: &AppHandle,
+    created_at: &str,
+    export_log_count: usize,
+    diagnostic_log_count: usize,
+) -> String {
+    let managed_state = management_state(app);
+    format!(
+        "ChatExportMate support bundle\n\
+created_at: {created_at}\n\
+os: {}\n\
+arch: {}\n\
+export_logs: {export_log_count}\n\
+diagnostic_logs: {diagnostic_log_count}\n\
+active_managed_version: {}\n\
+installed_managed_versions: {}\n\n\
+Privacy note: this bundle is created locally and is not uploaded by ChatExportMate. Logs may contain local file paths, exporter command arguments, stdout, stderr, and other troubleshooting details. Review the files before sharing them in a bug report.\n",
+        env::consts::OS,
+        env::consts::ARCH,
+        managed_state
+            .active_version
+            .unwrap_or_else(|| "none".to_string()),
+        if managed_state.installed_versions.is_empty() {
+            "none".to_string()
+        } else {
+            managed_state.installed_versions.join(", ")
+        }
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -951,7 +1049,8 @@ pub fn run() {
             check_output_access,
             execute_exporter,
             run_exporter_diagnostics,
-            list_exporter_logs
+            list_exporter_logs,
+            create_support_bundle
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
