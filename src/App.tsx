@@ -73,6 +73,7 @@ import type {
   ManagedExporterState,
   OutputAccessCheck,
   ProcessOutputEvent,
+  StoredLogDetail,
   StoredLogEntry,
   SystemSnapshot,
 } from "./domain/exporter/types";
@@ -86,6 +87,7 @@ import {
   executeExporter,
   getExporterManagementState,
   getSystemSnapshot,
+  getStoredLogDetail,
   installLatestExporter,
   listExporterLogs,
   loadExportPreferences,
@@ -115,6 +117,7 @@ function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [creatingSupportBundle, setCreatingSupportBundle] = useState(false);
   const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
+  const [loadingLogDetail, setLoadingLogDetail] = useState(false);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
   const [managedState, setManagedState] = useState<ManagedExporterState>({
@@ -141,6 +144,7 @@ function App() {
   });
   const [logs, setLogs] = useState<LogEntry[]>([...initialLogEntries]);
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
+  const [selectedLogDetail, setSelectedLogDetail] = useState<StoredLogDetail | null>(null);
   const [latestRunSummary, setLatestRunSummary] = useState<RunSummary | null>(null);
   const [runProgress, setRunProgress] = useState<RunProgress | null>(null);
   const [processOutputEvents, setProcessOutputEvents] = useState<ProcessOutputEvent[]>([]);
@@ -649,6 +653,9 @@ function App() {
     try {
       const nextLogs = await listExporterLogs();
       setStoredLogs(nextLogs);
+      setSelectedLogDetail((current) =>
+        current && nextLogs.some((log) => log.id === current.entry.id) ? current : null,
+      );
       if (announce) {
         addLog("info", `Loaded ${nextLogs.length} saved local log${nextLogs.length === 1 ? "" : "s"}.`);
       }
@@ -683,6 +690,19 @@ function App() {
       addLog("info", `Opened ${log.fileName}.`);
     } catch (error) {
       addLog("warn", error instanceof Error ? error.message : "Could not open the selected log.");
+    }
+  }
+
+  async function previewStoredLog(log: StoredLogEntry) {
+    setLoadingLogDetail(true);
+    try {
+      const detail = await getStoredLogDetail(log);
+      setSelectedLogDetail(detail);
+      addLog("info", `Previewed ${log.fileName}.`);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not preview the selected log.");
+    } finally {
+      setLoadingLogDetail(false);
     }
   }
 
@@ -878,10 +898,13 @@ function App() {
           <LogTimeline
             creatingSupportBundle={creatingSupportBundle}
             entries={logs}
+            loadingLogDetail={loadingLogDetail}
             loadingStoredLogs={loadingStoredLogs}
             onCreateSupportBundle={exportSupportBundle}
             onOpenStoredLog={openStoredLog}
+            onPreviewStoredLog={previewStoredLog}
             onRefreshStoredLogs={() => void refreshStoredLogs()}
+            selectedLogDetail={selectedLogDetail}
             storedLogs={storedLogs}
           />
         </div>

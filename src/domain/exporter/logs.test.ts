@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { describeStoredLog, sortStoredLogs, storedLogState } from "./logs";
-import type { StoredLogEntry } from "./types";
+import {
+  describeStoredLog,
+  describeStoredLogPreview,
+  formatByteSize,
+  sortStoredLogs,
+  storedLogState,
+} from "./logs";
+import type { StoredLogDetail, StoredLogEntry } from "./types";
 
 const exportLog: StoredLogEntry = {
   id: "export:2",
@@ -56,5 +62,31 @@ describe("storedLogState", () => {
   it("marks successful or unknown logs as available", () => {
     expect(storedLogState(exportLog)).toBe("passed");
     expect(storedLogState({ ...exportLog, success: null })).toBe("passed");
+  });
+});
+
+describe("formatByteSize", () => {
+  it("formats bytes and binary units for log previews", () => {
+    expect(formatByteSize(512)).toBe("512 B");
+    expect(formatByteSize(1536)).toBe("1.5 KiB");
+    expect(formatByteSize(1024 * 32)).toBe("32 KiB");
+    expect(formatByteSize(1024 * 1024 * 2.25)).toBe("2.3 MiB");
+    expect(formatByteSize(-1)).toBe("unknown size");
+  });
+});
+
+describe("describeStoredLogPreview", () => {
+  it("explains complete and truncated local log previews", () => {
+    const detail: StoredLogDetail = {
+      entry: exportLog,
+      content: "started_at: 2",
+      size: 1536,
+      truncated: false,
+    };
+
+    expect(describeStoredLogPreview(detail)).toBe("Previewing the complete 1.5 KiB local log.");
+    expect(describeStoredLogPreview({ ...detail, truncated: true })).toBe(
+      "Previewing the first 1.5 KiB; open the log for the complete file.",
+    );
   });
 });

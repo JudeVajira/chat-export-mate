@@ -20,6 +20,7 @@ import type {
   ManagedInstallResult,
   OutputAccessCheck,
   ProcessOutputEvent,
+  StoredLogDetail,
   StoredLogEntry,
   SupportBundleResult,
   SystemSnapshot,
@@ -231,6 +232,23 @@ export async function listExporterLogs(): Promise<StoredLogEntry[]> {
 
   try {
     return await invoke<StoredLogEntry[]>("list_exporter_logs");
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function getStoredLogDetail(log: StoredLogEntry): Promise<StoredLogDetail> {
+  if (!isTauriRuntime()) {
+    throw new Error("Saved log previews are available when running inside Tauri.");
+  }
+
+  try {
+    return await invoke<StoredLogDetail>("get_stored_log_detail", {
+      request: {
+        kind: log.kind,
+        fileName: log.fileName,
+      },
+    });
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }

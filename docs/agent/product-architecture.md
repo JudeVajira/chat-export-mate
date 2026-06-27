@@ -51,6 +51,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - The Progress panel is driven by the testable `src/domain/exporter/runProgress.ts` model. Keep operation stages in that domain module instead of scattering stage labels through React handlers.
 - The live process output list is UI-only, capped, and filtered by a per-run event id. Do not treat the Vite browser harness as capable of real exporter process streaming.
 - The History UI lists persisted app-data export and diagnostic logs through a Tauri command and opens selected log files locally; the development browser harness should show an empty stored-log list rather than fake desktop files.
+- Saved log previews are read through a Tauri command constrained to known app-data log roots and `.log` filenames. Keep previews local, capped for large files, and paired with a privacy reminder before sharing.
 - Support bundles should be created locally under app data `support-bundles/`, copy saved logs, include a short manifest, and remind users to review logs before sharing them.
 - The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.
 - Real export readiness should be derived from the tested preflight summary domain module; keep dry-run command preview available while explaining blockers for an actual export.

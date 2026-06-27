@@ -104,6 +104,13 @@ export interface StoredLogEntry {
   outputPath?: string | null;
 }
 
+export interface StoredLogDetail {
+  entry: StoredLogEntry;
+  content: string;
+  size: number;
+  truncated: boolean;
+}
+
 export interface SupportBundleResult {
   bundlePath: string;
   manifestPath: string;

@@ -1,10 +1,11 @@
-import { ExternalLink, FileArchive, FileText, RefreshCw } from "lucide-react";
+import { ExternalLink, FileArchive, FileText, RefreshCw, Search } from "lucide-react";
 import {
   describeStoredLog,
+  describeStoredLogPreview,
   sortStoredLogs,
   storedLogState,
 } from "../domain/exporter/logs";
-import type { StoredLogEntry } from "../domain/exporter/types";
+import type { StoredLogDetail, StoredLogEntry } from "../domain/exporter/types";
 import { StatusPill } from "./StatusPill";
 
 export interface LogEntry {
@@ -16,18 +17,24 @@ export interface LogEntry {
 export function LogTimeline({
   entries,
   creatingSupportBundle,
+  loadingLogDetail,
   loadingStoredLogs,
   onCreateSupportBundle,
   onOpenStoredLog,
+  onPreviewStoredLog,
   onRefreshStoredLogs,
+  selectedLogDetail,
   storedLogs,
 }: {
   entries: LogEntry[];
   creatingSupportBundle: boolean;
+  loadingLogDetail: boolean;
   loadingStoredLogs: boolean;
   onCreateSupportBundle: () => void;
   onOpenStoredLog: (log: StoredLogEntry) => void;
+  onPreviewStoredLog: (log: StoredLogEntry) => void;
   onRefreshStoredLogs: () => void;
+  selectedLogDetail: StoredLogDetail | null;
   storedLogs: StoredLogEntry[];
 }) {
   const sortedLogs = sortStoredLogs(storedLogs);
@@ -98,19 +105,68 @@ export function LogTimeline({
                     <p>{log.outputPath ?? log.command ?? log.fileName}</p>
                     <span>{formatStoredLogTime(log.startedAt)}</span>
                   </div>
-                  <button
-                    className="button button--secondary button--icon"
-                    onClick={() => onOpenStoredLog(log)}
-                    type="button"
-                    title={`Open ${log.fileName}`}
-                  >
-                    <ExternalLink aria-hidden="true" />
-                  </button>
+                  <div className="stored-log-actions">
+                    <button
+                      className="button button--secondary button--icon"
+                      disabled={loadingLogDetail}
+                      onClick={() => onPreviewStoredLog(log)}
+                      type="button"
+                      title={`Preview ${log.fileName}`}
+                      aria-label={`Preview ${log.fileName}`}
+                    >
+                      <Search aria-hidden="true" />
+                    </button>
+                    <button
+                      className="button button--secondary button--icon"
+                      onClick={() => onOpenStoredLog(log)}
+                      type="button"
+                      title={`Open ${log.fileName}`}
+                      aria-label={`Open ${log.fileName}`}
+                    >
+                      <ExternalLink aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+
+      <div className="stored-log-preview">
+        <div className="history-subheading">
+          <FileText aria-hidden="true" />
+          <h3>Log preview</h3>
+        </div>
+        {loadingLogDetail ? (
+          <p className="empty-state">Loading the selected local log.</p>
+        ) : selectedLogDetail ? (
+          <div className="stored-log-preview-body">
+            <div className="stored-log-preview-meta">
+              <div>
+                <span>File</span>
+                <strong>{selectedLogDetail.entry.fileName}</strong>
+              </div>
+              <div>
+                <span>Summary</span>
+                <strong>{describeStoredLog(selectedLogDetail.entry)}</strong>
+              </div>
+              <div>
+                <span>Preview</span>
+                <strong>{describeStoredLogPreview(selectedLogDetail)}</strong>
+              </div>
+            </div>
+            <p className="privacy-note">
+              Logs are local and may include paths, command arguments, stdout, stderr, or exporter
+              details. Review the content before sharing a support bundle or log file.
+            </p>
+            <pre className="stored-log-raw">{selectedLogDetail.content}</pre>
+          </div>
+        ) : (
+          <p className="empty-state">
+            Select a saved export or diagnostic log to inspect its local troubleshooting details.
+          </p>
+        )}
       </div>
     </section>
   );

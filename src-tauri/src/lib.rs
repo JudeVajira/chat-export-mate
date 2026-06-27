@@ -26,6 +26,7 @@ const RUN_LOG_DIR: &str = "run-logs";
 const DIAGNOSTIC_LOG_DIR: &str = "diagnostic-logs";
 const SUPPORT_BUNDLE_DIR: &str = "support-bundles";
 const PROCESS_OUTPUT_EVENT: &str = "chatexportmate://process-output";
+const MAX_LOG_PREVIEW_BYTES: u64 = 200_000;
 
 #[derive(Serialize)]
 struct SystemSnapshot {
@@ -232,6 +233,22 @@ struct StoredLogEntry {
     started_at: Option<String>,
     completed_at: Option<String>,
     output_path: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredLogDetailRequest {
+    kind: String,
+    file_name: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredLogDetail {
+    entry: StoredLogEntry,
+    content: String,
+    size: u64,
+    truncated: bool,
 }
 
 #[derive(Serialize)]
@@ -739,6 +756,40 @@ fn list_exporter_logs(app: AppHandle) -> Result<Vec<StoredLogEntry>, String> {
 }
 
 #[tauri::command]
+fn get_stored_log_detail(
+    app: AppHandle,
+    request: StoredLogDetailRequest,
+) -> Result<StoredLogDetail, String> {
+    let kind = request.kind.trim();
+    let file_name = request.file_name.trim();
+    if !is_safe_log_file_name(file_name) {
+        return Err("Choose a saved ChatExportMate log file.".to_string());
+    }
+
+    let root = match kind {
+        "export" => run_log_root(&app)?,
+        "diagnostic" => diagnostic_log_root(&app)?,
+        _ => return Err("Choose an export or diagnostic log.".to_string()),
+    };
+    let path = root.join(file_name);
+    if !path.is_file() {
+        return Err("The selected log file no longer exists.".to_string());
+    }
+
+    let metadata = fs::metadata(&path).map_err(to_string)?;
+    let size = metadata.len();
+    let content = read_log_preview(&path, size)?;
+    let entry = parse_stored_log(kind, file_name.to_string(), path, &content);
+
+    Ok(StoredLogDetail {
+        entry,
+        content,
+        size,
+        truncated: size > MAX_LOG_PREVIEW_BYTES,
+    })
+}
+
+#[tauri::command]
 fn create_support_bundle(app: AppHandle) -> Result<SupportBundleResult, String> {
     let created_at = timestamp_millis();
     let bundle_path = support_bundle_root(&app)?.join(format!("support-bundle-{created_at}"));
@@ -1050,6 +1101,29 @@ fn parse_log_header(content: &str) -> HashMap<String, String> {
         }
     }
     header
+}
+
+fn is_safe_log_file_name(file_name: &str) -> bool {
+    !file_name.is_empty()
+        && file_name.ends_with(".log")
+        && file_name.chars().all(|character| {
+            character.is_ascii_alphanumeric()
+                || character == '.'
+                || character == '-'
+                || character == '_'
+        })
+}
+
+fn read_log_preview(path: &Path, size: u64) -> Result<String, String> {
+    if size <= MAX_LOG_PREVIEW_BYTES {
+        return fs::read_to_string(path).map_err(to_string);
+    }
+
+    let mut file = fs::File::open(path).map_err(to_string)?;
+    let mut buffer = vec![0; MAX_LOG_PREVIEW_BYTES as usize];
+    let bytes_read = file.read(&mut buffer).map_err(to_string)?;
+    buffer.truncate(bytes_read);
+    Ok(String::from_utf8_lossy(&buffer).to_string())
 }
 
 fn parse_bool(value: &str) -> Option<bool> {
@@ -1562,6 +1636,7 @@ pub fn run() {
             execute_exporter,
             run_exporter_diagnostics,
             list_exporter_logs,
+            get_stored_log_detail,
             create_support_bundle
         ])
         .run(tauri::generate_context!())
@@ -1667,5 +1742,34 @@ mod tests {
         assert_eq!(chunks[0].text, "first\r\n");
         assert_eq!(chunks[1].line, "second");
         assert_eq!(chunks[1].text, "second");
+    }
+
+    #[test]
+    fn log_file_names_must_be_local_log_files() {
+        assert!(is_safe_log_file_name("export-run-123.log"));
+        assert!(is_safe_log_file_name("diagnostic_run.123.log"));
+        assert!(!is_safe_log_file_name(""));
+        assert!(!is_safe_log_file_name("../export-run-123.log"));
+        assert!(!is_safe_log_file_name("C:\\logs\\export-run-123.log"));
+        assert!(!is_safe_log_file_name("export-run-123.txt"));
+    }
+
+    #[test]
+    fn read_log_preview_caps_large_files() {
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-log-preview-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let log_path = root.join("export-run-large.log");
+        let content = "a".repeat((MAX_LOG_PREVIEW_BYTES as usize) + 32);
+        fs::write(&log_path, content).unwrap();
+
+        let preview = read_log_preview(&log_path, fs::metadata(&log_path).unwrap().len()).unwrap();
+
+        assert_eq!(preview.len(), MAX_LOG_PREVIEW_BYTES as usize);
+
+        let _ = fs::remove_dir_all(root);
     }
 }
