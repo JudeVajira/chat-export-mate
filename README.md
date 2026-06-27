@@ -87,6 +87,12 @@ If you already have `imessage-exporter`, use **Use existing** in Diagnostics. Ch
 
 ChatExportMate restores the last export options and dry-run mode on startup. In the desktop app, preferences are stored as a local JSON file under the Tauri app data directory. Preferences can include local paths and are not uploaded or synced by ChatExportMate.
 
+## Setup Permissions
+
+The setup panel includes a permission guide for the selected export source and destination. For local macOS Messages exports, grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before starting a real export. For iOS exports, choose the local iPhone backup folder that the exporter should read. In both cases, use **Check output access** to verify the export destination before turning dry-run mode off.
+
+The Windows development harness cannot verify Apple privacy permissions; it keeps those checks as review guidance until the app is run on the Mac that contains the Messages database or backup.
+
 ## Export Runs And Logs
 
 When dry-run mode is off, the desktop app executes the selected `imessage-exporter` binary through the Tauri backend. Each export attempt captures:

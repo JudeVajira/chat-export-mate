@@ -59,6 +59,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 - App-level health checks refresh platform, managed store, release, configuration, and privacy state.
 - Desktop health checks should verify output write access locally by creating/removing a temporary file in the selected output folder or its existing parent when the target folder is not created yet.
+- Setup permission guidance is derived in domain code, not hardcoded inside React components. It should cover macOS Full Disk Access for local Messages exports, iOS backup-folder access, output write access, and the local-only privacy boundary.
 - Upstream diagnostics execute `imessage-exporter -d` through Tauri only when an exporter binary is available.
 - Diagnostic attempts write local app data logs under `diagnostic-logs/` and should be summarized through testable domain helpers.
 - Startup should refresh health checks only; it should not run upstream diagnostics until the user clicks **Run diagnostics**.

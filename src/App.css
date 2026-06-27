@@ -332,6 +332,7 @@ dd {
 }
 
 .checklist p,
+.permission-guide p,
 .diagnostic-row p,
 .log-row p,
 .command-panel p,
@@ -340,6 +341,85 @@ dd {
   color: #64748b;
   font-size: 0.84rem;
   line-height: 1.45;
+}
+
+.permission-guide {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #e4eaf1;
+  padding: 14px 16px 16px;
+}
+
+.permission-guide-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.permission-guide-heading h3,
+.permission-row h4 {
+  margin: 0;
+  color: #172033;
+  font-weight: 820;
+  letter-spacing: 0;
+}
+
+.permission-guide-heading h3 {
+  font-size: 0.9rem;
+}
+
+.permission-list {
+  display: grid;
+  gap: 10px;
+}
+
+.permission-row {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.permission-row-heading {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.permission-row h4 {
+  font-size: 0.86rem;
+}
+
+.permission-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 34px;
+  color: #46566e;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.permission-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  color: #174ea6;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.permission-reference:hover {
+  text-decoration: underline;
+}
+
+.permission-reference svg {
+  width: 14px;
+  height: 14px;
 }
 
 .status-pill {

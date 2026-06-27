@@ -1,4 +1,5 @@
-import { CheckCircle2, CircleAlert, CircleDot } from "lucide-react";
+import { CheckCircle2, CircleAlert, CircleDot, ExternalLink } from "lucide-react";
+import type { PermissionGuide } from "../domain/exporter/permissions";
 import type { DiagnosticItem } from "../domain/exporter/types";
 import { StatusPill } from "./StatusPill";
 
@@ -8,7 +9,21 @@ const icons = {
   action: CircleDot,
 };
 
-export function SetupChecklist({ items }: { items: DiagnosticItem[] }) {
+export function SetupChecklist({
+  items,
+  permissions,
+}: {
+  items: DiagnosticItem[];
+  permissions: PermissionGuide;
+}) {
+  const setupItems = [...items, ...permissions.items];
+  const setupState = setupItems.some((item) => item.state === "action")
+    ? "action"
+    : setupItems.some((item) => item.state === "warning")
+      ? "warning"
+      : "passed";
+  const setupLabel = setupState === "action" ? "Needs setup" : setupState === "warning" ? "Review" : "Ready";
+
   return (
     <section className="panel setup-panel" aria-labelledby="setup-title">
       <div className="section-heading">
@@ -17,8 +32,8 @@ export function SetupChecklist({ items }: { items: DiagnosticItem[] }) {
           <h2 id="setup-title">Export readiness</h2>
         </div>
         <StatusPill
-          label={items.some((item) => item.state === "action") ? "Needs setup" : "Ready"}
-          state={items.some((item) => item.state === "action") ? "action" : "passed"}
+          label={setupLabel}
+          state={setupState}
         />
       </div>
 
@@ -36,7 +51,41 @@ export function SetupChecklist({ items }: { items: DiagnosticItem[] }) {
           );
         })}
       </div>
+
+      <div className="permission-guide" aria-label="Permission guide">
+        <div className="permission-guide-heading">
+          <h3>Permissions</h3>
+          <p>{permissions.intro}</p>
+        </div>
+        <div className="permission-list">
+          {permissions.items.map((item) => {
+            const Icon = icons[item.state];
+            return (
+              <article className="permission-row" key={item.id}>
+                <div className="permission-row-heading">
+                  <Icon aria-hidden="true" className={`checklist-icon checklist-icon--${item.state}`} />
+                  <div>
+                    <h4>{item.label}</h4>
+                    <p>{item.detail}</p>
+                  </div>
+                  <StatusPill state={item.state} />
+                </div>
+                <ol className="permission-steps">
+                  {item.steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                {item.reference ? (
+                  <a className="permission-reference" href={item.reference.url} rel="noreferrer" target="_blank">
+                    {item.reference.label}
+                    <ExternalLink aria-hidden="true" />
+                  </a>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 }
-

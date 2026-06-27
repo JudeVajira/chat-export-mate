@@ -36,6 +36,7 @@ import {
   applyExportPreferences,
   createExportPreferences,
 } from "./domain/exporter/preferences";
+import { buildPermissionGuide } from "./domain/exporter/permissions";
 import { buildExportPreflightSummary } from "./domain/exporter/preflight";
 import {
   detectRuntimeTarget,
@@ -165,6 +166,10 @@ function App() {
   const preflight = useMemo(
     () => buildExportPreflightSummary(diagnostics, dryRun),
     [diagnostics, dryRun],
+  );
+  const permissionGuide = useMemo(
+    () => buildPermissionGuide(snapshot, options, outputAccess),
+    [options, outputAccess, snapshot],
   );
 
   useEffect(() => {
@@ -680,7 +685,7 @@ function App() {
         <div className="content-grid">
           <div className="main-stack">
             <div id="setup">
-              <SetupChecklist items={diagnostics.slice(0, 4)} />
+              <SetupChecklist items={diagnostics.slice(0, 4)} permissions={permissionGuide} />
             </div>
             <div id="export">
               <ExportConfigurator

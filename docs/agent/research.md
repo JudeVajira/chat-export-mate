@@ -11,6 +11,7 @@ sources:
   - https://v2.tauri.app/reference/javascript/api/namespacepath/
   - https://v2.tauri.app/plugin/dialog/
   - https://tailwindcss.com/docs/installation/using-vite
+  - https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac
   - https://github.com/ReagentX/imessage-exporter
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/LICENSE
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
@@ -40,6 +41,11 @@ related:
   URL: https://tailwindcss.com/docs/installation/using-vite
   Why it matters: Confirms the current Vite integration path using `tailwindcss` and `@tailwindcss/vite`.
   Last checked: 2026-06-27 12:03 +05:30
+
+- Title: Apple macOS privacy and security settings
+  URL: https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac
+  Why it matters: Confirms the current macOS System Settings path for Full Disk Access guidance in setup permissions.
+  Last checked: 2026-06-27 16:05 +05:30
 
 - Title: ReagentX/imessage-exporter
   URL: https://github.com/ReagentX/imessage-exporter
