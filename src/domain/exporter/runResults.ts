@@ -1,5 +1,17 @@
 import { translateExporterError } from "./errors";
-import type { DiagnosticRunResult, ExportRunResult, FriendlyError } from "./types";
+import type {
+  DiagnosticRunResult,
+  ExportRunResult,
+  FriendlyError,
+  ManagedActivationResult,
+  ManagedInstallResult,
+} from "./types";
+
+type RunSummaryMeta = {
+  label: string;
+  value: string;
+  code?: boolean;
+};
 
 export type RunSummary = {
   level: "info" | "error";
@@ -11,6 +23,7 @@ export type RunSummary = {
   exitCode?: number | null;
   rawDetails?: string;
   error?: FriendlyError;
+  meta?: RunSummaryMeta[];
 };
 
 export function summarizeExportRunResult(result: ExportRunResult): RunSummary {
@@ -72,6 +85,76 @@ export function createDryRunSummary(argumentCount: number): RunSummary {
     detail: `${argumentCount} exporter argument${argumentCount === 1 ? "" : "s"} generated. Nothing was written.`,
     message: `Dry run generated ${argumentCount} exporter argument${argumentCount === 1 ? "" : "s"}.`,
     exitCode: null,
+  };
+}
+
+export function summarizeManagedInstallResult(result: ManagedInstallResult): RunSummary {
+  const cacheDetail =
+    result.cacheStatus === "reused"
+      ? "The release asset was reused from the local cache."
+      : "The release asset was downloaded and cached locally.";
+
+  return {
+    level: "info",
+    title: "Exporter ready",
+    detail: `imessage-exporter ${result.release.version} was installed and verified. ${cacheDetail}`,
+    message: `Installed imessage-exporter ${result.release.version} from ${result.assetName}.`,
+    exitCode: null,
+    meta: [
+      { label: "Release", value: result.release.version },
+      { label: "Asset", value: result.assetName },
+      {
+        label: "Cache",
+        value: result.cacheStatus === "reused" ? "Reused local cache" : "Downloaded and cached",
+      },
+      { label: "Binary path", value: result.binaryPath, code: true },
+      { label: "Cache path", value: result.cachePath, code: true },
+    ],
+  };
+}
+
+export function summarizeManagedActivationResult(
+  version: string,
+  result: ManagedActivationResult,
+): RunSummary {
+  return {
+    level: "info",
+    title: "Managed exporter activated",
+    detail: `imessage-exporter ${version} was verified and set as the active managed version.`,
+    message: `Activated managed imessage-exporter ${version}.`,
+    exitCode: null,
+    meta: [
+      { label: "Release", value: version },
+      ...(result.probe.path ? [{ label: "Binary path", value: result.probe.path, code: true }] : []),
+    ],
+  };
+}
+
+export function createManagedOperationErrorSummary({
+  title,
+  rawDetails,
+  suggestedFix,
+}: {
+  title: string;
+  rawDetails: string;
+  suggestedFix: string;
+}): RunSummary {
+  const error: FriendlyError = {
+    title,
+    explanation: "ChatExportMate could not complete this managed exporter operation.",
+    likelyCause: rawDetails,
+    suggestedFix,
+    rawDetails,
+  };
+
+  return {
+    level: "error",
+    title,
+    detail: error.explanation,
+    message: `${title}: ${suggestedFix}`,
+    exitCode: null,
+    rawDetails,
+    error,
   };
 }
 

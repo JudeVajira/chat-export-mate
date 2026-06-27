@@ -170,6 +170,8 @@ export interface ManagedInstallResult {
   release: ExporterRelease;
   assetName: string;
   binaryPath: string;
+  cachePath: string;
+  cacheStatus: "downloaded" | "reused";
   probe: ExporterProbe;
   state: ManagedExporterState;
 }

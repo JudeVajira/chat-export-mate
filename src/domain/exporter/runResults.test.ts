@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  createManagedOperationErrorSummary,
   createDryRunSummary,
   createRunBlockedSummary,
+  summarizeManagedActivationResult,
+  summarizeManagedInstallResult,
   summarizeDiagnosticRunResult,
   summarizeExportRunResult,
 } from "./runResults";
@@ -126,6 +129,117 @@ describe("local run summaries", () => {
       error: {
         likelyCause: "Access denied.",
         suggestedFix: "Choose a writable output folder.",
+      },
+    });
+  });
+});
+
+describe("managed exporter operation summaries", () => {
+  it("summarizes a managed install that reused the local cache", () => {
+    const summary = summarizeManagedInstallResult({
+      release: {
+        version: "4.2.0",
+        releaseUrl: "https://github.com/ReagentX/imessage-exporter/releases/tag/v4.2.0",
+        assets: [],
+      },
+      assetName: "imessage-exporter-x86_64-pc-windows-gnu.exe",
+      binaryPath: "C:/AppData/exporter/versions/4.2.0/imessage-exporter.exe",
+      cachePath: "C:/AppData/exporter/cache/4.2.0/imessage-exporter.exe",
+      cacheStatus: "reused",
+      probe: {
+        found: true,
+        managed: true,
+        path: "C:/AppData/exporter/versions/4.2.0/imessage-exporter.exe",
+        version: "4.2.0",
+        source: "managed",
+      },
+      state: {
+        installRoot: "C:/AppData/exporter",
+        activeVersion: "4.2.0",
+        installedVersions: ["4.2.0"],
+      },
+    });
+
+    expect(summary).toMatchObject({
+      level: "info",
+      title: "Exporter ready",
+      detail:
+        "imessage-exporter 4.2.0 was installed and verified. The release asset was reused from the local cache.",
+      message:
+        "Installed imessage-exporter 4.2.0 from imessage-exporter-x86_64-pc-windows-gnu.exe.",
+      meta: expect.arrayContaining([
+        { label: "Cache", value: "Reused local cache" },
+        {
+          label: "Binary path",
+          value: "C:/AppData/exporter/versions/4.2.0/imessage-exporter.exe",
+          code: true,
+        },
+      ]),
+    });
+  });
+
+  it("summarizes a managed install that downloaded a release asset", () => {
+    const summary = summarizeManagedInstallResult({
+      release: {
+        version: "4.2.0",
+        releaseUrl: "https://github.com/ReagentX/imessage-exporter/releases/tag/v4.2.0",
+        assets: [],
+      },
+      assetName: "imessage-exporter-x86_64-pc-windows-gnu.exe",
+      binaryPath: "C:/AppData/exporter/versions/4.2.0/imessage-exporter.exe",
+      cachePath: "C:/AppData/exporter/cache/4.2.0/imessage-exporter.exe",
+      cacheStatus: "downloaded",
+      probe: { found: true, managed: true, version: "4.2.0", source: "managed" },
+      state: {
+        installRoot: "C:/AppData/exporter",
+        activeVersion: "4.2.0",
+        installedVersions: ["4.2.0"],
+      },
+    });
+
+    expect(summary.detail).toContain("downloaded and cached locally");
+    expect(summary.meta).toContainEqual({ label: "Cache", value: "Downloaded and cached" });
+  });
+
+  it("summarizes managed rollback activation", () => {
+    expect(
+      summarizeManagedActivationResult("4.1.0", {
+        probe: {
+          found: true,
+          managed: true,
+          path: "C:/AppData/exporter/versions/4.1.0/imessage-exporter.exe",
+          version: "4.1.0",
+          source: "managed",
+        },
+        state: {
+          installRoot: "C:/AppData/exporter",
+          activeVersion: "4.1.0",
+          installedVersions: ["4.2.0", "4.1.0"],
+        },
+      }),
+    ).toMatchObject({
+      level: "info",
+      title: "Managed exporter activated",
+      detail: "imessage-exporter 4.1.0 was verified and set as the active managed version.",
+      message: "Activated managed imessage-exporter 4.1.0.",
+    });
+  });
+
+  it("creates structured managed operation errors", () => {
+    const summary = createManagedOperationErrorSummary({
+      title: "Exporter install failed",
+      rawDetails: "Release asset was not found.",
+      suggestedFix: "Check the latest release, then try the managed install again.",
+    });
+
+    expect(summary).toMatchObject({
+      level: "error",
+      title: "Exporter install failed",
+      detail: "ChatExportMate could not complete this managed exporter operation.",
+      rawDetails: "Release asset was not found.",
+      error: {
+        likelyCause: "Release asset was not found.",
+        suggestedFix: "Check the latest release, then try the managed install again.",
       },
     });
   });

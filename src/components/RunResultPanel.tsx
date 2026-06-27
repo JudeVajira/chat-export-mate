@@ -57,6 +57,14 @@ export function RunResultPanel({
             {summary.exitCode !== undefined && summary.exitCode !== null ? (
               <ResultMeta label="Exit code" value={String(summary.exitCode)} />
             ) : null}
+            {summary.meta?.map((item) => (
+              <ResultMeta
+                code={item.code}
+                key={`${item.label}:${item.value}`}
+                label={item.label}
+                value={item.value}
+              />
+            ))}
             {outputPath ? <ResultMeta label="Output path" value={outputPath} code /> : null}
             {logPath ? <ResultMeta label="Log path" value={logPath} code /> : null}
           </div>

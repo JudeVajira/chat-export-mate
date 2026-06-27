@@ -43,8 +43,11 @@ import {
   selectBestAsset,
 } from "./domain/exporter/release";
 import {
+  createManagedOperationErrorSummary,
   createDryRunSummary,
   createRunBlockedSummary,
+  summarizeManagedActivationResult,
+  summarizeManagedInstallResult,
   summarizeDiagnosticRunResult,
   summarizeExportRunResult,
 } from "./domain/exporter/runResults";
@@ -330,9 +333,18 @@ function App() {
       setRelease(result.release);
       setProbe(result.probe);
       setManagedState(result.state);
-      addLog("info", `Installed imessage-exporter ${result.release.version} from ${result.assetName}.`);
+      const summary = summarizeManagedInstallResult(result);
+      setLatestRunSummary(summary);
+      addLog(summary.level, summary.message);
     } catch (error) {
-      addLog("error", error instanceof Error ? error.message : "Exporter install failed.");
+      const detail = error instanceof Error ? error.message : "Exporter install failed.";
+      const summary = createManagedOperationErrorSummary({
+        title: "Exporter install failed",
+        rawDetails: detail,
+        suggestedFix: "Check the latest release, confirm network access, then try the managed install again.",
+      });
+      setLatestRunSummary(summary);
+      addLog("error", summary.message);
     } finally {
       setInstallingExporter(false);
     }
@@ -344,9 +356,18 @@ function App() {
       const result = await activateManagedExporterVersion(version);
       setProbe(result.probe);
       setManagedState(result.state);
-      addLog("info", `Activated managed imessage-exporter ${version}.`);
+      const summary = summarizeManagedActivationResult(version, result);
+      setLatestRunSummary(summary);
+      addLog(summary.level, summary.message);
     } catch (error) {
-      addLog("error", error instanceof Error ? error.message : "Managed exporter rollback failed.");
+      const detail = error instanceof Error ? error.message : "Managed exporter rollback failed.";
+      const summary = createManagedOperationErrorSummary({
+        title: "Managed exporter rollback failed",
+        rawDetails: detail,
+        suggestedFix: "Choose another stored version or reinstall the latest managed exporter.",
+      });
+      setLatestRunSummary(summary);
+      addLog("error", summary.message);
     } finally {
       setActivatingManagedVersion(null);
     }

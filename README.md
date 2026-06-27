@@ -79,6 +79,8 @@ The managed exporter flow is:
 
 Previously stored managed versions remain available in the Release channel panel and can be reactivated for rollback after the app verifies the stored binary.
 
+Managed install, update, reinstall, and rollback attempts report their outcome in the Latest result panel. Successful installs show the release, selected asset, cache source, binary path, and cache path; failures include a plain-English next step and raw details for troubleshooting.
+
 If you already have `imessage-exporter`, use **Use existing** in Diagnostics. ChatExportMate verifies the selected binary with `--version`, remembers the path locally, and uses it when no managed exporter is active.
 
 ## Local Export Preferences

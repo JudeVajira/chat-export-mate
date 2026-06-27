@@ -58,6 +58,11 @@ struct ReleaseAsset {
     size: Option<u64>,
 }
 
+struct CachedAssetPayload {
+    bytes: Vec<u8>,
+    status: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ExporterReleaseInfo {
@@ -94,6 +99,8 @@ struct ManagedInstallResult {
     release: ExporterReleaseInfo,
     asset_name: String,
     binary_path: String,
+    cache_path: String,
+    cache_status: String,
     probe: ExporterProbe,
     state: ManagedExporterState,
 }
@@ -243,9 +250,14 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
 
     let staging_binary_path = staging_dir.join(exporter_binary_name());
     let temp_path = staging_dir.join(format!("{}.download", exporter_binary_name()));
-    let bytes = read_or_download_asset(&asset, &cache_path)?;
+    let cached_asset = read_or_download_asset(&asset, &cache_path)?;
 
-    stage_downloaded_asset(&asset.name, &bytes, &temp_path, &staging_binary_path)?;
+    stage_downloaded_asset(
+        &asset.name,
+        &cached_asset.bytes,
+        &temp_path,
+        &staging_binary_path,
+    )?;
 
     let staging_probe = probe_exporter(staging_binary_path.clone(), true, "managed".to_string());
     if !staging_probe.found {
@@ -281,6 +293,8 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
         release: release_info(release),
         asset_name: asset.name,
         binary_path: binary_path.to_string_lossy().to_string(),
+        cache_path: cache_path.to_string_lossy().to_string(),
+        cache_status: cached_asset.status,
         probe,
         state: management_state(&app),
     })
@@ -1144,13 +1158,26 @@ fn cache_safe_asset_file_name(asset_name: &str) -> Result<String, String> {
     Ok(file_name)
 }
 
-fn read_or_download_asset(asset: &ReleaseAsset, cache_path: &Path) -> Result<Vec<u8>, String> {
+fn read_or_download_asset(
+    asset: &ReleaseAsset,
+    cache_path: &Path,
+) -> Result<CachedAssetPayload, String> {
     if cached_asset_is_usable(asset, cache_path) {
-        return fs::read(cache_path).map_err(to_string);
+        return fs::read(cache_path)
+            .map(|bytes| CachedAssetPayload {
+                bytes,
+                status: "reused".to_string(),
+            })
+            .map_err(to_string);
     }
 
     download_asset_to_cache(asset, cache_path)?;
-    fs::read(cache_path).map_err(to_string)
+    fs::read(cache_path)
+        .map(|bytes| CachedAssetPayload {
+            bytes,
+            status: "downloaded".to_string(),
+        })
+        .map_err(to_string)
 }
 
 fn cached_asset_is_usable(asset: &ReleaseAsset, cache_path: &Path) -> bool {
@@ -1455,6 +1482,33 @@ mod tests {
             },
             &asset_path,
         ));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn read_or_download_asset_reports_reused_cache_status() {
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-cache-status-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let asset_path = root.join("asset.bin");
+        fs::write(&asset_path, b"cached").unwrap();
+
+        let payload = read_or_download_asset(
+            &ReleaseAsset {
+                name: "asset.bin".to_string(),
+                browser_download_url: "https://example.test/asset.bin".to_string(),
+                size: Some(6),
+            },
+            &asset_path,
+        )
+        .unwrap();
+
+        assert_eq!(payload.bytes, b"cached");
+        assert_eq!(payload.status, "reused");
 
         let _ = fs::remove_dir_all(root);
     }
