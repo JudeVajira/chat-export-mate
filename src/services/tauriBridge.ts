@@ -194,6 +194,13 @@ export async function selectDatabaseFile(): Promise<string | null> {
   });
 }
 
+export async function selectBackupFolder(): Promise<string | null> {
+  return selectSinglePath({
+    directory: true,
+    title: "Choose iPhone backup folder",
+  });
+}
+
 export async function selectAttachmentFolder(): Promise<string | null> {
   return selectSinglePath({
     directory: true,

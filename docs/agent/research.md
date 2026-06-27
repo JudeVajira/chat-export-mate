@@ -54,8 +54,8 @@ related:
 - Title: imessage-exporter binary documentation
   URL: https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
   Why it matters: Source for supported CLI flags, formats, platform/source arguments, diagnostics, and examples used by command generation.
-  Last checked: 2026-06-27 13:58 +05:30
-  Notes: Rechecked advanced export flags for custom name, caller ID, lazy images, disk warnings, and progress output.
+  Last checked: 2026-06-27 14:12 +05:30
+  Notes: Rechecked advanced export flags plus macOS `chat.db` and iOS backup-folder source semantics.
 
 - Title: imessage-exporter releases
   URL: https://github.com/ReagentX/imessage-exporter/releases

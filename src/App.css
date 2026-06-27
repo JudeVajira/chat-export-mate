@@ -450,6 +450,13 @@ legend,
   min-width: 0;
 }
 
+.field-hint {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .span-2 {
   grid-column: span 2;
 }

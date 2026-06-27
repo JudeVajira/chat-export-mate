@@ -56,6 +56,7 @@ import {
   openOutputFolder,
   runExporterDiagnostics,
   selectAttachmentFolder,
+  selectBackupFolder,
   selectDatabaseFile,
   selectOutputFolder,
 } from "./services/tauriBridge";
@@ -261,8 +262,12 @@ function App() {
     await pickPath(selectOutputFolder, "outputPath", "Output folder selected.");
   }
 
-  async function pickDatabaseFile() {
-    await pickPath(selectDatabaseFile, "databasePath", "Messages database selected.");
+  async function pickSourcePath() {
+    await pickPath(
+      options.platform === "iOS" ? selectBackupFolder : selectDatabaseFile,
+      "databasePath",
+      options.platform === "iOS" ? "iPhone backup folder selected." : "Messages database selected.",
+    );
   }
 
   async function pickAttachmentRoot() {
@@ -457,8 +462,8 @@ function App() {
                 onDryRunChange={setDryRun}
                 onOpenOutput={openExportFolder}
                 onPickAttachmentRoot={pickAttachmentRoot}
-                onPickDatabase={pickDatabaseFile}
                 onPickOutput={pickOutputFolder}
+                onPickSource={pickSourcePath}
                 onRun={runExport}
                 options={options}
               />

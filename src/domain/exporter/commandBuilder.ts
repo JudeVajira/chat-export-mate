@@ -22,14 +22,18 @@ export function validateExportOptions(
     });
   }
 
-  if (
-    options.databasePath &&
-    options.platform === "macOS" &&
-    !options.databasePath.endsWith("chat.db")
-  ) {
+  const sourcePath = options.databasePath?.trim();
+  if (sourcePath && options.platform === "macOS" && !isChatDatabasePath(sourcePath)) {
     issues.push({
       field: "databasePath",
       message: "macOS sources should point to a chat.db file when a custom source is provided.",
+    });
+  }
+
+  if (sourcePath && options.platform === "iOS" && isChatDatabasePath(sourcePath)) {
+    issues.push({
+      field: "databasePath",
+      message: "iOS sources should point to an iPhone backup folder, not a chat.db file.",
     });
   }
 
@@ -86,7 +90,9 @@ export function buildExporterCommand(
   ];
 
   pushValue(args, "-p", options.databasePath);
-  pushValue(args, "-r", options.attachmentRoot);
+  if (options.platform === "macOS") {
+    pushValue(args, "-r", options.attachmentRoot);
+  }
   pushValue(args, "-s", options.startDate);
   pushValue(args, "-e", options.endDate);
   pushValue(args, "-t", options.conversationFilter);
@@ -122,7 +128,9 @@ export function buildDiagnosticCommand(
   const args = ["-d", "-a", options.platform];
 
   pushValue(args, "-p", options.databasePath);
-  pushValue(args, "-r", options.attachmentRoot);
+  if (options.platform === "macOS") {
+    pushValue(args, "-r", options.attachmentRoot);
+  }
 
   return {
     executablePath,
@@ -140,6 +148,11 @@ function pushValue(args: string[], flag: string, value?: string): void {
   if (trimmed) {
     args.push(flag, trimmed);
   }
+}
+
+function isChatDatabasePath(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replace(/\\/gu, "/");
+  return normalized === "chat.db" || normalized.endsWith("/chat.db");
 }
 
 function quoteForDisplay(value: string): string {

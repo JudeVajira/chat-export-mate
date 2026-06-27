@@ -16,8 +16,8 @@ interface ExportConfiguratorProps {
   onCheckOutputAccess: () => void;
   onDryRunChange: (value: boolean) => void;
   onPickAttachmentRoot: () => void;
-  onPickDatabase: () => void;
   onPickOutput: () => void;
+  onPickSource: () => void;
   onOpenOutput: () => void;
   onRun: () => void;
 }
@@ -36,14 +36,34 @@ export function ExportConfigurator({
   onCheckOutputAccess,
   onDryRunChange,
   onPickAttachmentRoot,
-  onPickDatabase,
   onPickOutput,
+  onPickSource,
   onOpenOutput,
   onRun,
 }: ExportConfiguratorProps) {
   const update = <Key extends keyof ExportOptions>(key: Key, value: ExportOptions[Key]) => {
     onChange({ ...options, [key]: value });
   };
+  const selectPlatform = (platform: ExportPlatform) => {
+    if (platform === options.platform) {
+      return;
+    }
+
+    onChange({
+      ...options,
+      platform,
+      databasePath: "",
+      attachmentRoot: platform === "iOS" ? "" : options.attachmentRoot,
+    });
+  };
+  const isIosSource = options.platform === "iOS";
+  const sourceLabel = isIosSource ? "iPhone backup folder" : "Messages database";
+  const sourcePlaceholder = isIosSource
+    ? "~/Library/Application Support/MobileSync/Backup/..."
+    : "~/Library/Messages/chat.db";
+  const sourceHint = isIosSource
+    ? "Choose the root folder of an iPhone backup."
+    : "Optional override for the default macOS Messages database.";
 
   return (
     <section className="panel export-panel" aria-labelledby="export-title">
@@ -86,7 +106,7 @@ export function ExportConfigurator({
               <button
                 className={options.platform === platform ? "is-selected" : ""}
                 key={platform}
-                onClick={() => update("platform", platform)}
+                onClick={() => selectPlatform(platform)}
                 type="button"
               >
                 {platform}
@@ -118,28 +138,25 @@ export function ExportConfigurator({
 
         <div className="field span-2">
           <label className="field-label" htmlFor="custom-source">
-            Custom source
+            {sourceLabel}
           </label>
           <div className="input-with-action">
             <input
               id="custom-source"
               onChange={(event) => update("databasePath", event.currentTarget.value)}
-              placeholder={
-                options.platform === "macOS"
-                  ? "~/Library/Messages/chat.db"
-                  : "~/Library/Application Support/MobileSync/Backup/..."
-              }
+              placeholder={sourcePlaceholder}
               value={options.databasePath}
             />
             <button
               className="field-action"
-              onClick={onPickDatabase}
-              title="Choose Messages database"
+              onClick={onPickSource}
+              title={`Choose ${sourceLabel}`}
               type="button"
             >
               <FolderOpen aria-hidden="true" />
             </button>
           </div>
+          <p className="field-hint">{sourceHint}</p>
         </div>
 
         <label className="field">
@@ -171,13 +188,19 @@ export function ExportConfigurator({
           </label>
           <div className="input-with-action">
             <input
+              disabled={isIosSource}
               id="attachment-root"
               onChange={(event) => update("attachmentRoot", event.currentTarget.value)}
-              placeholder="Optional folder for Messages attachments"
-              value={options.attachmentRoot}
+              placeholder={
+                isIosSource
+                  ? "Read from the selected backup"
+                  : "Optional folder for Messages attachments"
+              }
+              value={isIosSource ? "" : options.attachmentRoot}
             />
             <button
               className="field-action"
+              disabled={isIosSource}
               onClick={onPickAttachmentRoot}
               title="Choose attachments folder"
               type="button"
@@ -185,6 +208,11 @@ export function ExportConfigurator({
               <FolderOpen aria-hidden="true" />
             </button>
           </div>
+          <p className="field-hint">
+            {isIosSource
+              ? "Custom attachment roots are only used for macOS exports."
+              : "Use this only when attachments are stored outside the default Messages folder."}
+          </p>
         </div>
 
         <label className="field">
