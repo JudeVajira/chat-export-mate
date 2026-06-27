@@ -37,6 +37,7 @@ export interface BuiltCommand {
 }
 
 export interface ExportRunRequest extends BuiltCommand {
+  eventId?: string;
   outputPath: string;
 }
 
@@ -61,7 +62,9 @@ export interface OutputAccessCheck {
   error?: string | null;
 }
 
-export interface DiagnosticRunRequest extends BuiltCommand {}
+export interface DiagnosticRunRequest extends BuiltCommand {
+  eventId?: string;
+}
 
 export interface DiagnosticRunResult {
   command: string;
@@ -72,6 +75,18 @@ export interface DiagnosticRunResult {
   startedAt: string;
   completedAt: string;
   logPath: string;
+}
+
+export type ProcessOutputKind = "export" | "diagnostic";
+
+export type ProcessOutputStream = "stdout" | "stderr";
+
+export interface ProcessOutputEvent {
+  eventId: string;
+  kind: ProcessOutputKind;
+  stream: ProcessOutputStream;
+  line: string;
+  timestamp: string;
 }
 
 export type StoredLogKind = "export" | "diagnostic";

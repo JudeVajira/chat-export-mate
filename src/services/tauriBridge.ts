@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
@@ -18,10 +19,13 @@ import type {
   ManagedExporterState,
   ManagedInstallResult,
   OutputAccessCheck,
+  ProcessOutputEvent,
   StoredLogEntry,
   SupportBundleResult,
   SystemSnapshot,
 } from "../domain/exporter/types";
+
+export const PROCESS_OUTPUT_EVENT = "chatexportmate://process-output";
 
 const browserSnapshot: SystemSnapshot = {
   os: navigator.userAgent.includes("Windows") ? "windows" : "unknown",
@@ -171,6 +175,18 @@ export async function executeExporter(request: ExportRunRequest): Promise<Export
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
+}
+
+export async function subscribeToProcessOutput(
+  onOutput: (event: ProcessOutputEvent) => void,
+): Promise<() => void> {
+  if (!isTauriRuntime()) {
+    return () => undefined;
+  }
+
+  return listen<ProcessOutputEvent>(PROCESS_OUTPUT_EVENT, (event) => {
+    onOutput(event.payload);
+  });
 }
 
 export async function checkOutputAccess(outputPath: string): Promise<OutputAccessCheck> {

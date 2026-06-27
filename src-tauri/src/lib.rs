@@ -3,13 +3,15 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     env, fs,
-    io::Cursor,
+    io::{BufRead, BufReader, Cursor, Read},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
+    sync::mpsc,
+    thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tar::Archive;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/ReagentX/imessage-exporter/releases/latest";
@@ -23,6 +25,7 @@ const EXPORT_PREFERENCES_FILE: &str = "export-preferences.json";
 const RUN_LOG_DIR: &str = "run-logs";
 const DIAGNOSTIC_LOG_DIR: &str = "diagnostic-logs";
 const SUPPORT_BUNDLE_DIR: &str = "support-bundles";
+const PROCESS_OUTPUT_EVENT: &str = "chatexportmate://process-output";
 
 #[derive(Serialize)]
 struct SystemSnapshot {
@@ -137,6 +140,7 @@ struct ExecuteExporterRequest {
     args: Vec<String>,
     display_command: String,
     output_path: String,
+    event_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -176,6 +180,7 @@ struct DiagnosticRunRequest {
     executable_path: String,
     args: Vec<String>,
     display_command: String,
+    event_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -189,6 +194,29 @@ struct DiagnosticRunResult {
     started_at: String,
     completed_at: String,
     log_path: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProcessOutputEvent {
+    event_id: String,
+    kind: String,
+    stream: String,
+    line: String,
+    timestamp: String,
+}
+
+struct ProcessRunOutput {
+    stdout: String,
+    stderr: String,
+    exit_code: Option<i32>,
+    success: bool,
+}
+
+struct ProcessPipeChunk {
+    stream: &'static str,
+    text: String,
+    line: String,
 }
 
 #[derive(Serialize)]
@@ -446,38 +474,36 @@ fn execute_exporter(
     }
 
     let started_at = timestamp_millis();
-    let output = Command::new(&request.executable_path)
-        .args(&request.args)
-        .output();
+    let event_id = request
+        .event_id
+        .clone()
+        .unwrap_or_else(|| format!("export-{started_at}"));
+    let output = run_process_with_output_events(
+        &app,
+        &event_id,
+        "export",
+        &request.executable_path,
+        &request.args,
+    );
     let completed_at = timestamp_millis();
-
-    let (stdout, stderr, exit_code, success) = match output {
-        Ok(output) => (
-            String::from_utf8_lossy(&output.stdout).to_string(),
-            String::from_utf8_lossy(&output.stderr).to_string(),
-            output.status.code(),
-            output.status.success(),
-        ),
-        Err(error) => (String::new(), error.to_string(), None, false),
-    };
 
     let log_path = write_run_log(
         &app,
         &request,
-        &stdout,
-        &stderr,
-        exit_code,
-        success,
+        &output.stdout,
+        &output.stderr,
+        output.exit_code,
+        output.success,
         &started_at,
         &completed_at,
     )?;
 
     Ok(ExportRunResult {
         command: request.display_command,
-        stdout,
-        stderr,
-        exit_code,
-        success,
+        stdout: output.stdout,
+        stderr: output.stderr,
+        exit_code: output.exit_code,
+        success: output.success,
         started_at,
         completed_at,
         log_path: log_path.to_string_lossy().to_string(),
@@ -550,42 +576,157 @@ fn run_exporter_diagnostics(
     }
 
     let started_at = timestamp_millis();
-    let output = Command::new(&request.executable_path)
-        .args(&request.args)
-        .output();
+    let event_id = request
+        .event_id
+        .clone()
+        .unwrap_or_else(|| format!("diagnostic-{started_at}"));
+    let output = run_process_with_output_events(
+        &app,
+        &event_id,
+        "diagnostic",
+        &request.executable_path,
+        &request.args,
+    );
     let completed_at = timestamp_millis();
-
-    let (stdout, stderr, exit_code, success) = match output {
-        Ok(output) => (
-            String::from_utf8_lossy(&output.stdout).to_string(),
-            String::from_utf8_lossy(&output.stderr).to_string(),
-            output.status.code(),
-            output.status.success(),
-        ),
-        Err(error) => (String::new(), error.to_string(), None, false),
-    };
 
     let log_path = write_diagnostic_log(
         &app,
         &request,
-        &stdout,
-        &stderr,
-        exit_code,
-        success,
+        &output.stdout,
+        &output.stderr,
+        output.exit_code,
+        output.success,
         &started_at,
         &completed_at,
     )?;
 
     Ok(DiagnosticRunResult {
         command: request.display_command,
-        stdout,
-        stderr,
-        exit_code,
-        success,
+        stdout: output.stdout,
+        stderr: output.stderr,
+        exit_code: output.exit_code,
+        success: output.success,
         started_at,
         completed_at,
         log_path: log_path.to_string_lossy().to_string(),
     })
+}
+
+fn run_process_with_output_events(
+    app: &AppHandle,
+    event_id: &str,
+    kind: &str,
+    executable_path: &str,
+    args: &[String],
+) -> ProcessRunOutput {
+    let mut child = match Command::new(executable_path)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            let stderr = error.to_string();
+            emit_process_output(app, event_id, kind, "stderr", &stderr);
+            return ProcessRunOutput {
+                stdout: String::new(),
+                stderr,
+                exit_code: None,
+                success: false,
+            };
+        }
+    };
+
+    let (sender, receiver) = mpsc::channel::<ProcessPipeChunk>();
+    if let Some(stdout) = child.stdout.take() {
+        spawn_pipe_reader(stdout, "stdout", sender.clone());
+    }
+    if let Some(stderr) = child.stderr.take() {
+        spawn_pipe_reader(stderr, "stderr", sender.clone());
+    }
+    drop(sender);
+
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    for chunk in receiver {
+        if chunk.stream == "stdout" {
+            stdout.push_str(&chunk.text);
+        } else {
+            stderr.push_str(&chunk.text);
+        }
+
+        if !chunk.line.is_empty() {
+            emit_process_output(app, event_id, kind, chunk.stream, &chunk.line);
+        }
+    }
+
+    match child.wait() {
+        Ok(status) => ProcessRunOutput {
+            stdout,
+            stderr,
+            exit_code: status.code(),
+            success: status.success(),
+        },
+        Err(error) => {
+            let message = error.to_string();
+            if !stderr.is_empty() && !stderr.ends_with('\n') {
+                stderr.push('\n');
+            }
+            stderr.push_str(&message);
+            emit_process_output(app, event_id, kind, "stderr", &message);
+            ProcessRunOutput {
+                stdout,
+                stderr,
+                exit_code: None,
+                success: false,
+            }
+        }
+    }
+}
+
+fn spawn_pipe_reader<R>(reader: R, stream: &'static str, sender: mpsc::Sender<ProcessPipeChunk>)
+where
+    R: Read + Send + 'static,
+{
+    let _ = thread::spawn(move || {
+        let mut reader = BufReader::new(reader);
+        loop {
+            let mut buffer = Vec::new();
+            match reader.read_until(b'\n', &mut buffer) {
+                Ok(0) => break,
+                Ok(_) => {
+                    let text = String::from_utf8_lossy(&buffer).to_string();
+                    let line = text
+                        .trim_end_matches(|character| character == '\r' || character == '\n')
+                        .to_string();
+                    let _ = sender.send(ProcessPipeChunk { stream, text, line });
+                }
+                Err(error) => {
+                    let line = format!("Could not read process {stream}: {error}");
+                    let _ = sender.send(ProcessPipeChunk {
+                        stream: "stderr",
+                        text: format!("{line}\n"),
+                        line,
+                    });
+                    break;
+                }
+            }
+        }
+    });
+}
+
+fn emit_process_output(app: &AppHandle, event_id: &str, kind: &str, stream: &str, line: &str) {
+    let _ = app.emit(
+        PROCESS_OUTPUT_EVENT,
+        ProcessOutputEvent {
+            event_id: event_id.to_string(),
+            kind: kind.to_string(),
+            stream: stream.to_string(),
+            line: line.to_string(),
+            timestamp: timestamp_millis(),
+        },
+    );
 }
 
 #[tauri::command]
@@ -1511,5 +1652,20 @@ mod tests {
         assert_eq!(payload.status, "reused");
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn spawn_pipe_reader_trims_line_breaks_and_retains_original_text() {
+        let (sender, receiver) = mpsc::channel();
+        spawn_pipe_reader(Cursor::new(b"first\r\nsecond".to_vec()), "stdout", sender);
+
+        let chunks = receiver.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].stream, "stdout");
+        assert_eq!(chunks[0].line, "first");
+        assert_eq!(chunks[0].text, "first\r\n");
+        assert_eq!(chunks[1].line, "second");
+        assert_eq!(chunks[1].text, "second");
     }
 }

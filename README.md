@@ -110,7 +110,7 @@ Run logs are written under the app data directory in `run-logs/export-run-<times
 
 The Latest result panel summarizes dry runs, exports, diagnostics, and preflight failures in plain English, with suggested fixes and saved log paths when a run creates a log. After a desktop export, it can open the exported folder and the saved run log directly from the result.
 
-The Progress panel shows the current operation steps while ChatExportMate prepares a dry run, runs an export, runs diagnostics, installs an exporter, or activates a stored managed version. Real exports show setup review, destination access, exporter execution, local log capture, and completion/error state.
+The Progress panel shows the current operation steps while ChatExportMate prepares a dry run, runs an export, runs diagnostics, installs an exporter, or activates a stored managed version. Real exports show setup review, destination access, exporter execution, local log capture, and completion/error state. During desktop export and diagnostics runs, the panel also streams recent stdout/stderr lines from the exporter while preserving the complete output in the saved local log.
 
 The History panel lists saved local export and diagnostic logs when running inside Tauri. Logs stay on the machine and can be opened from the app for troubleshooting or bug reports.
 
@@ -118,7 +118,7 @@ The History panel can also create a local support bundle under the app data dire
 
 ## Diagnostics
 
-The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri and writes a local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
+The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri, streams recent process output into the Progress panel, and writes a complete local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
 
 Desktop health checks probe the selected output folder, or its existing parent folder when the export folder has not been created yet, by writing and removing a small temporary file. The Vite development harness reports this as a desktop-runtime-only check.
 

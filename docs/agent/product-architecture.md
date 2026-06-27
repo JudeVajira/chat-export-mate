@@ -46,8 +46,10 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 - Export options and dry-run mode should be restored from local desktop app data on startup and saved back after changes. The Tauri runtime owns the app-data JSON file.
 - Non-dry-run exports execute through the Tauri backend using `std::process::Command`.
+- Export and diagnostic process output should be streamed from the Tauri backend to the Progress panel through typed events while still collecting complete stdout/stderr for saved local logs.
 - Every backend export attempt should write a local log under app data `run-logs/`, including command, stdout, stderr, exit code, timestamps, and output path.
 - The Progress panel is driven by the testable `src/domain/exporter/runProgress.ts` model. Keep operation stages in that domain module instead of scattering stage labels through React handlers.
+- The live process output list is UI-only, capped, and filtered by a per-run event id. Do not treat the Vite browser harness as capable of real exporter process streaming.
 - The History UI lists persisted app-data export and diagnostic logs through a Tauri command and opens selected log files locally; the development browser harness should show an empty stored-log list rather than fake desktop files.
 - Support bundles should be created locally under app data `support-bundles/`, copy saved logs, include a short manifest, and remind users to review logs before sharing them.
 - The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.

@@ -40,6 +40,11 @@ import {
 import { buildPermissionGuide } from "./domain/exporter/permissions";
 import { buildExportPreflightSummary } from "./domain/exporter/preflight";
 import {
+  appendProcessOutputEvent,
+  createProcessEventId,
+  isProcessOutputForRun,
+} from "./domain/exporter/processOutput";
+import {
   detectRuntimeTarget,
   isUpdateAvailable,
   selectBestAsset,
@@ -67,6 +72,7 @@ import type {
   ExporterRelease,
   ManagedExporterState,
   OutputAccessCheck,
+  ProcessOutputEvent,
   StoredLogEntry,
   SystemSnapshot,
 } from "./domain/exporter/types";
@@ -93,6 +99,7 @@ import {
   selectExporterBinary,
   selectOutputFolder,
   setCustomExporterPath,
+  subscribeToProcessOutput,
 } from "./services/tauriBridge";
 
 function App() {
@@ -136,10 +143,12 @@ function App() {
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
   const [latestRunSummary, setLatestRunSummary] = useState<RunSummary | null>(null);
   const [runProgress, setRunProgress] = useState<RunProgress | null>(null);
+  const [processOutputEvents, setProcessOutputEvents] = useState<ProcessOutputEvent[]>([]);
   const [outputAccess, setOutputAccess] = useState<OutputAccessCheck>(
     previewOutputAccess(defaultExportOptions.outputPath),
   );
   const lastPreferenceSaveError = useRef<string | null>(null);
+  const activeProcessEventId = useRef<string | null>(null);
 
   const executablePath = probe.path ?? defaultExecutablePath;
   const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
@@ -185,6 +194,42 @@ function App() {
 
   useEffect(() => {
     void bootstrapWorkspace();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    let unsubscribe: (() => void) | null = null;
+
+    void subscribeToProcessOutput((event) => {
+      if (!isProcessOutputForRun(event, activeProcessEventId.current)) {
+        return;
+      }
+
+      setProcessOutputEvents((currentEvents) =>
+        appendProcessOutputEvent(currentEvents, event),
+      );
+    })
+      .then((nextUnsubscribe) => {
+        if (mounted) {
+          unsubscribe = nextUnsubscribe;
+          return;
+        }
+
+        nextUnsubscribe();
+      })
+      .catch((error) => {
+        if (mounted) {
+          addLog(
+            "warn",
+            error instanceof Error ? error.message : "Live process output is unavailable.",
+          );
+        }
+      });
+
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -266,6 +311,8 @@ function App() {
 
   async function runDiagnostics() {
     setRunningDiagnostics(true);
+    clearProcessOutput();
+    let eventId: string | null = null;
     let progress = startRunProgress("diagnostics");
     setRunProgress(progress);
     try {
@@ -289,9 +336,11 @@ function App() {
 
       progress = advanceRunProgress(progress, "run-diagnostics");
       setRunProgress(progress);
+      eventId = startProcessOutput("diagnostic");
       const result = await runExporterDiagnostics({
         ...diagnosticCommand,
         executablePath: nextProbe.path ?? diagnosticCommand.executablePath,
+        eventId,
       });
       progress = advanceRunProgress(progress, "save-log");
       setRunProgress(progress);
@@ -318,6 +367,7 @@ function App() {
       setRunProgress(failRunProgress(progress, "run-diagnostics", summary.detail));
       addLog("error", summary.message);
     } finally {
+      stopProcessOutput(eventId);
       setRunningDiagnostics(false);
     }
   }
@@ -359,6 +409,7 @@ function App() {
 
   async function installOrUpdateExporter() {
     setInstallingExporter(true);
+    clearProcessOutput();
     let progress = startRunProgress("managed-install");
     setRunProgress(progress);
     try {
@@ -391,6 +442,7 @@ function App() {
 
   async function activateManagedVersion(version: string) {
     setActivatingManagedVersion(version);
+    clearProcessOutput();
     let progress = startRunProgress("managed-activation");
     setRunProgress(progress);
     try {
@@ -460,6 +512,7 @@ function App() {
   }
 
   async function runExport() {
+    clearProcessOutput();
     if (dryRun) {
       const progress = startRunProgress("dry-run");
       const summary = createDryRunSummary(command.args.length);
@@ -470,6 +523,7 @@ function App() {
     }
 
     setIsExporting(true);
+    let eventId: string | null = null;
     let progress = startRunProgress("export");
     setRunProgress(progress);
     try {
@@ -493,8 +547,10 @@ function App() {
 
       progress = advanceRunProgress(progress, "run-exporter");
       setRunProgress(progress);
+      eventId = startProcessOutput("export");
       const result = await executeExporter({
         ...command,
+        eventId,
         outputPath: options.outputPath,
       });
       progress = advanceRunProgress(progress, "save-log");
@@ -522,6 +578,7 @@ function App() {
       setRunProgress(failRunProgress(progress, "run-exporter", summary.detail));
       addLog("error", summary.message);
     } finally {
+      stopProcessOutput(eventId);
       setIsExporting(false);
     }
   }
@@ -652,6 +709,24 @@ function App() {
     setLogs((current) => [{ time, level, message }, ...current].slice(0, 8));
   }
 
+  function clearProcessOutput() {
+    activeProcessEventId.current = null;
+    setProcessOutputEvents([]);
+  }
+
+  function startProcessOutput(kind: ProcessOutputEvent["kind"]): string {
+    const eventId = createProcessEventId(kind);
+    activeProcessEventId.current = eventId;
+    setProcessOutputEvents([]);
+    return eventId;
+  }
+
+  function stopProcessOutput(eventId: string | null) {
+    if (eventId && activeProcessEventId.current === eventId) {
+      activeProcessEventId.current = null;
+    }
+  }
+
   return (
     <main className="app-shell">
       <nav className="sidebar" aria-label="Primary navigation">
@@ -764,7 +839,7 @@ function App() {
                 preflight={preflight}
               />
             </div>
-            <RunProgressPanel progress={runProgress} />
+            <RunProgressPanel outputEvents={processOutputEvents} progress={runProgress} />
             <CommandPreview command={command} issues={issues} />
             <RunResultPanel
               onOpenLog={openLatestRunLog}

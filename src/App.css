@@ -893,6 +893,77 @@ pre {
   line-height: 1.4;
 }
 
+.live-output {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #edf1f5;
+  padding-top: 12px;
+}
+
+.live-output-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.live-output-heading h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 0.84rem;
+  font-weight: 820;
+}
+
+.live-output-heading span {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.live-output-list {
+  display: grid;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #111827;
+}
+
+.live-output-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  padding: 8px 10px;
+  color: #dbeafe;
+}
+
+.live-output-row:first-child {
+  border-top: 0;
+}
+
+.live-output-row span {
+  color: #93c5fd;
+  font-size: 0.68rem;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.live-output-row--stderr span {
+  color: #fca5a5;
+}
+
+.live-output-row code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #e5e7eb;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .result-body {
   display: grid;
   gap: 14px;

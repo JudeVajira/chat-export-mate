@@ -1,5 +1,6 @@
 import { CheckCircle2, Circle, CircleAlert, LoaderCircle } from "lucide-react";
 import type { RunProgress, RunProgressStepState } from "../domain/exporter/runProgress";
+import type { ProcessOutputEvent } from "../domain/exporter/types";
 
 const icons: Record<RunProgressStepState, typeof Circle> = {
   active: LoaderCircle,
@@ -8,7 +9,13 @@ const icons: Record<RunProgressStepState, typeof Circle> = {
   pending: Circle,
 };
 
-export function RunProgressPanel({ progress }: { progress: RunProgress | null }) {
+export function RunProgressPanel({
+  outputEvents = [],
+  progress,
+}: {
+  outputEvents?: ProcessOutputEvent[];
+  progress: RunProgress | null;
+}) {
   return (
     <section className="panel progress-panel" aria-labelledby="run-progress-title">
       <div className="section-heading section-heading--progress">
@@ -44,6 +51,27 @@ export function RunProgressPanel({ progress }: { progress: RunProgress | null })
               );
             })}
           </ol>
+          {outputEvents.length > 0 ? (
+            <div className="live-output" aria-label="Live process output">
+              <div className="live-output-heading">
+                <h3>Live output</h3>
+                <span>
+                  {outputEvents.length} recent line{outputEvents.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="live-output-list">
+                {outputEvents.map((event, index) => (
+                  <div
+                    className={`live-output-row live-output-row--${event.stream}`}
+                    key={`${event.eventId}-${event.timestamp}-${index}`}
+                  >
+                    <span>{event.stream}</span>
+                    <code>{event.line}</code>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="empty-state">
