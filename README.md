@@ -55,8 +55,12 @@ The managed exporter flow is:
 1. Check the latest upstream GitHub release.
 2. Select the prebuilt asset for the current OS and architecture.
 3. Download the direct executable asset.
-4. Store it under the versioned managed exporter directory.
-5. Prefer the managed binary during future exporter detection, then fall back to `PATH`.
+4. Verify the downloaded binary can report its version.
+5. Store it under the versioned managed exporter directory.
+6. Activate the verified managed version.
+7. Prefer the managed binary during future exporter detection, then fall back to `PATH`.
+
+Previously stored managed versions remain available in the Release channel panel and can be reactivated for rollback after the app verifies the stored binary.
 
 ## Export Runs And Logs
 

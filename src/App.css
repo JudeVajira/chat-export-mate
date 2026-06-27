@@ -564,6 +564,22 @@ pre {
   padding-bottom: 14px;
 }
 
+.version-switcher {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px 2px;
+}
+
+.version-switcher-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.version-switcher-controls .button {
+  min-width: 112px;
+}
+
 dl {
   display: grid;
   gap: 10px;
@@ -761,6 +777,10 @@ dd {
   .action-row-group {
     display: grid;
     gap: 10px;
+  }
+
+  .version-switcher-controls {
+    grid-template-columns: 1fr;
   }
 
   .stored-log-title {

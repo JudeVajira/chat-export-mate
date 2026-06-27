@@ -142,6 +142,11 @@ export interface ManagedInstallResult {
   state: ManagedExporterState;
 }
 
+export interface ManagedActivationResult {
+  probe: ExporterProbe;
+  state: ManagedExporterState;
+}
+
 export interface DiagnosticItem {
   id: string;
   label: string;

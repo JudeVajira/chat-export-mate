@@ -29,6 +29,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 - Managed downloads live under Tauri app data in an `exporter/versions/<version>/` layout.
 - `active-version.txt` points to the currently selected managed binary; keep older version folders for future rollback support.
+- Managed installs and rollback activation should probe the candidate binary successfully before writing `active-version.txt`.
 - Exporter detection should prefer the active managed binary and fall back to `PATH`.
 - Prefer direct executable release assets over `.tar.gz` archives. If only an archive is available, fail with a clear managed-install error until extraction support is added.
 - Browser preview may use mock/fallback state, but Tauri desktop runtime owns filesystem writes and managed installs.

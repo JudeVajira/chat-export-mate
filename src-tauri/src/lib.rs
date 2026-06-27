@@ -12,6 +12,7 @@ const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/ReagentX/imessage-exporter/releases/latest";
 const EXPORTER_STORE_DIR: &str = "exporter";
 const VERSIONS_DIR: &str = "versions";
+const STAGING_DIR: &str = "staging";
 const ACTIVE_VERSION_FILE: &str = "active-version.txt";
 const RUN_LOG_DIR: &str = "run-logs";
 const DIAGNOSTIC_LOG_DIR: &str = "diagnostic-logs";
@@ -75,6 +76,19 @@ struct ManagedInstallResult {
     release: ExporterReleaseInfo,
     asset_name: String,
     binary_path: String,
+    probe: ExporterProbe,
+    state: ManagedExporterState,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManagedActivationRequest {
+    version: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ManagedActivationResult {
     probe: ExporterProbe,
     state: ManagedExporterState,
 }
@@ -172,11 +186,13 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
 
     let root = managed_exporter_root(&app)?;
     let version = normalize_version(&release.tag_name);
-    let version_dir = root.join(VERSIONS_DIR).join(&version);
-    fs::create_dir_all(&version_dir).map_err(to_string)?;
+    let staging_dir = root
+        .join(STAGING_DIR)
+        .join(format!("{}-{}", version, timestamp_millis()));
+    fs::create_dir_all(&staging_dir).map_err(to_string)?;
 
-    let binary_path = version_dir.join(exporter_binary_name());
-    let temp_path = version_dir.join(format!("{}.download", exporter_binary_name()));
+    let staging_binary_path = staging_dir.join(exporter_binary_name());
+    let temp_path = staging_dir.join(format!("{}.download", exporter_binary_name()));
     let bytes = http_client()?
         .get(&asset.browser_download_url)
         .send()
@@ -187,18 +203,78 @@ fn install_latest_exporter(app: AppHandle) -> Result<ManagedInstallResult, Strin
         .map_err(to_string)?;
 
     fs::write(&temp_path, bytes).map_err(to_string)?;
+    fs::rename(&temp_path, &staging_binary_path).map_err(to_string)?;
+    make_executable(&staging_binary_path)?;
+
+    let staging_probe = probe_exporter(staging_binary_path.clone(), true, "managed".to_string());
+    if !staging_probe.found {
+        let _ = fs::remove_dir_all(&staging_dir);
+        return Err(format!(
+            "Downloaded imessage-exporter {} could not be verified: {}",
+            version,
+            probe_error(&staging_probe)
+        ));
+    }
+
+    let version_dir = root.join(VERSIONS_DIR).join(&version);
+    fs::create_dir_all(&version_dir).map_err(to_string)?;
+
+    let binary_path = managed_version_binary_path(&root, &version);
     if binary_path.exists() {
         fs::remove_file(&binary_path).map_err(to_string)?;
     }
-    fs::rename(&temp_path, &binary_path).map_err(to_string)?;
-    make_executable(&binary_path)?;
-    fs::write(root.join(ACTIVE_VERSION_FILE), &version).map_err(to_string)?;
+    fs::rename(&staging_binary_path, &binary_path).map_err(to_string)?;
+    let _ = fs::remove_dir_all(&staging_dir);
 
     let probe = probe_exporter(binary_path.clone(), true, "managed".to_string());
+    if !probe.found {
+        return Err(format!(
+            "Installed imessage-exporter {} could not be verified: {}",
+            version,
+            probe_error(&probe)
+        ));
+    }
+
+    fs::write(root.join(ACTIVE_VERSION_FILE), &version).map_err(to_string)?;
     Ok(ManagedInstallResult {
         release: release_info(release),
         asset_name: asset.name,
         binary_path: binary_path.to_string_lossy().to_string(),
+        probe,
+        state: management_state(&app),
+    })
+}
+
+#[tauri::command]
+fn activate_managed_exporter_version(
+    app: AppHandle,
+    request: ManagedActivationRequest,
+) -> Result<ManagedActivationResult, String> {
+    let version = normalize_version(&request.version);
+    if !is_safe_managed_version(&version) {
+        return Err("Choose a stored managed exporter version.".to_string());
+    }
+
+    let root = managed_exporter_root(&app)?;
+    let binary_path = managed_version_binary_path(&root, &version);
+    if !binary_path.is_file() {
+        return Err(format!(
+            "Managed imessage-exporter {} is not installed.",
+            version
+        ));
+    }
+
+    let probe = probe_exporter(binary_path, true, "managed".to_string());
+    if !probe.found {
+        return Err(format!(
+            "Managed imessage-exporter {} could not be verified: {}",
+            version,
+            probe_error(&probe)
+        ));
+    }
+
+    fs::write(root.join(ACTIVE_VERSION_FILE), &version).map_err(to_string)?;
+    Ok(ManagedActivationResult {
         probe,
         state: management_state(&app),
     })
@@ -556,8 +632,14 @@ fn management_state(app: &AppHandle) -> ManagedExporterState {
 fn active_managed_exporter_path(app: &AppHandle) -> Option<PathBuf> {
     let root = managed_exporter_root(app).ok()?;
     let version = active_managed_version(&root)?;
-    let path = root.join(VERSIONS_DIR).join(version).join(exporter_binary_name());
+    let path = managed_version_binary_path(&root, &version);
     path.is_file().then_some(path)
+}
+
+fn managed_version_binary_path(root: &Path, version: &str) -> PathBuf {
+    root.join(VERSIONS_DIR)
+        .join(version)
+        .join(exporter_binary_name())
 }
 
 fn active_managed_version(root: &Path) -> Option<String> {
@@ -651,6 +733,24 @@ fn normalize_version(version: &str) -> String {
     version.trim().trim_start_matches('v').to_string()
 }
 
+fn is_safe_managed_version(version: &str) -> bool {
+    !version.is_empty()
+        && version.chars().all(|character| {
+            character.is_ascii_alphanumeric()
+                || character == '.'
+                || character == '-'
+                || character == '_'
+        })
+}
+
+fn probe_error(probe: &ExporterProbe) -> String {
+    probe
+        .error
+        .clone()
+        .or_else(|| probe.raw_version_output.clone())
+        .unwrap_or_else(|| "version check failed without details".to_string())
+}
+
 fn probe_exporter(path: PathBuf, managed: bool, source: String) -> ExporterProbe {
     match Command::new(&path).arg("--version").output() {
         Ok(output) => {
@@ -725,6 +825,7 @@ pub fn run() {
             get_exporter_management_state,
             check_latest_exporter_release,
             install_latest_exporter,
+            activate_managed_exporter_version,
             detect_exporter,
             execute_exporter,
             run_exporter_diagnostics,

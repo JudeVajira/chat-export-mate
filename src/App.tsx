@@ -44,6 +44,7 @@ import {
   executeExporter,
   getExporterManagementState,
   getSystemSnapshot,
+  activateManagedExporterVersion,
   installLatestExporter,
   listExporterLogs,
   openLocalPath,
@@ -60,6 +61,7 @@ function App() {
   const [checkingRelease, setCheckingRelease] = useState(false);
   const [installingExporter, setInstallingExporter] = useState(false);
   const [runningDiagnostics, setRunningDiagnostics] = useState(false);
+  const [activatingManagedVersion, setActivatingManagedVersion] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
@@ -170,6 +172,20 @@ function App() {
       addLog("error", error instanceof Error ? error.message : "Exporter install failed.");
     } finally {
       setInstallingExporter(false);
+    }
+  }
+
+  async function activateManagedVersion(version: string) {
+    setActivatingManagedVersion(version);
+    try {
+      const result = await activateManagedExporterVersion(version);
+      setProbe(result.probe);
+      setManagedState(result.state);
+      addLog("info", `Activated managed imessage-exporter ${version}.`);
+    } catch (error) {
+      addLog("error", error instanceof Error ? error.message : "Managed exporter rollback failed.");
+    } finally {
+      setActivatingManagedVersion(null);
     }
   }
 
@@ -377,10 +393,12 @@ function App() {
 
           <div id="diagnostics">
             <DiagnosticsPanel
+              activatingManagedVersion={activatingManagedVersion}
               checkingRelease={checkingRelease}
               diagnostics={diagnostics}
               installActionLabel={installActionLabel}
               installingExporter={installingExporter}
+              onActivateManagedVersion={activateManagedVersion}
               managedState={managedState}
               onCheckRelease={checkRelease}
               onInstallLatest={installOrUpdateExporter}

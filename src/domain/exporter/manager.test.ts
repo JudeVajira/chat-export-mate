@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { describeManagedState, getInstallActionLabel, isManagedStoreReady } from "./manager";
+import {
+  describeManagedState,
+  getActivatableManagedVersions,
+  getInstallActionLabel,
+  isManagedStoreReady,
+} from "./manager";
 
 describe("exporter manager helpers", () => {
   it("labels install, update, and reinstall actions from probe state", () => {
@@ -24,5 +29,14 @@ describe("exporter manager helpers", () => {
     expect(isManagedStoreReady({ installRoot: "store", installedVersions: [], error: "denied" })).toBe(false);
     expect(isManagedStoreReady({ installRoot: "store", installedVersions: [] })).toBe(true);
   });
-});
 
+  it("returns stored versions that can be activated for rollback", () => {
+    expect(
+      getActivatableManagedVersions({
+        installRoot: "store",
+        activeVersion: "4.2.0",
+        installedVersions: ["4.2.0", "4.1.0", "4.0.0"],
+      }),
+    ).toEqual(["4.1.0", "4.0.0"]);
+  });
+});

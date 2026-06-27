@@ -31,3 +31,6 @@ export function isManagedStoreReady(state: ManagedExporterState): boolean {
   return Boolean(state.installRoot && !state.error);
 }
 
+export function getActivatableManagedVersions(state: ManagedExporterState): string[] {
+  return state.installedVersions.filter((version) => version !== state.activeVersion);
+}

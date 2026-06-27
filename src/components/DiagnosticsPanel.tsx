@@ -1,4 +1,6 @@
-import { Activity, Download, PackageCheck, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Activity, Download, PackageCheck, RefreshCw, RotateCcw } from "lucide-react";
+import { getActivatableManagedVersions } from "../domain/exporter/manager";
 import type {
   DiagnosticItem,
   ExporterRelease,
@@ -12,26 +14,41 @@ export function DiagnosticsPanel({
   release,
   selectedAsset,
   managedState,
+  activatingManagedVersion,
   checkingRelease,
   installingExporter,
   runningDiagnostics,
   installActionLabel,
   onCheckRelease,
   onInstallLatest,
+  onActivateManagedVersion,
   onRunDiagnostics,
 }: {
   diagnostics: DiagnosticItem[];
   release: ExporterRelease | null;
   selectedAsset: SelectedReleaseAsset | null;
   managedState: ManagedExporterState;
+  activatingManagedVersion: string | null;
   checkingRelease: boolean;
   installingExporter: boolean;
   runningDiagnostics: boolean;
   installActionLabel: string;
   onCheckRelease: () => void;
   onInstallLatest: () => void;
+  onActivateManagedVersion: (version: string) => void;
   onRunDiagnostics: () => void;
 }) {
+  const activatableVersions = getActivatableManagedVersions(managedState);
+  const defaultVersion = activatableVersions[0] ?? managedState.activeVersion ?? "";
+  const [selectedVersion, setSelectedVersion] = useState(defaultVersion);
+
+  useEffect(() => {
+    setSelectedVersion(defaultVersion);
+  }, [defaultVersion]);
+
+  const canActivateVersion = Boolean(selectedVersion && selectedVersion !== managedState.activeVersion);
+  const isActivatingSelectedVersion = activatingManagedVersion === selectedVersion;
+
   return (
     <aside className="side-stack">
       <section className="panel diagnostics-panel" aria-labelledby="diagnostics-title">
@@ -112,6 +129,39 @@ export function DiagnosticsPanel({
             </dd>
           </div>
         </dl>
+        {managedState.installedVersions.length > 0 ? (
+          <div className="version-switcher">
+            <label className="field-label" htmlFor="managed-version">
+              Activate stored version
+            </label>
+            <div className="version-switcher-controls">
+              <select
+                id="managed-version"
+                onChange={(event) => setSelectedVersion(event.currentTarget.value)}
+                value={selectedVersion}
+              >
+                {managedState.installedVersions.map((version) => (
+                  <option key={version} value={version}>
+                    {version === managedState.activeVersion ? `${version} (active)` : version}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="button button--secondary"
+                disabled={!canActivateVersion || Boolean(activatingManagedVersion)}
+                onClick={() => onActivateManagedVersion(selectedVersion)}
+                type="button"
+              >
+                <RotateCcw aria-hidden="true" />
+                {isActivatingSelectedVersion
+                  ? "Activating"
+                  : selectedVersion === managedState.activeVersion
+                    ? "Active"
+                    : "Activate"}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
     </aside>
   );

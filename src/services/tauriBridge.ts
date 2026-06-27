@@ -9,6 +9,7 @@ import type {
   ExporterRelease,
   ExportRunRequest,
   ExportRunResult,
+  ManagedActivationResult,
   ManagedExporterState,
   ManagedInstallResult,
   StoredLogEntry,
@@ -72,6 +73,22 @@ export async function installLatestExporter(): Promise<ManagedInstallResult> {
 
   try {
     return await invoke<ManagedInstallResult>("install_latest_exporter");
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function activateManagedExporterVersion(
+  version: string,
+): Promise<ManagedActivationResult> {
+  if (!isTauriRuntime()) {
+    throw new Error("Managed exporter rollback requires the Tauri desktop runtime.");
+  }
+
+  try {
+    return await invoke<ManagedActivationResult>("activate_managed_exporter_version", {
+      request: { version },
+    });
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
