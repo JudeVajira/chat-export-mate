@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   DownloadCloud,
   History,
+  Info,
   Lock,
   MessageSquareText,
   Settings2,
@@ -11,6 +12,7 @@ import {
   Wrench,
 } from "lucide-react";
 import "./App.css";
+import { AboutPanel } from "./components/AboutPanel";
 import { CommandPreview } from "./components/CommandPreview";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { ExportConfigurator } from "./components/ExportConfigurator";
@@ -380,6 +382,10 @@ function App() {
             <History aria-hidden="true" />
             History
           </a>
+          <a className="nav-item" href="#about">
+            <Info aria-hidden="true" />
+            About
+          </a>
         </div>
 
         <div className="sidebar-footer">
@@ -489,6 +495,10 @@ function App() {
             onRefreshStoredLogs={() => void refreshStoredLogs()}
             storedLogs={storedLogs}
           />
+        </div>
+
+        <div id="about">
+          <AboutPanel />
         </div>
       </div>
     </main>

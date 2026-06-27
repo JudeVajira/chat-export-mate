@@ -775,6 +775,77 @@ dd {
   font-weight: 760;
 }
 
+.about-panel {
+  margin-bottom: 22px;
+}
+
+.about-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.about-item {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+
+.about-item svg {
+  width: 20px;
+  height: 20px;
+  color: #1f64d8;
+}
+
+.about-item h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.about-item p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #edf1f5;
+  padding-top: 14px;
+}
+
+.about-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid #cdd8e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #26364f;
+  padding: 0 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.about-links svg {
+  width: 15px;
+  height: 15px;
+}
+
 @media (max-width: 1080px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -795,6 +866,7 @@ dd {
   }
 
   .content-grid,
+  .about-grid,
   .history-layout,
   .status-strip {
     grid-template-columns: 1fr;

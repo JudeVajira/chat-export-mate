@@ -12,6 +12,7 @@ sources:
   - https://v2.tauri.app/plugin/dialog/
   - https://tailwindcss.com/docs/installation/using-vite
   - https://github.com/ReagentX/imessage-exporter
+  - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/LICENSE
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
   - https://github.com/ReagentX/imessage-exporter/releases
 related:
@@ -43,7 +44,12 @@ related:
 - Title: ReagentX/imessage-exporter
   URL: https://github.com/ReagentX/imessage-exporter
   Why it matters: Upstream exporter project that ChatExportMate wraps and attributes.
-  Last checked: 2026-06-27 12:03 +05:30
+  Last checked: 2026-06-27 14:05 +05:30
+
+- Title: imessage-exporter license
+  URL: https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/LICENSE
+  Why it matters: Confirms upstream GPL-3.0 licensing for ChatExportMate attribution and compatibility notes.
+  Last checked: 2026-06-27 14:05 +05:30
 
 - Title: imessage-exporter binary documentation
   URL: https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md

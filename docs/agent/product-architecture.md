@@ -58,6 +58,12 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Do not add analytics by default.
 - Logs should be useful for bug reports but should keep raw details inspectable and exportable under user control.
 
+# Licensing And Attribution
+
+- Keep user-facing privacy and license text visible in the app, currently through the About panel.
+- Keep `ACKNOWLEDGEMENTS.md`, `README.md`, and the About panel aligned when attribution, license, warranty, or upstream wrapper language changes.
+- ChatExportMate is GPL-3.0-or-later and wraps `ReagentX/imessage-exporter`, which is GPL-3.0 licensed. Do not describe ChatExportMate as the parser or as an official upstream app.
+
 # Testing Focus
 
 Prioritize tests for:

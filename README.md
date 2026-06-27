@@ -105,3 +105,8 @@ pnpm build
 ## Attribution And License
 
 ChatExportMate wraps and attributes [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter), which is licensed under GPL-3.0. This project is intended to remain GPL-3.0 compatible.
+
+The app includes an **About / Privacy and license** section that summarizes
+the local-first privacy model, upstream attribution, and GPL status for users.
+Repository-level attribution lives in [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md),
+and the full ChatExportMate license text lives in [LICENSE](LICENSE).
