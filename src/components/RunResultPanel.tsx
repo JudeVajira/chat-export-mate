@@ -1,8 +1,20 @@
-import { AlertTriangle, CheckCircle2, ClipboardList, FileText } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, FileText, FolderOpen } from "lucide-react";
 import type { RunSummary } from "../domain/exporter/runResults";
 
-export function RunResultPanel({ summary }: { summary: RunSummary | null }) {
+export function RunResultPanel({
+  onOpenLog,
+  onOpenOutput,
+  summary,
+}: {
+  onOpenLog?: (path: string) => void;
+  onOpenOutput?: (path: string) => void;
+  summary: RunSummary | null;
+}) {
   const Icon = summary ? (summary.level === "error" ? AlertTriangle : CheckCircle2) : ClipboardList;
+  const outputPath = summary?.outputPath;
+  const logPath = summary?.logPath;
+  const canOpenLog = Boolean(logPath && onOpenLog);
+  const canOpenOutput = Boolean(outputPath && onOpenOutput);
 
   return (
     <section className="panel result-panel" aria-labelledby="run-result-title">
@@ -45,8 +57,34 @@ export function RunResultPanel({ summary }: { summary: RunSummary | null }) {
             {summary.exitCode !== undefined && summary.exitCode !== null ? (
               <ResultMeta label="Exit code" value={String(summary.exitCode)} />
             ) : null}
-            {summary.logPath ? <ResultMeta label="Log path" value={summary.logPath} code /> : null}
+            {outputPath ? <ResultMeta label="Output path" value={outputPath} code /> : null}
+            {logPath ? <ResultMeta label="Log path" value={logPath} code /> : null}
           </div>
+
+          {canOpenLog || canOpenOutput ? (
+            <div className="result-actions" aria-label="Latest result actions">
+              {outputPath && onOpenOutput ? (
+                <button
+                  className="button button--secondary button--compact"
+                  onClick={() => onOpenOutput(outputPath)}
+                  type="button"
+                >
+                  <FolderOpen aria-hidden="true" />
+                  Open export
+                </button>
+              ) : null}
+              {logPath && onOpenLog ? (
+                <button
+                  className="button button--secondary button--compact"
+                  onClick={() => onOpenLog(logPath)}
+                  type="button"
+                >
+                  <FileText aria-hidden="true" />
+                  Open log
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {summary.rawDetails ? (
             <details className="result-raw">

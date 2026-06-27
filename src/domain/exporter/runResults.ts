@@ -6,6 +6,7 @@ export type RunSummary = {
   title: string;
   detail: string;
   message: string;
+  outputPath?: string;
   logPath?: string;
   exitCode?: number | null;
   rawDetails?: string;
@@ -19,6 +20,7 @@ export function summarizeExportRunResult(result: ExportRunResult): RunSummary {
       title: "Export finished",
       detail: `Exit code ${result.exitCode ?? 0}.`,
       message: `Export finished with exit code ${result.exitCode ?? 0}. Log saved to ${result.logPath}.`,
+      outputPath: result.outputPath,
       logPath: result.logPath,
       exitCode: result.exitCode ?? 0,
     };
@@ -30,6 +32,7 @@ export function summarizeExportRunResult(result: ExportRunResult): RunSummary {
     title: translated.title,
     detail: translated.explanation,
     message: `${translated.title}: ${translated.suggestedFix} Log saved to ${result.logPath}.`,
+    outputPath: result.outputPath,
     logPath: result.logPath,
     exitCode: result.exitCode,
     rawDetails: translated.rawDetails,

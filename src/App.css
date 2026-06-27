@@ -737,6 +737,14 @@ pre {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #edf1f5;
+  padding-top: 14px;
+}
+
 .result-raw {
   border-top: 1px solid #edf1f5;
   padding-top: 14px;
@@ -1093,5 +1101,9 @@ dd {
   .result-meta-row {
     grid-template-columns: 1fr;
     gap: 3px;
+  }
+
+  .result-actions {
+    display: grid;
   }
 }

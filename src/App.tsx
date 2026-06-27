@@ -410,6 +410,24 @@ function App() {
     }
   }
 
+  async function openLatestRunOutput(path: string) {
+    try {
+      await openOutputFolder(path);
+      addLog("info", `Opened ${path}.`);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not open the exported folder.");
+    }
+  }
+
+  async function openLatestRunLog(path: string) {
+    try {
+      await openLocalPath(path);
+      addLog("info", `Opened ${path}.`);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not open the latest run log.");
+    }
+  }
+
   async function pickOutputFolder() {
     await pickPath(selectOutputFolder, "outputPath", "Output folder selected.");
   }
@@ -621,7 +639,11 @@ function App() {
               />
             </div>
             <CommandPreview command={command} issues={issues} />
-            <RunResultPanel summary={latestRunSummary} />
+            <RunResultPanel
+              onOpenLog={openLatestRunLog}
+              onOpenOutput={openLatestRunOutput}
+              summary={latestRunSummary}
+            />
           </div>
 
           <div id="diagnostics">

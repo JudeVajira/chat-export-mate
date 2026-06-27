@@ -26,6 +26,7 @@ describe("summarizeExportRunResult", () => {
       title: "Export finished",
       detail: "Exit code 0.",
       message: "Export finished with exit code 0. Log saved to C:/logs/export-run-1.log.",
+      outputPath: "~/imessage_export",
       logPath: "C:/logs/export-run-1.log",
       exitCode: 0,
     });
@@ -44,6 +45,7 @@ describe("summarizeExportRunResult", () => {
     expect(summary.detail).toBe("macOS is preventing the exporter from reading protected Messages files.");
     expect(summary.message).toContain("Messages data is blocked by system permissions");
     expect(summary.message).toContain("C:/logs/export-run-1.log");
+    expect(summary.outputPath).toBe("~/imessage_export");
     expect(summary.logPath).toBe("C:/logs/export-run-1.log");
     expect(summary.exitCode).toBe(1);
     expect(summary.error).toMatchObject({

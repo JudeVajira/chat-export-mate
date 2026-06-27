@@ -87,7 +87,7 @@ When dry-run mode is off, the desktop app executes the selected `imessage-export
 
 Run logs are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The Vite development harness cannot execute exports and will show a desktop-runtime message instead.
 
-The Latest result panel summarizes dry runs, exports, diagnostics, and preflight failures in plain English, with suggested fixes and saved log paths when a run creates a log.
+The Latest result panel summarizes dry runs, exports, diagnostics, and preflight failures in plain English, with suggested fixes and saved log paths when a run creates a log. After a desktop export, it can open the exported folder and the saved run log directly from the result.
 
 The History panel lists saved local export and diagnostic logs when running inside Tauri. Logs stay on the machine and can be opened from the app for troubleshooting or bug reports.
 

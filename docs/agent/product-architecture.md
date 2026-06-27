@@ -48,6 +48,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Support bundles should be created locally under app data `support-bundles/`, copy saved logs, include a short manifest, and remind users to review logs before sharing them.
 - The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.
 - Latest export and diagnostic results should show a structured explanation, likely cause, suggested fix, saved log path when available, and optional raw details; keep the activity log concise.
+- Latest export results should expose desktop actions to open the exported output folder and saved log when those paths are available. Diagnostic results should expose the saved log action when available.
 - The development browser harness must not pretend to execute exports; it should return a clear desktop-runtime-only message.
 
 # Diagnostics
