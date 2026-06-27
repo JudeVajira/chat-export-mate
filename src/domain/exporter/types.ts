@@ -29,6 +29,22 @@ export interface BuiltCommand {
   displayCommand: string;
 }
 
+export interface ExportRunRequest extends BuiltCommand {
+  outputPath: string;
+}
+
+export interface ExportRunResult {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode?: number | null;
+  success: boolean;
+  startedAt: string;
+  completedAt: string;
+  logPath: string;
+  outputPath: string;
+}
+
 export interface ValidationIssue {
   field: keyof ExportOptions | "executablePath";
   message: string;

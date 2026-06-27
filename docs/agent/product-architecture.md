@@ -32,6 +32,13 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Prefer direct executable release assets over `.tar.gz` archives. If only an archive is available, fail with a clear managed-install error until extraction support is added.
 - Browser preview may use mock/fallback state, but Tauri desktop runtime owns filesystem writes and managed installs.
 
+# Export Execution And Logs
+
+- Non-dry-run exports execute through the Tauri backend using `std::process::Command`.
+- Every backend export attempt should write a local log under app data `run-logs/`, including command, stdout, stderr, exit code, timestamps, and output path.
+- The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.
+- Browser preview must not pretend to execute exports; it should return a clear desktop-runtime-only message.
+
 # Privacy
 
 - Do not upload messages, exports, logs containing message content, or user-selected paths by default.

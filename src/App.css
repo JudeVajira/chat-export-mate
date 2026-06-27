@@ -60,7 +60,8 @@ button:disabled {
 .status-cluster,
 .button,
 .toggle,
-.action-row {
+.action-row,
+.action-row-group {
   display: flex;
   align-items: center;
 }
@@ -469,6 +470,10 @@ select:focus {
   padding: 14px 16px;
 }
 
+.action-row-group {
+  gap: 8px;
+}
+
 .button {
   justify-content: center;
   gap: 8px;
@@ -635,6 +640,11 @@ dd {
   }
 
   .action-row {
+    display: grid;
+    gap: 10px;
+  }
+
+  .action-row-group {
     display: grid;
     gap: 10px;
   }

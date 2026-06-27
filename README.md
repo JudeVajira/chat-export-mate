@@ -42,7 +42,7 @@ Desktop development after Rust/Tauri prerequisites are installed:
 pnpm tauri dev
 ```
 
-The browser preview can check the GitHub release feed and exercise dry-run UI state. Managed installs, exporter detection from app data, and process execution require the Tauri desktop runtime.
+The browser preview can check the GitHub release feed and exercise dry-run UI state. Managed installs, exporter detection from app data, opening folders, and process execution require the Tauri desktop runtime.
 
 ## Managed Exporter Storage
 
@@ -55,6 +55,19 @@ The managed exporter flow is:
 3. Download the direct executable asset.
 4. Store it under the versioned managed exporter directory.
 5. Prefer the managed binary during future exporter detection, then fall back to `PATH`.
+
+## Export Runs And Logs
+
+When dry-run mode is off, the desktop app executes the selected `imessage-exporter` binary through the Tauri backend. Each export attempt captures:
+
+- command preview
+- stdout
+- stderr
+- exit code
+- start and completion timestamps
+- output path
+
+Run logs are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The browser preview cannot execute exports and will show a desktop-runtime message instead.
 
 ## Verify
 

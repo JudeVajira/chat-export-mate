@@ -11,7 +11,9 @@ interface ExportConfiguratorProps {
   onChange: (options: ExportOptions) => void;
   canRun: boolean;
   dryRun: boolean;
+  isRunning: boolean;
   onDryRunChange: (value: boolean) => void;
+  onOpenOutput: () => void;
   onRun: () => void;
 }
 
@@ -24,7 +26,9 @@ export function ExportConfigurator({
   onChange,
   canRun,
   dryRun,
+  isRunning,
   onDryRunChange,
+  onOpenOutput,
   onRun,
 }: ExportConfiguratorProps) {
   const update = <Key extends keyof ExportOptions>(key: Key, value: ExportOptions[Key]) => {
@@ -148,16 +152,26 @@ export function ExportConfigurator({
       </div>
 
       <div className="action-row">
-        <button className="button button--secondary" onClick={() => onChange(options)} type="button">
-          <RotateCcw aria-hidden="true" />
-          Refresh preview
-        </button>
-        <button className="button button--primary" disabled={!canRun && !dryRun} onClick={onRun} type="button">
+        <div className="action-row-group">
+          <button className="button button--secondary" onClick={() => onChange(options)} type="button">
+            <RotateCcw aria-hidden="true" />
+            Refresh preview
+          </button>
+          <button className="button button--secondary" onClick={onOpenOutput} type="button">
+            <FolderOpen aria-hidden="true" />
+            Open folder
+          </button>
+        </div>
+        <button
+          className="button button--primary"
+          disabled={isRunning || (!canRun && !dryRun)}
+          onClick={onRun}
+          type="button"
+        >
           <Play aria-hidden="true" />
-          {dryRun ? "Start dry run" : "Start export"}
+          {isRunning ? "Running export" : dryRun ? "Start dry run" : "Start export"}
         </button>
       </div>
     </section>
   );
 }
-

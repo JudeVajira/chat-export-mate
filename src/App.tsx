@@ -20,13 +20,13 @@ import { StatusPill } from "./components/StatusPill";
 import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "./data/mockWorkspace";
 import { buildExporterCommand, validateExportOptions } from "./domain/exporter/commandBuilder";
 import { buildDiagnostics } from "./domain/exporter/diagnostics";
-import { translateExporterError } from "./domain/exporter/errors";
 import { getInstallActionLabel } from "./domain/exporter/manager";
 import {
   detectRuntimeTarget,
   isUpdateAvailable,
   selectBestAsset,
 } from "./domain/exporter/release";
+import { summarizeExportRunResult } from "./domain/exporter/runResults";
 import type {
   ExporterProbe,
   ExporterRelease,
@@ -36,9 +36,11 @@ import type {
 import {
   checkLatestExporterRelease,
   detectExporter,
+  executeExporter,
   getExporterManagementState,
   getSystemSnapshot,
   installLatestExporter,
+  openOutputFolder,
 } from "./services/tauriBridge";
 
 function App() {
@@ -46,6 +48,7 @@ function App() {
   const [dryRun, setDryRun] = useState(true);
   const [checkingRelease, setCheckingRelease] = useState(false);
   const [installingExporter, setInstallingExporter] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
   const [managedState, setManagedState] = useState<ManagedExporterState>({
     installRoot: "",
@@ -127,14 +130,34 @@ function App() {
     }
   }
 
-  function runExport() {
+  async function runExport() {
     if (dryRun) {
       addLog("info", `Dry run generated ${command.args.length} exporter arguments.`);
       return;
     }
 
-    const translated = translateExporterError("Operation not permitted while opening ~/Library/Messages/chat.db");
-    addLog("error", `${translated.title}: ${translated.suggestedFix}`);
+    setIsExporting(true);
+    try {
+      const result = await executeExporter({
+        ...command,
+        outputPath: options.outputPath,
+      });
+      const summary = summarizeExportRunResult(result);
+      addLog(summary.level, summary.message);
+    } catch (error) {
+      addLog("error", error instanceof Error ? error.message : "Export failed before it could start.");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  async function openExportFolder() {
+    try {
+      await openOutputFolder(options.outputPath);
+      addLog("info", `Opened ${options.outputPath}.`);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not open the output folder.");
+    }
   }
 
   function addLog(level: LogEntry["level"], message: string) {
@@ -240,8 +263,10 @@ function App() {
               <ExportConfigurator
                 canRun={issues.length === 0 && probe.found}
                 dryRun={dryRun}
+                isRunning={isExporting}
                 onChange={setOptions}
                 onDryRunChange={setDryRun}
+                onOpenOutput={openExportFolder}
                 onRun={runExport}
                 options={options}
               />

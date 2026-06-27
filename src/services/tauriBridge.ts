@@ -1,8 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { fetchLatestExporterRelease } from "../domain/exporter/release";
 import type {
   ExporterProbe,
   ExporterRelease,
+  ExportRunRequest,
+  ExportRunResult,
   ManagedExporterState,
   ManagedInstallResult,
   SystemSnapshot,
@@ -68,6 +71,26 @@ export async function installLatestExporter(): Promise<ManagedInstallResult> {
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
+}
+
+export async function executeExporter(request: ExportRunRequest): Promise<ExportRunResult> {
+  if (!isTauriRuntime()) {
+    throw new Error("Exports can only run inside the Tauri desktop app.");
+  }
+
+  try {
+    return await invoke<ExportRunResult>("execute_exporter", { request });
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function openOutputFolder(path: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    throw new Error("Opening folders is available when running inside Tauri.");
+  }
+
+  await openPath(path);
 }
 
 function isTauriRuntime(): boolean {

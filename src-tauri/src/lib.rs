@@ -3,7 +3,7 @@ use std::{
     env, fs,
     path::{Path, PathBuf},
     process::Command,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
 
@@ -12,6 +12,7 @@ const LATEST_RELEASE_URL: &str =
 const EXPORTER_STORE_DIR: &str = "exporter";
 const VERSIONS_DIR: &str = "versions";
 const ACTIVE_VERSION_FILE: &str = "active-version.txt";
+const RUN_LOG_DIR: &str = "run-logs";
 
 #[derive(Serialize)]
 struct SystemSnapshot {
@@ -74,6 +75,29 @@ struct ManagedInstallResult {
     binary_path: String,
     probe: ExporterProbe,
     state: ManagedExporterState,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExecuteExporterRequest {
+    executable_path: String,
+    args: Vec<String>,
+    display_command: String,
+    output_path: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportRunResult {
+    command: String,
+    stdout: String,
+    stderr: String,
+    exit_code: Option<i32>,
+    success: bool,
+    started_at: String,
+    completed_at: String,
+    log_path: String,
+    output_path: String,
 }
 
 #[tauri::command]
@@ -165,6 +189,60 @@ fn detect_exporter(app: AppHandle) -> ExporterProbe {
     }
 }
 
+#[tauri::command]
+fn execute_exporter(
+    app: AppHandle,
+    request: ExecuteExporterRequest,
+) -> Result<ExportRunResult, String> {
+    if request.executable_path.trim().is_empty() {
+        return Err("Choose or install imessage-exporter before running an export.".to_string());
+    }
+
+    let started_at = timestamp_millis();
+    let output = Command::new(&request.executable_path)
+        .args(&request.args)
+        .output();
+    let completed_at = timestamp_millis();
+
+    let (stdout, stderr, exit_code, success) = match output {
+        Ok(output) => (
+            String::from_utf8_lossy(&output.stdout).to_string(),
+            String::from_utf8_lossy(&output.stderr).to_string(),
+            output.status.code(),
+            output.status.success(),
+        ),
+        Err(error) => (
+            String::new(),
+            error.to_string(),
+            None,
+            false,
+        ),
+    };
+
+    let log_path = write_run_log(
+        &app,
+        &request,
+        &stdout,
+        &stderr,
+        exit_code,
+        success,
+        &started_at,
+        &completed_at,
+    )?;
+
+    Ok(ExportRunResult {
+        command: request.display_command,
+        stdout,
+        stderr,
+        exit_code,
+        success,
+        started_at,
+        completed_at,
+        log_path: log_path.to_string_lossy().to_string(),
+        output_path: request.output_path,
+    })
+}
+
 fn exporter_binary_name() -> String {
     if cfg!(windows) {
         "imessage-exporter.exe".to_string()
@@ -185,6 +263,41 @@ fn managed_exporter_root(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map(|path| path.join(EXPORTER_STORE_DIR))
         .map_err(to_string)
+}
+
+fn run_log_root(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|path| path.join(RUN_LOG_DIR))
+        .map_err(to_string)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_run_log(
+    app: &AppHandle,
+    request: &ExecuteExporterRequest,
+    stdout: &str,
+    stderr: &str,
+    exit_code: Option<i32>,
+    success: bool,
+    started_at: &str,
+    completed_at: &str,
+) -> Result<PathBuf, String> {
+    let root = run_log_root(app)?;
+    fs::create_dir_all(&root).map_err(to_string)?;
+    let log_path = root.join(format!("export-run-{}.log", started_at));
+    let content = format!(
+        "started_at: {started_at}\ncompleted_at: {completed_at}\nsuccess: {success}\nexit_code: {}\noutput_path: {}\ncommand: {}\n\nstdout:\n{}\n\nstderr:\n{}\n",
+        exit_code
+            .map(|code| code.to_string())
+            .unwrap_or_else(|| "none".to_string()),
+        request.output_path,
+        request.display_command,
+        stdout,
+        stderr
+    );
+    fs::write(&log_path, content).map_err(to_string)?;
+    Ok(log_path)
 }
 
 fn management_state(app: &AppHandle) -> ManagedExporterState {
@@ -369,6 +482,14 @@ fn to_string(error: impl ToString) -> String {
     error.to_string()
 }
 
+fn timestamp_millis() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -378,7 +499,8 @@ pub fn run() {
             get_exporter_management_state,
             check_latest_exporter_release,
             install_latest_exporter,
-            detect_exporter
+            detect_exporter,
+            execute_exporter
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
