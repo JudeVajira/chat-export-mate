@@ -49,6 +49,9 @@ import {
   openLocalPath,
   openOutputFolder,
   runExporterDiagnostics,
+  selectAttachmentFolder,
+  selectDatabaseFile,
+  selectOutputFolder,
 } from "./services/tauriBridge";
 
 function App() {
@@ -201,6 +204,36 @@ function App() {
     }
   }
 
+  async function pickOutputFolder() {
+    await pickPath(selectOutputFolder, "outputPath", "Output folder selected.");
+  }
+
+  async function pickDatabaseFile() {
+    await pickPath(selectDatabaseFile, "databasePath", "Messages database selected.");
+  }
+
+  async function pickAttachmentRoot() {
+    await pickPath(selectAttachmentFolder, "attachmentRoot", "Attachments folder selected.");
+  }
+
+  async function pickPath(
+    picker: () => Promise<string | null>,
+    field: "attachmentRoot" | "databasePath" | "outputPath",
+    message: string,
+  ) {
+    try {
+      const selectedPath = await picker();
+      if (!selectedPath) {
+        return;
+      }
+
+      setOptions((current) => ({ ...current, [field]: selectedPath }));
+      addLog("info", message);
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not open the file picker.");
+    }
+  }
+
   async function refreshStoredLogs(announce = true) {
     setLoadingStoredLogs(true);
     try {
@@ -332,6 +365,9 @@ function App() {
                 onChange={setOptions}
                 onDryRunChange={setDryRun}
                 onOpenOutput={openExportFolder}
+                onPickAttachmentRoot={pickAttachmentRoot}
+                onPickDatabase={pickDatabaseFile}
+                onPickOutput={pickOutputFolder}
                 onRun={runExport}
                 options={options}
               />

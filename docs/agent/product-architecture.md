@@ -23,6 +23,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Use interfaces/adapters for exporter binaries, GitHub release lookups, command execution, logging, and diagnostics.
 - Use fake exporter responses and dry-run data so Windows development can continue without a Messages database or iPhone backup.
 - Treat platform-specific behavior as an adapter boundary rather than a condition spread across UI components.
+- Native file and folder selection flows go through the Tauri dialog plugin via `src/services/tauriBridge.ts`; browser preview should report desktop-runtime-only behavior rather than inventing local paths.
 
 # Managed Exporter
 

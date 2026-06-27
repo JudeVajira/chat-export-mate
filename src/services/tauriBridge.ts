@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { fetchLatestExporterRelease } from "../domain/exporter/release";
 import type {
@@ -126,6 +127,28 @@ export async function openLocalPath(path: string): Promise<void> {
   await openPath(path);
 }
 
+export async function selectOutputFolder(): Promise<string | null> {
+  return selectSinglePath({
+    directory: true,
+    title: "Choose export folder",
+  });
+}
+
+export async function selectDatabaseFile(): Promise<string | null> {
+  return selectSinglePath({
+    directory: false,
+    filters: [{ name: "Messages database", extensions: ["db"] }],
+    title: "Choose Messages database",
+  });
+}
+
+export async function selectAttachmentFolder(): Promise<string | null> {
+  return selectSinglePath({
+    directory: true,
+    title: "Choose attachments folder",
+  });
+}
+
 function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
 }
@@ -136,4 +159,23 @@ async function invokeWithFallback<T>(command: string, fallback: T): Promise<T> {
   } catch {
     return fallback;
   }
+}
+
+async function selectSinglePath(options: {
+  directory: boolean;
+  filters?: Array<{ name: string; extensions: string[] }>;
+  title: string;
+}): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    throw new Error("File and folder pickers are available when running inside Tauri.");
+  }
+
+  const selected = await open({
+    directory: options.directory,
+    filters: options.filters,
+    multiple: false,
+    title: options.title,
+  });
+
+  return Array.isArray(selected) ? selected[0] ?? null : selected;
 }

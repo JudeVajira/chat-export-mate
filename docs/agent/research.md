@@ -9,6 +9,7 @@ last_checked: 2026-06-27
 sources:
   - https://tauri.app/develop/calling-rust/
   - https://v2.tauri.app/reference/javascript/api/namespacepath/
+  - https://v2.tauri.app/plugin/dialog/
   - https://tailwindcss.com/docs/installation/using-vite
   - https://github.com/ReagentX/imessage-exporter
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
@@ -28,6 +29,11 @@ related:
   URL: https://v2.tauri.app/reference/javascript/api/namespacepath/
   Why it matters: App data directory semantics inform where managed exporter binaries should live.
   Last checked: 2026-06-27 12:32 +05:30
+
+- Title: Tauri v2 dialog plugin
+  URL: https://v2.tauri.app/plugin/dialog/
+  Why it matters: Confirms the desktop plugin used for native file and folder pickers in the export setup flow.
+  Last checked: 2026-06-27 13:16 +05:30
 
 - Title: Tailwind CSS - Install with Vite
   URL: https://tailwindcss.com/docs/installation/using-vite

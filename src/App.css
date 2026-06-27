@@ -374,7 +374,8 @@ fieldset {
 }
 
 legend,
-.field span {
+.field span,
+.field-label {
   display: block;
   margin-bottom: 7px;
   color: #334155;
@@ -435,21 +436,26 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(31, 100, 216, 0.14);
 }
 
-.input-with-icon {
-  position: relative;
+.input-with-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 8px;
 }
 
-.input-with-icon input {
-  padding-right: 38px;
+.field-action {
+  display: grid;
+  width: 38px;
+  min-height: 38px;
+  place-items: center;
+  border: 1px solid #cdd8e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #40506a;
 }
 
-.input-with-icon svg {
-  position: absolute;
-  top: 10px;
-  right: 11px;
+.field-action svg {
   width: 18px;
   height: 18px;
-  color: #64748b;
 }
 
 .toggle {

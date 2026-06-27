@@ -44,6 +44,8 @@ pnpm tauri dev
 
 The browser preview can check the GitHub release feed and exercise dry-run UI state. Managed installs, exporter detection from app data, opening folders, and process execution require the Tauri desktop runtime.
 
+Native file and folder pickers for export destinations, custom `chat.db` files, and attachment roots also require the Tauri desktop runtime. In browser preview, picker buttons report that desktop runtime is required instead of fabricating local paths.
+
 ## Managed Exporter Storage
 
 ChatExportMate manages downloaded `imessage-exporter` binaries under the app data directory exposed by Tauri. The current backend stores binaries in versioned folders and keeps an `active-version.txt` pointer so previous versions remain available for rollback work.

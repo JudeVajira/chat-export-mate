@@ -13,6 +13,9 @@ interface ExportConfiguratorProps {
   dryRun: boolean;
   isRunning: boolean;
   onDryRunChange: (value: boolean) => void;
+  onPickAttachmentRoot: () => void;
+  onPickDatabase: () => void;
+  onPickOutput: () => void;
   onOpenOutput: () => void;
   onRun: () => void;
 }
@@ -28,6 +31,9 @@ export function ExportConfigurator({
   dryRun,
   isRunning,
   onDryRunChange,
+  onPickAttachmentRoot,
+  onPickDatabase,
+  onPickOutput,
   onOpenOutput,
   onRun,
 }: ExportConfiguratorProps) {
@@ -85,29 +91,52 @@ export function ExportConfigurator({
           </div>
         </fieldset>
 
-        <label className="field span-2">
-          <span>Output folder</span>
-          <div className="input-with-icon">
+        <div className="field span-2">
+          <label className="field-label" htmlFor="output-folder">
+            Output folder
+          </label>
+          <div className="input-with-action">
             <input
+              id="output-folder"
               onChange={(event) => update("outputPath", event.currentTarget.value)}
               value={options.outputPath}
             />
-            <FolderOpen aria-hidden="true" />
+            <button
+              className="field-action"
+              onClick={onPickOutput}
+              title="Choose output folder"
+              type="button"
+            >
+              <FolderOpen aria-hidden="true" />
+            </button>
           </div>
-        </label>
+        </div>
 
-        <label className="field span-2">
-          <span>Custom source</span>
-          <input
-            onChange={(event) => update("databasePath", event.currentTarget.value)}
-            placeholder={
-              options.platform === "macOS"
-                ? "~/Library/Messages/chat.db"
-                : "~/Library/Application Support/MobileSync/Backup/..."
-            }
-            value={options.databasePath}
-          />
-        </label>
+        <div className="field span-2">
+          <label className="field-label" htmlFor="custom-source">
+            Custom source
+          </label>
+          <div className="input-with-action">
+            <input
+              id="custom-source"
+              onChange={(event) => update("databasePath", event.currentTarget.value)}
+              placeholder={
+                options.platform === "macOS"
+                  ? "~/Library/Messages/chat.db"
+                  : "~/Library/Application Support/MobileSync/Backup/..."
+              }
+              value={options.databasePath}
+            />
+            <button
+              className="field-action"
+              onClick={onPickDatabase}
+              title="Choose Messages database"
+              type="button"
+            >
+              <FolderOpen aria-hidden="true" />
+            </button>
+          </div>
+        </div>
 
         <label className="field">
           <span>Attachments</span>
@@ -131,6 +160,28 @@ export function ExportConfigurator({
             value={options.conversationFilter}
           />
         </label>
+
+        <div className="field span-2">
+          <label className="field-label" htmlFor="attachment-root">
+            Attachments folder
+          </label>
+          <div className="input-with-action">
+            <input
+              id="attachment-root"
+              onChange={(event) => update("attachmentRoot", event.currentTarget.value)}
+              placeholder="Optional folder for Messages attachments"
+              value={options.attachmentRoot}
+            />
+            <button
+              className="field-action"
+              onClick={onPickAttachmentRoot}
+              title="Choose attachments folder"
+              type="button"
+            >
+              <FolderOpen aria-hidden="true" />
+            </button>
+          </div>
+        </div>
 
         <label className="field">
           <span>Start date</span>
