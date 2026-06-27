@@ -20,6 +20,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 - This is a desktop-only Tauri app. Do not add web-app or mobile-app product surfaces, routes, packaging, or user-facing support language.
 - Vite/browser rendering is a developer harness for the Tauri frontend only. Keep it useful for layout and domain checks, but never treat it as a supported runtime.
+- Development-harness fallbacks may return mock or empty state, but should not persist user paths or app preferences in browser storage.
 - Keep domain logic in TypeScript modules that can be tested without Tauri.
 - Keep Tauri commands small and focused on platform capabilities: filesystem, process execution, OS inspection, and opening paths.
 - Use interfaces/adapters for exporter binaries, GitHub release lookups, command execution, logging, and diagnostics.
@@ -36,7 +37,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Managed installs and rollback activation should probe the candidate binary successfully before writing `active-version.txt`.
 - Exporter detection should prefer the active managed binary, then a verified user-selected binary saved in app data, then `PATH`.
 - Prefer direct executable release assets over `.tar.gz` archives. If only an archive is available, fail with a clear managed-install error until extraction support is added.
-- The Tauri desktop runtime owns filesystem writes and managed installs. Development-harness fallback state must not become a supported web-app behavior.
+- The Tauri desktop runtime owns filesystem writes, managed installs, and durable user settings. Development-harness fallback state must not become a supported web-app behavior.
 
 # Export Execution And Logs
 

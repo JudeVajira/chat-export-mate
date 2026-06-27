@@ -4,7 +4,6 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import {
   coerceExportPreferences,
   createExportPreferences,
-  parseExportPreferences,
 } from "../domain/exporter/preferences";
 import { fetchLatestExporterRelease } from "../domain/exporter/release";
 import type {
@@ -23,8 +22,6 @@ import type {
   SupportBundleResult,
   SystemSnapshot,
 } from "../domain/exporter/types";
-
-const browserPreferencesKey = "chatexportmate.exportPreferences.v1";
 
 const browserSnapshot: SystemSnapshot = {
   os: navigator.userAgent.includes("Windows") ? "windows" : "unknown",
@@ -63,7 +60,7 @@ export async function detectExporter(): Promise<ExporterProbe> {
 
 export async function loadExportPreferences(): Promise<ExportPreferences | null> {
   if (!isTauriRuntime()) {
-    return parseExportPreferences(window.localStorage.getItem(browserPreferencesKey));
+    return null;
   }
 
   try {
@@ -81,7 +78,6 @@ export async function saveExportPreferences(preferences: ExportPreferences): Pro
   );
 
   if (!isTauriRuntime()) {
-    window.localStorage.setItem(browserPreferencesKey, JSON.stringify(normalizedPreferences));
     return normalizedPreferences;
   }
 
