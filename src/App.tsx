@@ -17,6 +17,7 @@ import { CommandPreview } from "./components/CommandPreview";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { ExportConfigurator } from "./components/ExportConfigurator";
 import { type LogEntry, LogTimeline } from "./components/LogTimeline";
+import { RunResultPanel } from "./components/RunResultPanel";
 import { SetupChecklist } from "./components/SetupChecklist";
 import { StatusPill } from "./components/StatusPill";
 import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "./data/mockWorkspace";
@@ -32,7 +33,13 @@ import {
   isUpdateAvailable,
   selectBestAsset,
 } from "./domain/exporter/release";
-import { summarizeDiagnosticRunResult, summarizeExportRunResult } from "./domain/exporter/runResults";
+import {
+  createDryRunSummary,
+  createRunBlockedSummary,
+  summarizeDiagnosticRunResult,
+  summarizeExportRunResult,
+} from "./domain/exporter/runResults";
+import type { RunSummary } from "./domain/exporter/runResults";
 import type {
   ExporterProbe,
   ExporterRelease,
@@ -97,6 +104,7 @@ function App() {
   });
   const [logs, setLogs] = useState<LogEntry[]>([...initialLogEntries]);
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
+  const [latestRunSummary, setLatestRunSummary] = useState<RunSummary | null>(null);
   const [outputAccess, setOutputAccess] = useState<OutputAccessCheck>(
     previewOutputAccess(defaultExportOptions.outputPath),
   );
@@ -161,7 +169,16 @@ function App() {
     try {
       const nextProbe = await refreshHealthChecks();
       if (!nextProbe.found) {
-        addLog("warn", "Install or select imessage-exporter before running upstream diagnostics.");
+        const summary = createRunBlockedSummary({
+          title: "Diagnostics need an exporter",
+          explanation: "ChatExportMate cannot run upstream diagnostics until an exporter binary is available.",
+          likelyCause: nextProbe.error ?? "imessage-exporter is not installed or was not found on PATH.",
+          suggestedFix: "Install the managed exporter or select an existing imessage-exporter binary, then try again.",
+          rawDetails: nextProbe.error ?? undefined,
+          message: "Install or select imessage-exporter before running upstream diagnostics.",
+        });
+        setLatestRunSummary(summary);
+        addLog("warn", summary.message);
         return;
       }
 
@@ -170,10 +187,21 @@ function App() {
         executablePath: nextProbe.path ?? diagnosticCommand.executablePath,
       });
       const summary = summarizeDiagnosticRunResult(result);
+      setLatestRunSummary(summary);
       addLog(summary.level, summary.message);
       await refreshStoredLogs(false);
     } catch (error) {
-      addLog("error", error instanceof Error ? error.message : "Diagnostics failed before they could start.");
+      const detail = error instanceof Error ? error.message : "Diagnostics failed before they could start.";
+      const summary = createRunBlockedSummary({
+        title: "Diagnostics could not start",
+        explanation: "ChatExportMate could not hand diagnostics to the desktop runtime.",
+        likelyCause: detail,
+        suggestedFix: "Refresh setup checks, confirm the exporter path, then run diagnostics again.",
+        rawDetails: detail,
+        message: detail,
+      });
+      setLatestRunSummary(summary);
+      addLog("error", summary.message);
     } finally {
       setRunningDiagnostics(false);
     }
@@ -223,7 +251,9 @@ function App() {
 
   async function runExport() {
     if (dryRun) {
-      addLog("info", `Dry run generated ${command.args.length} exporter arguments.`);
+      const summary = createDryRunSummary(command.args.length);
+      setLatestRunSummary(summary);
+      addLog(summary.level, summary.message);
       return;
     }
 
@@ -231,7 +261,16 @@ function App() {
     try {
       const nextOutputAccess = await refreshOutputAccess(options.outputPath);
       if (!nextOutputAccess.writable) {
-        addLog("error", `Output access check failed. ${nextOutputAccess.detail}`);
+        const summary = createRunBlockedSummary({
+          title: "Output folder is not writable",
+          explanation: "ChatExportMate could not verify write access before starting the exporter.",
+          likelyCause: nextOutputAccess.detail,
+          suggestedFix: "Choose a writable output folder or grant file access, then start the export again.",
+          rawDetails: nextOutputAccess.error ?? nextOutputAccess.detail,
+          message: `Output access check failed. ${nextOutputAccess.detail}`,
+        });
+        setLatestRunSummary(summary);
+        addLog(summary.level, summary.message);
         return;
       }
 
@@ -240,10 +279,21 @@ function App() {
         outputPath: options.outputPath,
       });
       const summary = summarizeExportRunResult(result);
+      setLatestRunSummary(summary);
       addLog(summary.level, summary.message);
       await refreshStoredLogs(false);
     } catch (error) {
-      addLog("error", error instanceof Error ? error.message : "Export failed before it could start.");
+      const detail = error instanceof Error ? error.message : "Export failed before it could start.";
+      const summary = createRunBlockedSummary({
+        title: "Export could not start",
+        explanation: "ChatExportMate could not hand the export to the desktop runtime.",
+        likelyCause: detail,
+        suggestedFix: "Refresh setup checks, confirm the exporter and output folder, then start the export again.",
+        rawDetails: detail,
+        message: detail,
+      });
+      setLatestRunSummary(summary);
+      addLog("error", summary.message);
     } finally {
       setIsExporting(false);
     }
@@ -469,6 +519,7 @@ function App() {
               />
             </div>
             <CommandPreview command={command} issues={issues} />
+            <RunResultPanel summary={latestRunSummary} />
           </div>
 
           <div id="diagnostics">

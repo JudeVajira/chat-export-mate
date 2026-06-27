@@ -42,6 +42,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - The History UI lists persisted app-data export and diagnostic logs through a Tauri command and opens selected log files locally; browser preview should show an empty stored-log list rather than fake desktop files.
 - Support bundles should be created locally under app data `support-bundles/`, copy saved logs, include a short manifest, and remind users to review logs before sharing them.
 - The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.
+- Latest export and diagnostic results should show a structured explanation, likely cause, suggested fix, saved log path when available, and optional raw details; keep the activity log concise.
 - Browser preview must not pretend to execute exports; it should return a clear desktop-runtime-only message.
 
 # Diagnostics
