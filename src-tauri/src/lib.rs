@@ -118,6 +118,23 @@ struct ExportRunResult {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct OutputAccessRequest {
+    output_path: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OutputAccessResult {
+    path: String,
+    resolved_path: String,
+    writable: bool,
+    checked_at: String,
+    detail: String,
+    error: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DiagnosticRunRequest {
     executable_path: String,
     args: Vec<String>,
@@ -358,6 +375,64 @@ fn execute_exporter(
 }
 
 #[tauri::command]
+fn check_output_access(request: OutputAccessRequest) -> OutputAccessResult {
+    let checked_at = timestamp_millis();
+    let path = request.output_path.trim().to_string();
+    if path.is_empty() {
+        return OutputAccessResult {
+            path,
+            resolved_path: String::new(),
+            writable: false,
+            checked_at,
+            detail: "Choose an output folder before checking write access.".to_string(),
+            error: Some("Output folder is empty.".to_string()),
+        };
+    }
+
+    let resolved_path = resolve_output_path(&path);
+    let resolved_path_text = resolved_path.to_string_lossy().to_string();
+    match writable_probe_directory(&resolved_path) {
+        Ok((directory, target_exists)) => {
+            let probe_path = directory.join(format!(
+                ".chatexportmate-write-test-{}.tmp",
+                checked_at
+            ));
+            match fs::write(&probe_path, b"write test").and_then(|_| fs::remove_file(&probe_path))
+            {
+                Ok(()) => OutputAccessResult {
+                    path,
+                    resolved_path: resolved_path_text,
+                    writable: true,
+                    checked_at,
+                    detail: if target_exists {
+                        "Output folder is writable.".to_string()
+                    } else {
+                        "Parent folder is writable; the export folder can be created.".to_string()
+                    },
+                    error: None,
+                },
+                Err(error) => OutputAccessResult {
+                    path,
+                    resolved_path: resolved_path_text,
+                    writable: false,
+                    checked_at,
+                    detail: "Output folder is not writable.".to_string(),
+                    error: Some(error.to_string()),
+                },
+            }
+        }
+        Err(error) => OutputAccessResult {
+            path,
+            resolved_path: resolved_path_text,
+            writable: false,
+            checked_at,
+            detail: error.clone(),
+            error: Some(error),
+        },
+    }
+}
+
+#[tauri::command]
 fn run_exporter_diagnostics(
     app: AppHandle,
     request: DiagnosticRunRequest,
@@ -432,6 +507,52 @@ fn find_on_path(binary_name: &str) -> Option<PathBuf> {
     env::split_paths(&path_var)
         .map(|directory| directory.join(binary_name))
         .find(|candidate| candidate.is_file())
+}
+
+fn expand_home_path(path: &str) -> PathBuf {
+    if path == "~" {
+        return home_dir().unwrap_or_else(|| PathBuf::from(path));
+    }
+
+    if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) {
+        if let Some(home) = home_dir() {
+            return home.join(rest);
+        }
+    }
+
+    PathBuf::from(path)
+}
+
+fn resolve_output_path(path: &str) -> PathBuf {
+    let expanded_path = expand_home_path(path);
+    if expanded_path.is_absolute() {
+        return expanded_path;
+    }
+
+    env::current_dir()
+        .map(|current_dir| current_dir.join(&expanded_path))
+        .unwrap_or(expanded_path)
+}
+
+fn home_dir() -> Option<PathBuf> {
+    env::var_os("USERPROFILE")
+        .or_else(|| env::var_os("HOME"))
+        .map(PathBuf::from)
+}
+
+fn writable_probe_directory(path: &Path) -> Result<(PathBuf, bool), String> {
+    if path.exists() {
+        if path.is_dir() {
+            return Ok((path.to_path_buf(), true));
+        }
+
+        return Err("Output path points to a file. Choose a folder instead.".to_string());
+    }
+
+    match path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        Some(parent) if parent.is_dir() => Ok((parent.to_path_buf(), false)),
+        _ => Err("Output folder does not exist and its parent folder was not found.".to_string()),
+    }
 }
 
 fn managed_exporter_root(app: &AppHandle) -> Result<PathBuf, String> {
@@ -827,6 +948,7 @@ pub fn run() {
             install_latest_exporter,
             activate_managed_exporter_version,
             detect_exporter,
+            check_output_access,
             execute_exporter,
             run_exporter_diagnostics,
             list_exporter_logs

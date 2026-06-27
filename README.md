@@ -79,7 +79,9 @@ The History panel lists saved local export and diagnostic logs when running insi
 
 ## Diagnostics
 
-The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, managed binary state, release metadata, command configuration, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri and writes a local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
+The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri and writes a local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
+
+Desktop health checks probe the selected output folder, or its existing parent folder when the export folder has not been created yet, by writing and removing a small temporary file. Browser preview reports this as a desktop-runtime-only check.
 
 ## Verify
 

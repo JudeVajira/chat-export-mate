@@ -35,16 +35,18 @@ import type {
   ExporterProbe,
   ExporterRelease,
   ManagedExporterState,
+  OutputAccessCheck,
   StoredLogEntry,
   SystemSnapshot,
 } from "./domain/exporter/types";
 import {
+  activateManagedExporterVersion,
+  checkOutputAccess,
   checkLatestExporterRelease,
   detectExporter,
   executeExporter,
   getExporterManagementState,
   getSystemSnapshot,
-  activateManagedExporterVersion,
   installLatestExporter,
   listExporterLogs,
   openLocalPath,
@@ -89,6 +91,9 @@ function App() {
   });
   const [logs, setLogs] = useState<LogEntry[]>([...initialLogEntries]);
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
+  const [outputAccess, setOutputAccess] = useState<OutputAccessCheck>(
+    previewOutputAccess(defaultExportOptions.outputPath),
+  );
 
   const executablePath = probe.path ?? defaultExecutablePath;
   const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
@@ -100,26 +105,47 @@ function App() {
   const target = useMemo(() => detectRuntimeTarget(snapshot), [snapshot]);
   const selectedAsset = useMemo(() => (release ? selectBestAsset(release, target) : null), [release, target]);
   const diagnostics = useMemo(
-    () => buildDiagnostics(snapshot, probe, release, target, executablePath, options, managedState),
-    [executablePath, managedState, options, probe, release, snapshot, target],
+    () =>
+      buildDiagnostics(
+        snapshot,
+        probe,
+        release,
+        target,
+        executablePath,
+        options,
+        managedState,
+        outputAccess,
+      ),
+    [executablePath, managedState, options, outputAccess, probe, release, snapshot, target],
   );
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
+  const exportReady = issues.length === 0 && probe.found && outputAccess.writable;
 
   useEffect(() => {
     void refreshHealthChecks();
     void refreshStoredLogs(false);
   }, []);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void refreshOutputAccess(options.outputPath);
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [options.outputPath]);
+
   async function refreshHealthChecks(): Promise<ExporterProbe> {
-    const [nextSnapshot, nextProbe, nextManagedState] = await Promise.all([
+    const [nextSnapshot, nextProbe, nextManagedState, nextOutputAccess] = await Promise.all([
       getSystemSnapshot(),
       detectExporter(),
       getExporterManagementState(),
+      checkOutputAccess(options.outputPath),
     ]);
     setSnapshot(nextSnapshot);
     setProbe(nextProbe);
     setManagedState(nextManagedState);
+    setOutputAccess(nextOutputAccess);
     addLog(nextProbe.found ? "info" : "warn", nextProbe.found ? "Exporter detected." : "Exporter was not detected.");
     return nextProbe;
   }
@@ -197,6 +223,12 @@ function App() {
 
     setIsExporting(true);
     try {
+      const nextOutputAccess = await refreshOutputAccess(options.outputPath);
+      if (!nextOutputAccess.writable) {
+        addLog("error", `Output access check failed. ${nextOutputAccess.detail}`);
+        return;
+      }
+
       const result = await executeExporter({
         ...command,
         outputPath: options.outputPath,
@@ -263,6 +295,12 @@ function App() {
     } finally {
       setLoadingStoredLogs(false);
     }
+  }
+
+  async function refreshOutputAccess(outputPath: string): Promise<OutputAccessCheck> {
+    const nextOutputAccess = await checkOutputAccess(outputPath);
+    setOutputAccess(nextOutputAccess);
+    return nextOutputAccess;
   }
 
   async function openStoredLog(log: StoredLogEntry) {
@@ -363,8 +401,8 @@ function App() {
             <strong>{dryRun ? "Dry run" : "Export"}</strong>
           </div>
           <StatusPill
-            label={issues.length === 0 && probe.found ? "Ready" : "Review"}
-            state={issues.length === 0 && probe.found ? "passed" : "warning"}
+            label={exportReady ? "Ready" : "Review"}
+            state={exportReady ? "passed" : "warning"}
           />
         </section>
 
@@ -375,7 +413,7 @@ function App() {
             </div>
             <div id="export">
               <ExportConfigurator
-                canRun={issues.length === 0 && probe.found}
+                canRun={exportReady}
                 dryRun={dryRun}
                 isRunning={isExporting}
                 onChange={setOptions}
@@ -422,6 +460,17 @@ function App() {
       </div>
     </main>
   );
+}
+
+function previewOutputAccess(outputPath: string): OutputAccessCheck {
+  return {
+    path: outputPath,
+    resolvedPath: outputPath,
+    writable: false,
+    checkedAt: "",
+    detail: "Desktop write access check has not run.",
+    error: null,
+  };
 }
 
 export default App;

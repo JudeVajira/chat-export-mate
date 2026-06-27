@@ -45,6 +45,15 @@ export interface ExportRunResult {
   outputPath: string;
 }
 
+export interface OutputAccessCheck {
+  path: string;
+  resolvedPath: string;
+  writable: boolean;
+  checkedAt: string;
+  detail: string;
+  error?: string | null;
+}
+
 export interface DiagnosticRunRequest extends BuiltCommand {}
 
 export interface DiagnosticRunResult {

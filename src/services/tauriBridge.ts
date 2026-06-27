@@ -12,6 +12,7 @@ import type {
   ManagedActivationResult,
   ManagedExporterState,
   ManagedInstallResult,
+  OutputAccessCheck,
   StoredLogEntry,
   SystemSnapshot,
 } from "../domain/exporter/types";
@@ -101,6 +102,27 @@ export async function executeExporter(request: ExportRunRequest): Promise<Export
 
   try {
     return await invoke<ExportRunResult>("execute_exporter", { request });
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function checkOutputAccess(outputPath: string): Promise<OutputAccessCheck> {
+  if (!isTauriRuntime()) {
+    return {
+      path: outputPath,
+      resolvedPath: outputPath,
+      writable: false,
+      checkedAt: "",
+      detail: "Desktop write access checks are available when running inside Tauri.",
+      error: null,
+    };
+  }
+
+  try {
+    return await invoke<OutputAccessCheck>("check_output_access", {
+      request: { outputPath },
+    });
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }

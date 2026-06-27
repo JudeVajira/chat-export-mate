@@ -45,6 +45,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 # Diagnostics
 
 - App-level health checks refresh platform, managed store, release, configuration, and privacy state.
+- Desktop health checks should verify output write access locally by creating/removing a temporary file in the selected output folder or its existing parent when the target folder is not created yet.
 - Upstream diagnostics execute `imessage-exporter -d` through Tauri only when an exporter binary is available.
 - Diagnostic attempts write local app data logs under `diagnostic-logs/` and should be summarized through testable domain helpers.
 - Startup should refresh health checks only; it should not run upstream diagnostics until the user clicks **Run diagnostics**.

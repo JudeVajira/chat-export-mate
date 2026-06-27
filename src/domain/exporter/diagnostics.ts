@@ -6,6 +6,7 @@ import type {
   ExporterProbe,
   ExporterRelease,
   ManagedExporterState,
+  OutputAccessCheck,
   RuntimeTarget,
   SystemSnapshot,
 } from "./types";
@@ -19,6 +20,7 @@ export function buildDiagnostics(
   executablePath: string,
   options: ExportOptions,
   managedState?: ManagedExporterState,
+  outputAccess?: OutputAccessCheck,
 ): DiagnosticItem[] {
   const validationIssues = validateExportOptions(executablePath, options);
   const selectedAsset = release ? selectBestAsset(release, target) : null;
@@ -83,10 +85,24 @@ export function buildDiagnostics(
       state: validationIssues.length === 0 ? "passed" : "action",
     },
     {
+      id: "output-access",
+      label: "Output access",
+      detail: outputAccess?.detail ?? "Desktop write access check has not run",
+      state: outputAccess ? outputAccessState(outputAccess) : "warning",
+    },
+    {
       id: "privacy",
       label: "Privacy",
       detail: "No message data leaves this device",
       state: "passed",
     },
   ];
+}
+
+function outputAccessState(outputAccess: OutputAccessCheck): DiagnosticItem["state"] {
+  if (outputAccess.writable) {
+    return "passed";
+  }
+
+  return outputAccess.error ? "action" : "warning";
 }
