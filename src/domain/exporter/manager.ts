@@ -8,7 +8,35 @@ export function getInstallActionLabel(
     return "Install exporter";
   }
 
+  if (probe.source === "custom" || probe.source === "path") {
+    return updateAvailable ? "Install managed update" : "Install managed copy";
+  }
+
   return updateAvailable ? "Update exporter" : "Reinstall exporter";
+}
+
+export function describeProbeSource(probe: ExporterProbe): string {
+  if (probe.managed || probe.source === "managed") {
+    return "Managed";
+  }
+
+  if (probe.source === "custom") {
+    return "Selected";
+  }
+
+  if (probe.source === "path") {
+    return "PATH";
+  }
+
+  if (probe.source === "browser-preview") {
+    return "Preview";
+  }
+
+  return "Exporter";
+}
+
+export function isCustomExporterProbe(probe: ExporterProbe): boolean {
+  return probe.source === "custom";
 }
 
 export function describeManagedState(state: ManagedExporterState): string {

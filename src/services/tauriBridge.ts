@@ -53,6 +53,32 @@ export async function detectExporter(): Promise<ExporterProbe> {
   return invokeWithFallback<ExporterProbe>("detect_exporter", browserProbe);
 }
 
+export async function setCustomExporterPath(path: string): Promise<ExporterProbe> {
+  if (!isTauriRuntime()) {
+    throw new Error("Selecting an existing exporter requires the Tauri desktop runtime.");
+  }
+
+  try {
+    return await invoke<ExporterProbe>("set_custom_exporter_path", {
+      request: { path },
+    });
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function clearCustomExporterPath(): Promise<ExporterProbe> {
+  if (!isTauriRuntime()) {
+    throw new Error("Clearing a selected exporter requires the Tauri desktop runtime.");
+  }
+
+  try {
+    return await invoke<ExporterProbe>("clear_custom_exporter_path");
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+}
+
 export async function getExporterManagementState(): Promise<ManagedExporterState> {
   return invokeWithFallback<ManagedExporterState>(
     "get_exporter_management_state",
@@ -205,6 +231,17 @@ export async function selectAttachmentFolder(): Promise<string | null> {
   return selectSinglePath({
     directory: true,
     title: "Choose attachments folder",
+  });
+}
+
+export async function selectExporterBinary(): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    throw new Error("Selecting an existing exporter requires the Tauri desktop runtime.");
+  }
+
+  return selectSinglePath({
+    directory: false,
+    title: "Choose imessage-exporter binary",
   });
 }
 

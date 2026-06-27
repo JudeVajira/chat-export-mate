@@ -1,16 +1,38 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeProbeSource,
   describeManagedState,
   getActivatableManagedVersions,
   getInstallActionLabel,
+  isCustomExporterProbe,
   isManagedStoreReady,
 } from "./manager";
 
 describe("exporter manager helpers", () => {
   it("labels install, update, and reinstall actions from probe state", () => {
     expect(getInstallActionLabel({ found: false }, false)).toBe("Install exporter");
-    expect(getInstallActionLabel({ found: true }, true)).toBe("Update exporter");
-    expect(getInstallActionLabel({ found: true }, false)).toBe("Reinstall exporter");
+    expect(getInstallActionLabel({ found: true, managed: true, source: "managed" }, true)).toBe(
+      "Update exporter",
+    );
+    expect(getInstallActionLabel({ found: true, managed: true, source: "managed" }, false)).toBe(
+      "Reinstall exporter",
+    );
+    expect(getInstallActionLabel({ found: true, source: "custom" }, true)).toBe(
+      "Install managed update",
+    );
+    expect(getInstallActionLabel({ found: true, source: "path" }, false)).toBe(
+      "Install managed copy",
+    );
+  });
+
+  it("describes where a detected exporter came from", () => {
+    expect(describeProbeSource({ found: true, managed: true, source: "managed" })).toBe("Managed");
+    expect(describeProbeSource({ found: true, source: "custom" })).toBe("Selected");
+    expect(describeProbeSource({ found: true, source: "path" })).toBe("PATH");
+    expect(describeProbeSource({ found: true, source: "browser-preview" })).toBe("Preview");
+    expect(describeProbeSource({ found: true })).toBe("Exporter");
+    expect(isCustomExporterProbe({ found: true, source: "custom" })).toBe(true);
+    expect(isCustomExporterProbe({ found: true, source: "path" })).toBe(false);
   });
 
   it("describes the active managed version when present", () => {

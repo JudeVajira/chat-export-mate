@@ -14,6 +14,7 @@ const EXPORTER_STORE_DIR: &str = "exporter";
 const VERSIONS_DIR: &str = "versions";
 const STAGING_DIR: &str = "staging";
 const ACTIVE_VERSION_FILE: &str = "active-version.txt";
+const CUSTOM_EXPORTER_FILE: &str = "custom-exporter-path.txt";
 const RUN_LOG_DIR: &str = "run-logs";
 const DIAGNOSTIC_LOG_DIR: &str = "diagnostic-logs";
 const SUPPORT_BUNDLE_DIR: &str = "support-bundles";
@@ -85,6 +86,12 @@ struct ManagedInstallResult {
 #[serde(rename_all = "camelCase")]
 struct ManagedActivationRequest {
     version: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CustomExporterPathRequest {
+    path: String,
 }
 
 #[derive(Serialize)]
@@ -309,11 +316,61 @@ fn activate_managed_exporter_version(
 
 #[tauri::command]
 fn detect_exporter(app: AppHandle) -> ExporterProbe {
-    if let Some(path) = active_managed_exporter_path(&app) {
+    detect_exporter_probe(&app)
+}
+
+#[tauri::command]
+fn set_custom_exporter_path(
+    app: AppHandle,
+    request: CustomExporterPathRequest,
+) -> Result<ExporterProbe, String> {
+    let trimmed_path = request.path.trim();
+    if trimmed_path.is_empty() {
+        return Err("Choose an imessage-exporter binary before saving it.".to_string());
+    }
+
+    let path = expand_home_path(trimmed_path);
+    if !path.is_file() {
+        return Err("The selected imessage-exporter path is not a file.".to_string());
+    }
+
+    let probe = probe_exporter(path.clone(), false, "custom".to_string());
+    if !probe.found {
+        return Err(format!(
+            "Selected imessage-exporter could not be verified: {}",
+            probe_error(&probe)
+        ));
+    }
+
+    let root = managed_exporter_root(&app)?;
+    fs::create_dir_all(&root).map_err(to_string)?;
+    fs::write(root.join(CUSTOM_EXPORTER_FILE), path.to_string_lossy().to_string())
+        .map_err(to_string)?;
+    Ok(probe)
+}
+
+#[tauri::command]
+fn clear_custom_exporter_path(app: AppHandle) -> Result<ExporterProbe, String> {
+    let root = managed_exporter_root(&app)?;
+    match fs::remove_file(root.join(CUSTOM_EXPORTER_FILE)) {
+        Ok(()) => Ok(detect_exporter_probe(&app)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(detect_exporter_probe(&app))
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn detect_exporter_probe(app: &AppHandle) -> ExporterProbe {
+    if let Some(path) = active_managed_exporter_path(app) {
         let probe = probe_exporter(path, true, "managed".to_string());
         if probe.found {
             return probe;
         }
+    }
+
+    if let Some(path) = custom_exporter_path(app) {
+        return probe_exporter(path, false, "custom".to_string());
     }
 
     match find_on_path(&exporter_binary_name()) {
@@ -855,6 +912,15 @@ fn active_managed_exporter_path(app: &AppHandle) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
+fn custom_exporter_path(app: &AppHandle) -> Option<PathBuf> {
+    let root = managed_exporter_root(app).ok()?;
+    fs::read_to_string(root.join(CUSTOM_EXPORTER_FILE))
+        .ok()
+        .map(|path| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+}
+
 fn managed_version_binary_path(root: &Path, version: &str) -> PathBuf {
     root.join(VERSIONS_DIR)
         .join(version)
@@ -1046,6 +1112,8 @@ pub fn run() {
             install_latest_exporter,
             activate_managed_exporter_version,
             detect_exporter,
+            set_custom_exporter_path,
+            clear_custom_exporter_path,
             check_output_access,
             execute_exporter,
             run_exporter_diagnostics,

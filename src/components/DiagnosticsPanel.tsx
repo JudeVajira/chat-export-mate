@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
-import { Activity, Download, PackageCheck, RefreshCw, RotateCcw } from "lucide-react";
-import { getActivatableManagedVersions } from "../domain/exporter/manager";
+import {
+  Activity,
+  Download,
+  FileSearch,
+  PackageCheck,
+  RefreshCw,
+  RotateCcw,
+  XCircle,
+} from "lucide-react";
+import { getActivatableManagedVersions, isCustomExporterProbe } from "../domain/exporter/manager";
 import type {
   DiagnosticItem,
+  ExporterProbe,
   ExporterRelease,
   ManagedExporterState,
   SelectedReleaseAsset,
@@ -14,29 +23,39 @@ export function DiagnosticsPanel({
   release,
   selectedAsset,
   managedState,
+  probe,
   activatingManagedVersion,
+  clearingCustomExporter,
   checkingRelease,
   installingExporter,
   runningDiagnostics,
+  selectingCustomExporter,
   installActionLabel,
   onCheckRelease,
   onInstallLatest,
   onActivateManagedVersion,
+  onClearCustomExporter,
   onRunDiagnostics,
+  onSelectCustomExporter,
 }: {
   diagnostics: DiagnosticItem[];
   release: ExporterRelease | null;
   selectedAsset: SelectedReleaseAsset | null;
   managedState: ManagedExporterState;
+  probe: ExporterProbe;
   activatingManagedVersion: string | null;
+  clearingCustomExporter: boolean;
   checkingRelease: boolean;
   installingExporter: boolean;
   runningDiagnostics: boolean;
+  selectingCustomExporter: boolean;
   installActionLabel: string;
   onCheckRelease: () => void;
   onInstallLatest: () => void;
   onActivateManagedVersion: (version: string) => void;
+  onClearCustomExporter: () => void;
   onRunDiagnostics: () => void;
+  onSelectCustomExporter: () => void;
 }) {
   const activatableVersions = getActivatableManagedVersions(managedState);
   const defaultVersion = activatableVersions[0] ?? managedState.activeVersion ?? "";
@@ -82,6 +101,26 @@ export function DiagnosticsPanel({
             <RefreshCw aria-hidden="true" />
             {runningDiagnostics ? "Running" : "Run diagnostics"}
           </button>
+          <button
+            className="button button--secondary"
+            disabled={selectingCustomExporter}
+            onClick={onSelectCustomExporter}
+            type="button"
+          >
+            <FileSearch aria-hidden="true" />
+            {selectingCustomExporter ? "Selecting" : "Use existing"}
+          </button>
+          {isCustomExporterProbe(probe) ? (
+            <button
+              className="button button--secondary"
+              disabled={clearingCustomExporter}
+              onClick={onClearCustomExporter}
+              type="button"
+            >
+              <XCircle aria-hidden="true" />
+              {clearingCustomExporter ? "Clearing" : "Forget selected"}
+            </button>
+          ) : null}
           <button
             className="button button--secondary"
             disabled={checkingRelease}

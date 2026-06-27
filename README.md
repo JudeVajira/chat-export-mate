@@ -42,12 +42,13 @@ Desktop development after Rust/Tauri prerequisites are installed:
 pnpm tauri dev
 ```
 
-The browser preview can check the GitHub release feed and exercise dry-run UI state. Managed installs, exporter detection from app data, opening folders, and process execution require the Tauri desktop runtime.
+The browser preview can check the GitHub release feed and exercise dry-run UI state. Managed installs, selected exporter persistence, exporter detection from app data, opening folders, and process execution require the Tauri desktop runtime.
 
 Native file and folder pickers for export destinations, custom macOS `chat.db`
-files, iOS backup folders, and attachment roots also require the Tauri desktop
-runtime. In browser preview, picker buttons report that desktop runtime is
-required instead of fabricating local paths.
+files, iOS backup folders, attachment roots, and existing `imessage-exporter`
+binaries also require the Tauri desktop runtime. In browser preview, picker
+buttons report that desktop runtime is required instead of fabricating local
+paths.
 
 ## Managed Exporter Storage
 
@@ -61,9 +62,11 @@ The managed exporter flow is:
 4. Verify the downloaded binary can report its version.
 5. Store it under the versioned managed exporter directory.
 6. Activate the verified managed version.
-7. Prefer the managed binary during future exporter detection, then fall back to `PATH`.
+7. Prefer the managed binary during future exporter detection, then fall back to a verified selected binary and finally `PATH`.
 
 Previously stored managed versions remain available in the Release channel panel and can be reactivated for rollback after the app verifies the stored binary.
+
+If you already have `imessage-exporter`, use **Use existing** in Diagnostics. ChatExportMate verifies the selected binary with `--version`, remembers the path locally, and uses it when no managed exporter is active.
 
 ## Export Runs And Logs
 

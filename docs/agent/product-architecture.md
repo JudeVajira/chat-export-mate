@@ -25,13 +25,14 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Treat platform-specific behavior as an adapter boundary rather than a condition spread across UI components.
 - Native file and folder selection flows go through the Tauri dialog plugin via `src/services/tauriBridge.ts`; browser preview should report desktop-runtime-only behavior rather than inventing local paths.
 - Source selection is platform-specific: macOS custom sources use a `chat.db` file picker, while iOS custom sources use a backup-folder picker. Attachment roots are macOS-only and should not be emitted for iOS commands.
+- Existing exporter binary selection also goes through `src/services/tauriBridge.ts`; the backend must verify the selected binary with `--version` before saving it.
 
 # Managed Exporter
 
 - Managed downloads live under Tauri app data in an `exporter/versions/<version>/` layout.
 - `active-version.txt` points to the currently selected managed binary; keep older version folders for future rollback support.
 - Managed installs and rollback activation should probe the candidate binary successfully before writing `active-version.txt`.
-- Exporter detection should prefer the active managed binary and fall back to `PATH`.
+- Exporter detection should prefer the active managed binary, then a verified user-selected binary saved in app data, then `PATH`.
 - Prefer direct executable release assets over `.tar.gz` archives. If only an archive is available, fail with a clear managed-install error until extraction support is added.
 - Browser preview may use mock/fallback state, but Tauri desktop runtime owns filesystem writes and managed installs.
 

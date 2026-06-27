@@ -21,6 +21,7 @@ const probe: ExporterProbe = {
   managed: true,
   path: "C:/exporter/imessage-exporter.exe",
   version: "4.2.0",
+  source: "managed",
 };
 
 const target: RuntimeTarget = {
@@ -94,6 +95,29 @@ describe("buildDiagnostics", () => {
     expect(item).toMatchObject({
       detail: "Output path points to a file. Choose a folder instead.",
       state: "action",
+    });
+  });
+
+  it("labels a selected existing exporter as the detected source", () => {
+    const item = buildDiagnostics(
+      snapshot,
+      {
+        found: true,
+        managed: false,
+        path: "D:/Tools/imessage-exporter.exe",
+        version: "4.2.0",
+        source: "custom",
+      },
+      null,
+      target,
+      "D:/Tools/imessage-exporter.exe",
+      options,
+      managedState,
+    ).find((diagnostic) => diagnostic.id === "exporter");
+
+    expect(item).toMatchObject({
+      detail: "Selected 4.2.0 at D:/Tools/imessage-exporter.exe",
+      state: "passed",
     });
   });
 });

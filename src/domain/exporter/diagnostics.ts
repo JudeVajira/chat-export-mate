@@ -10,7 +10,7 @@ import type {
   RuntimeTarget,
   SystemSnapshot,
 } from "./types";
-import { describeManagedState, isManagedStoreReady } from "./manager";
+import { describeManagedState, describeProbeSource, isManagedStoreReady } from "./manager";
 
 export function buildDiagnostics(
   snapshot: SystemSnapshot,
@@ -37,7 +37,7 @@ export function buildDiagnostics(
       id: "exporter",
       label: "Exporter",
       detail: probe.found
-        ? `${probe.managed ? "Managed" : "PATH"} ${probe.version ?? "unknown version"} at ${
+        ? `${describeProbeSource(probe)} ${probe.version ?? "unknown version"} at ${
             probe.path ?? "detected path"
           }`
         : probe.error ?? "imessage-exporter was not found",

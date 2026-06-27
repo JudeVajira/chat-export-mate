@@ -52,6 +52,7 @@ import {
   activateManagedExporterVersion,
   checkOutputAccess,
   checkLatestExporterRelease,
+  clearCustomExporterPath,
   createSupportBundle,
   detectExporter,
   executeExporter,
@@ -65,7 +66,9 @@ import {
   selectAttachmentFolder,
   selectBackupFolder,
   selectDatabaseFile,
+  selectExporterBinary,
   selectOutputFolder,
+  setCustomExporterPath,
 } from "./services/tauriBridge";
 
 function App() {
@@ -76,6 +79,8 @@ function App() {
   const [checkingOutputAccess, setCheckingOutputAccess] = useState(false);
   const [runningDiagnostics, setRunningDiagnostics] = useState(false);
   const [activatingManagedVersion, setActivatingManagedVersion] = useState<string | null>(null);
+  const [selectingCustomExporter, setSelectingCustomExporter] = useState(false);
+  const [clearingCustomExporter, setClearingCustomExporter] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [creatingSupportBundle, setCreatingSupportBundle] = useState(false);
   const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
@@ -246,6 +251,45 @@ function App() {
       addLog("error", error instanceof Error ? error.message : "Managed exporter rollback failed.");
     } finally {
       setActivatingManagedVersion(null);
+    }
+  }
+
+  async function selectExistingExporter() {
+    setSelectingCustomExporter(true);
+    try {
+      const selectedPath = await selectExporterBinary();
+      if (!selectedPath) {
+        return;
+      }
+
+      const nextProbe = await setCustomExporterPath(selectedPath);
+      setProbe(nextProbe);
+      addLog(
+        "info",
+        `Selected imessage-exporter ${nextProbe.version ?? "unknown version"} from ${nextProbe.path ?? selectedPath}.`,
+      );
+    } catch (error) {
+      addLog("error", error instanceof Error ? error.message : "Could not select an exporter binary.");
+    } finally {
+      setSelectingCustomExporter(false);
+    }
+  }
+
+  async function forgetSelectedExporter() {
+    setClearingCustomExporter(true);
+    try {
+      const nextProbe = await clearCustomExporterPath();
+      setProbe(nextProbe);
+      addLog(
+        nextProbe.found ? "info" : "warn",
+        nextProbe.found
+          ? `Cleared selected exporter. Detection now uses ${nextProbe.source ?? "available"} exporter.`
+          : "Cleared selected exporter. Install or select imessage-exporter before exporting.",
+      );
+    } catch (error) {
+      addLog("error", error instanceof Error ? error.message : "Could not clear the selected exporter.");
+    } finally {
+      setClearingCustomExporter(false);
     }
   }
 
@@ -530,12 +574,17 @@ function App() {
               installActionLabel={installActionLabel}
               installingExporter={installingExporter}
               onActivateManagedVersion={activateManagedVersion}
+              clearingCustomExporter={clearingCustomExporter}
               managedState={managedState}
+              onClearCustomExporter={forgetSelectedExporter}
               onCheckRelease={checkRelease}
               onInstallLatest={installOrUpdateExporter}
               onRunDiagnostics={runDiagnostics}
+              onSelectCustomExporter={selectExistingExporter}
+              probe={probe}
               release={release}
               runningDiagnostics={runningDiagnostics}
+              selectingCustomExporter={selectingCustomExporter}
               selectedAsset={selectedAsset}
             />
           </div>
