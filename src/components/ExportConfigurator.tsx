@@ -1,15 +1,15 @@
-import { FolderOpen, Play, ShieldCheck } from "lucide-react";
+import { CircleAlert, CircleCheck, FolderOpen, Play, ShieldCheck, TriangleAlert } from "lucide-react";
 import type {
   AttachmentCopyMethod,
   ExportFormat,
   ExportOptions,
   ExportPlatform,
 } from "../domain/exporter/types";
+import type { ExportPreflightSummary } from "../domain/exporter/preflight";
 
 interface ExportConfiguratorProps {
   options: ExportOptions;
   onChange: (options: ExportOptions) => void;
-  canRun: boolean;
   checkingOutputAccess: boolean;
   dryRun: boolean;
   isRunning: boolean;
@@ -20,6 +20,7 @@ interface ExportConfiguratorProps {
   onPickSource: () => void;
   onOpenOutput: () => void;
   onRun: () => void;
+  preflight: ExportPreflightSummary;
 }
 
 const formats: ExportFormat[] = ["html", "txt"];
@@ -29,7 +30,6 @@ const copyMethods: AttachmentCopyMethod[] = ["disabled", "clone", "basic", "full
 export function ExportConfigurator({
   options,
   onChange,
-  canRun,
   checkingOutputAccess,
   dryRun,
   isRunning,
@@ -40,6 +40,7 @@ export function ExportConfigurator({
   onPickSource,
   onOpenOutput,
   onRun,
+  preflight,
 }: ExportConfiguratorProps) {
   const update = <Key extends keyof ExportOptions>(key: Key, value: ExportOptions[Key]) => {
     onChange({ ...options, [key]: value });
@@ -64,6 +65,12 @@ export function ExportConfigurator({
   const sourceHint = isIosSource
     ? "Choose the root folder of an iPhone backup."
     : "Optional override for the default macOS Messages database.";
+  const PreflightIcon =
+    preflight.state === "ready"
+      ? CircleCheck
+      : preflight.state === "blocked"
+        ? TriangleAlert
+        : CircleAlert;
 
   return (
     <section className="panel export-panel" aria-labelledby="export-title">
@@ -285,6 +292,30 @@ export function ExportConfigurator({
         </div>
       </div>
 
+      <div className={`preflight-summary preflight-summary--${preflight.state}`}>
+        <div className="preflight-main">
+          <PreflightIcon aria-hidden="true" />
+          <div>
+            <h3>{preflight.title}</h3>
+            <p>{preflight.detail}</p>
+          </div>
+        </div>
+        {preflight.blockingReasons.length > 0 ? (
+          <ul className="preflight-list">
+            {preflight.blockingReasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        ) : null}
+        {preflight.nonBlockingNotes.length > 0 ? (
+          <div className="preflight-notes">
+            {preflight.nonBlockingNotes.map((note) => (
+              <span key={note}>{note}</span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
       <div className="action-row">
         <div className="action-row-group">
           <button
@@ -303,12 +334,12 @@ export function ExportConfigurator({
         </div>
         <button
           className="button button--primary"
-          disabled={isRunning || (!canRun && !dryRun)}
+          disabled={isRunning || (!preflight.canRunExport && !dryRun)}
           onClick={onRun}
           type="button"
         >
           <Play aria-hidden="true" />
-          {isRunning ? "Running export" : dryRun ? "Start dry run" : "Start export"}
+          {isRunning ? "Running export" : preflight.actionLabel}
         </button>
       </div>
     </section>

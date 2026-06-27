@@ -36,6 +36,7 @@ import {
   applyExportPreferences,
   createExportPreferences,
 } from "./domain/exporter/preferences";
+import { buildExportPreflightSummary } from "./domain/exporter/preflight";
 import {
   detectRuntimeTarget,
   isUpdateAvailable,
@@ -158,7 +159,10 @@ function App() {
     updateAvailable,
     probe.found,
   );
-  const exportReady = issues.length === 0 && probe.found && outputAccess.writable;
+  const preflight = useMemo(
+    () => buildExportPreflightSummary(diagnostics, dryRun),
+    [diagnostics, dryRun],
+  );
 
   useEffect(() => {
     void bootstrapWorkspace();
@@ -647,8 +651,8 @@ function App() {
             <strong>{dryRun ? "Dry run" : "Export"}</strong>
           </div>
           <StatusPill
-            label={exportReady ? "Ready" : "Review"}
-            state={exportReady ? "passed" : "warning"}
+            label={preflight.canRunExport ? "Ready" : "Review"}
+            state={preflight.canRunExport ? "passed" : "warning"}
           />
         </section>
 
@@ -659,7 +663,6 @@ function App() {
             </div>
             <div id="export">
               <ExportConfigurator
-                canRun={exportReady}
                 checkingOutputAccess={checkingOutputAccess}
                 dryRun={dryRun}
                 isRunning={isExporting}
@@ -672,6 +675,7 @@ function App() {
                 onPickSource={pickSourcePath}
                 onRun={runExport}
                 options={options}
+                preflight={preflight}
               />
             </div>
             <CommandPreview command={command} issues={issues} />
