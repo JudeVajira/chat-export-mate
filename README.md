@@ -12,14 +12,22 @@ This repository currently contains the initial Tauri + React + TypeScript applic
 
 ## Alpha Downloads
 
-Windows x64 alpha installers are built by GitHub Actions. To test the latest build:
+Windows x64 alpha builds are published by GitHub Actions in two forms:
+
+- **Installer**: runs the unsigned `-setup.exe` installer and adds normal Windows install integration.
+- **Portable app**: extract the artifact and run `ChatExportMate.exe` without installing. It does not create Start Menu entries, desktop shortcuts, or an uninstaller.
+
+To test the latest build:
 
 1. Open the repository **Actions** tab.
 2. Choose the latest **Desktop alpha build** run for the branch you want to test.
-3. Download the `ChatExportMate-alpha-windows-x64-<run number>` artifact.
-4. Extract the artifact and run the `-setup.exe` installer.
+3. Download either `ChatExportMate-alpha-windows-x64-installer-<run number>` or `ChatExportMate-alpha-windows-x64-portable-<run number>`.
+4. Extract the artifact.
+5. For the installer build, run the `-setup.exe` installer. For the portable build, run `ChatExportMate.exe` from the extracted folder.
 
-These alpha installers are unsigned, experimental, and retained as GitHub Actions artifacts for 14 days. Windows may show an unknown-publisher warning. Review the source and build logs before installing if you are testing from a public run.
+These alpha builds are unsigned, experimental, and retained as GitHub Actions artifacts for 14 days. Windows may show an unknown-publisher warning. Review the source and build logs before installing or running a portable build from a public run.
+
+The portable app avoids system installation, but it still stores ChatExportMate app data, managed `imessage-exporter` binaries, preferences, and logs in the normal local app data directory.
 
 ## Prerequisites
 

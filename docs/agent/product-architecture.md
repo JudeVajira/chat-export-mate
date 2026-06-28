@@ -45,7 +45,8 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 # Distribution
 
 - ChatExportMate is currently an experimental alpha. Keep package metadata, README language, and CI artifact names aligned with that alpha posture until the user decides it is stable enough for normal releases.
-- GitHub Actions publishes Windows x64 alpha NSIS setup installers as run artifacts from `.github/workflows/desktop-alpha-build.yml`. These artifacts are unsigned and intended for testing, not stable release distribution.
+- GitHub Actions publishes Windows x64 alpha artifacts from `.github/workflows/desktop-alpha-build.yml` in two forms: an unsigned NSIS setup installer and a portable app folder containing the release executable plus license/readme files.
+- The portable artifact should avoid system install integration, shortcuts, and uninstallers, but it still uses the normal ChatExportMate app data location for managed exporter binaries, preferences, and logs.
 - Keep the MSI target disabled while using human-readable alpha prerelease versions such as `0.1.0-alpha.0`; Tauri's MSI bundler rejects non-numeric prerelease identifiers.
 
 # Export Execution And Logs
