@@ -113,11 +113,19 @@ ChatExportMate restores the last export options on startup. In the desktop app, 
 The app is being shaped around a beginner-friendly wizard:
 
 1. Set up the exporter tool automatically.
-2. Choose the Messages database or iPhone backup.
+2. Prepare the message source.
 3. Choose the output folder.
 4. Pick HTML, Text, or CSV and start the export.
 
-For local macOS Messages exports, grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before starting an export. For iOS exports, choose the local iPhone backup folder that the exporter should read. In both cases, use **Check access** to verify the export destination before starting.
+The source guide starts with plain choices:
+
+- **I only have an iPhone**: install or open Apple Devices on Windows, connect the iPhone by USB, trust the computer, use **General > Back Up Now** to create a local backup, then use **Manage Backups > Show in Explorer** to find the backup folder.
+- **I already made a backup**: choose the local iPhone backup folder directly.
+- **I am on the Mac with Messages**: grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before choosing `chat.db` or using the default Mac Messages location.
+
+Apple's backup guide is linked from the source guide: <https://support.apple.com/en-us/108967>.
+
+In all cases, use **Check access** to verify the export destination before starting.
 
 The Windows development harness cannot verify Apple privacy permissions; it keeps those checks as review guidance until the app is run on the Mac that contains the Messages database or backup.
 

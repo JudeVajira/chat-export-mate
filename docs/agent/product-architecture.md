@@ -28,6 +28,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Treat platform-specific behavior as an adapter boundary rather than a condition spread across UI components.
 - Native file and folder selection flows go through the Tauri dialog plugin via `src/services/tauriBridge.ts`; the development browser harness should report desktop-runtime-only behavior rather than inventing local paths.
 - Source selection is platform-specific: macOS custom sources use a `chat.db` file picker, while iOS custom sources use a backup-folder picker. Attachment roots are macOS-only and should not be emitted for iOS commands.
+- Beginner source selection is guide-first, not picker-first. Users who only have an iPhone must be guided through creating and locating a local Apple Devices/iTunes backup before the app asks them to choose a folder; raw `chat.db` and backup folder pickers belong behind "already have it" paths.
 - Existing exporter binary selection also goes through `src/services/tauriBridge.ts`; the backend must verify the selected binary with `--version` before saving it.
 - Keep framework/runtime names such as Tauri out of normal user-facing app copy. Use plain phrases such as "desktop app"; keep implementation terminology in developer docs, diagnostics internals, or code.
 
@@ -110,6 +111,7 @@ Prioritize tests for:
 - The first screen should be a usable desktop app workspace with fast-start setup guidance, not a marketing page.
 - Primary navigation should switch between real in-app pages such as Setup, Export, Diagnostics, Support, and About. Do not present all major workflows as one long fake section stack with anchor links.
 - The beginner experience should be a guided wizard: set up exporter, choose source, choose output folder, choose format, run export. Logs and raw troubleshooting details should not sit in the main setup path.
+- The source step should ask what the user has in human terms such as "I only have an iPhone", "I already made a backup", or "I am on the Mac with Messages"; do not lead with platform names or database terminology.
 - Do not expose dry-run or preview mode as a normal-user workflow. If command generation needs a development path, keep it behind developer/troubleshooting affordances.
 - Keep the normal export action path visible in the first desktop viewport. Collapse or de-emphasize advanced options before hiding primary setup/export actions below the fold.
 - Avoid showing long runtime-derived app-data paths in high-level setup/status copy. Full paths belong in diagnostics details, logs, support bundles, or raw troubleshooting output where wrapping and privacy reminders are present.

@@ -22,6 +22,7 @@ import { ExportConfigurator } from "./components/ExportConfigurator";
 import { type LogEntry, LogTimeline } from "./components/LogTimeline";
 import { RunProgressPanel } from "./components/RunProgressPanel";
 import { RunResultPanel } from "./components/RunResultPanel";
+import { SourceGuideDialog } from "./components/SourceGuideDialog";
 import { StatusPill } from "./components/StatusPill";
 import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "./data/mockWorkspace";
 import {
@@ -70,6 +71,8 @@ import {
 import type { RunProgress } from "./domain/exporter/runProgress";
 import { groupValidationIssues } from "./domain/exporter/validation";
 import type {
+  ExportOptions,
+  ExportPlatform,
   ExporterProbe,
   ExporterRelease,
   ManagedExporterState,
@@ -139,6 +142,7 @@ const pageLabels: Record<AppPage, { title: string; kicker: string; description: 
 function App() {
   const [activePage, setActivePage] = useState<AppPage>("setup");
   const [options, setOptions] = useState(defaultExportOptions);
+  const [sourceGuideOpen, setSourceGuideOpen] = useState(false);
   const [dryRun] = useState(false);
   const [checkingRelease, setCheckingRelease] = useState(false);
   const [installingExporter, setInstallingExporter] = useState(false);
@@ -658,11 +662,30 @@ function App() {
     await pickPath(selectOutputFolder, "outputPath", "Output folder selected.");
   }
 
-  async function pickSourcePath() {
+  function openSourceGuide() {
+    setSourceGuideOpen(true);
+  }
+
+  async function pickIphoneBackupSource() {
+    setSourceGuideOpen(false);
+    await pickSourcePath("iOS");
+  }
+
+  async function pickMacMessagesSource() {
+    setSourceGuideOpen(false);
+    await pickSourcePath("macOS");
+  }
+
+  async function pickSourcePath(platform: ExportPlatform) {
     await pickPath(
-      options.platform === "iOS" ? selectBackupFolder : selectDatabaseFile,
+      platform === "iOS" ? selectBackupFolder : selectDatabaseFile,
       "databasePath",
-      options.platform === "iOS" ? "iPhone backup folder selected." : "Messages database selected.",
+      platform === "iOS" ? "iPhone backup folder selected." : "Messages database selected.",
+      (current) => ({
+        ...current,
+        platform,
+        attachmentRoot: platform === "iOS" ? "" : current.attachmentRoot,
+      }),
     );
   }
 
@@ -674,6 +697,7 @@ function App() {
     picker: () => Promise<string | null>,
     field: "attachmentRoot" | "databasePath" | "outputPath",
     message: string,
+    updateBeforeSave?: (current: ExportOptions) => ExportOptions,
   ) {
     try {
       const selectedPath = await picker();
@@ -681,7 +705,10 @@ function App() {
         return;
       }
 
-      setOptions((current) => ({ ...current, [field]: selectedPath }));
+      setOptions((current) => ({
+        ...(updateBeforeSave ? updateBeforeSave(current) : current),
+        [field]: selectedPath,
+      }));
       addLog("info", message);
     } catch (error) {
       addLog("warn", error instanceof Error ? error.message : "Could not open the file picker.");
@@ -788,33 +815,34 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
-      <nav className="sidebar" aria-label="Primary navigation">
-        <div className="brand">
-          <div className="brand-mark">
-            <MessageSquareText aria-hidden="true" />
+    <>
+      <main className="app-shell">
+        <nav className="sidebar" aria-label="Primary navigation">
+          <div className="brand">
+            <div className="brand-mark">
+              <MessageSquareText aria-hidden="true" />
+            </div>
+            <div>
+              <strong>ChatExportMate</strong>
+              <span>local exporter</span>
+            </div>
           </div>
-          <div>
-            <strong>ChatExportMate</strong>
-            <span>local exporter</span>
+
+          <div className="nav-group">
+            <NavButton active={activePage === "setup"} icon={Settings2} label="Setup" onClick={() => setActivePage("setup")} />
+            <NavButton active={activePage === "export"} icon={Archive} label="Export" onClick={() => setActivePage("export")} />
+            <NavButton active={activePage === "diagnostics"} icon={Wrench} label="Diagnostics" onClick={() => setActivePage("diagnostics")} />
+            <NavButton active={activePage === "history"} icon={History} label="Support" onClick={() => setActivePage("history")} />
+            <NavButton active={activePage === "about"} icon={Info} label="About" onClick={() => setActivePage("about")} />
           </div>
-        </div>
 
-        <div className="nav-group">
-          <NavButton active={activePage === "setup"} icon={Settings2} label="Setup" onClick={() => setActivePage("setup")} />
-          <NavButton active={activePage === "export"} icon={Archive} label="Export" onClick={() => setActivePage("export")} />
-          <NavButton active={activePage === "diagnostics"} icon={Wrench} label="Diagnostics" onClick={() => setActivePage("diagnostics")} />
-          <NavButton active={activePage === "history"} icon={History} label="Support" onClick={() => setActivePage("history")} />
-          <NavButton active={activePage === "about"} icon={Info} label="About" onClick={() => setActivePage("about")} />
-        </div>
+          <div className="sidebar-footer">
+            <ShieldCheck aria-hidden="true" />
+            <span>Local only</span>
+          </div>
+        </nav>
 
-        <div className="sidebar-footer">
-          <ShieldCheck aria-hidden="true" />
-          <span>Local only</span>
-        </div>
-      </nav>
-
-      <div className="workspace">
+        <div className="workspace">
         <header className="topbar">
           <div className="page-title">
             <p className="section-kicker">{activePageLabel.kicker}</p>
@@ -870,7 +898,7 @@ function App() {
                   onGoExport={() => setActivePage("export")}
                   onInstallExporter={installOrUpdateExporter}
                   onPickOutput={pickOutputFolder}
-                  onPickSource={pickSourcePath}
+                  onPickSource={openSourceGuide}
                   outputReady={outputAccess.writable}
                   platform={options.platform}
                   sourceSelected={Boolean(options.databasePath)}
@@ -893,7 +921,7 @@ function App() {
                   onPrepareExporter={installOrUpdateExporter}
                   onPickAttachmentRoot={pickAttachmentRoot}
                   onPickOutput={pickOutputFolder}
-                  onPickSource={pickSourcePath}
+                  onPickSource={openSourceGuide}
                   onRun={runExport}
                   options={options}
                   preflight={preflight}
@@ -951,7 +979,15 @@ function App() {
           {activePage === "about" ? <AboutPanel /> : null}
         </div>
       </div>
-    </main>
+      </main>
+      {sourceGuideOpen ? (
+        <SourceGuideDialog
+          onChooseIphoneBackup={pickIphoneBackupSource}
+          onChooseMacDatabase={pickMacMessagesSource}
+          onClose={() => setSourceGuideOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -1004,7 +1040,7 @@ function QuickStartPanel({
   platform: string;
   sourceSelected: boolean;
 }) {
-  const sourceLabel = platform === "iOS" ? "iPhone backup" : "Messages database";
+  const sourceLabel = platform === "iOS" ? "iPhone backup folder" : "Messages source";
   const steps = [
     {
       number: 1,
@@ -1020,12 +1056,12 @@ function QuickStartPanel({
     },
     {
       number: 2,
-      title: `Choose ${sourceLabel}`,
+      title: "Prepare message source",
       detail: sourceSelected
         ? `${sourceLabel} selected.`
-        : "Pick the local Messages database or backup you want to export.",
+        : "Only have an iPhone? Start here and ChatExportMate will walk you through creating a local backup first.",
       state: sourceSelected ? "passed" : "action",
-      actionLabel: sourceSelected ? "Selected" : "Choose source",
+      actionLabel: sourceSelected ? "Selected" : "Guide me",
       onAction: onPickSource,
       disabled: sourceSelected,
       icon: Archive,

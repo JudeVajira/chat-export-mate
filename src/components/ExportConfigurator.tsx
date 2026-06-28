@@ -39,7 +39,10 @@ const formats: Array<{ label: string; value: ExportFormat; description: string }
   { label: "Text", value: "txt", description: "Plain text transcripts" },
   { label: "CSV", value: "csv", description: "Spreadsheet-friendly rows converted from text transcripts" },
 ];
-const platforms: ExportPlatform[] = ["macOS", "iOS"];
+const platforms: Array<{ label: string; value: ExportPlatform }> = [
+  { label: "Mac Messages", value: "macOS" },
+  { label: "iPhone backup", value: "iOS" },
+];
 const copyMethods: AttachmentCopyMethod[] = ["disabled", "clone", "basic", "full"];
 
 export function ExportConfigurator({
@@ -74,13 +77,13 @@ export function ExportConfigurator({
     });
   };
   const isIosSource = options.platform === "iOS";
-  const sourceLabel = isIosSource ? "iPhone backup folder" : "Messages database";
+  const sourceLabel = "Message source";
   const sourcePlaceholder = isIosSource
-    ? "~/Library/Application Support/MobileSync/Backup/..."
+    ? "Choose the local iPhone backup folder"
     : "~/Library/Messages/chat.db";
   const sourceHint = isIosSource
-    ? "Choose the root folder of an iPhone backup."
-    : "Optional override for the default macOS Messages database.";
+    ? "If you only have an iPhone, use the folder button for step-by-step backup instructions."
+    : "Use the folder button if you need help finding or choosing the Mac Messages database.";
   const PreflightIcon =
     preflight.state === "ready"
       ? CircleCheck
@@ -196,12 +199,12 @@ export function ExportConfigurator({
           <div className="segmented-control">
             {platforms.map((platform) => (
               <button
-                className={options.platform === platform ? "is-selected" : ""}
-                key={platform}
-                onClick={() => selectPlatform(platform)}
+                className={options.platform === platform.value ? "is-selected" : ""}
+                key={platform.value}
+                onClick={() => selectPlatform(platform.value)}
                 type="button"
               >
-                {platform}
+                {platform.label}
               </button>
             ))}
           </div>
@@ -247,7 +250,7 @@ export function ExportConfigurator({
             <button
               className="field-action"
               onClick={onPickSource}
-              title={`Choose ${sourceLabel}`}
+              title="Open source guide"
               type="button"
             >
               <FolderOpen aria-hidden="true" />

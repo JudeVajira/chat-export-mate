@@ -12,6 +12,7 @@ sources:
   - https://v2.tauri.app/plugin/dialog/
   - https://tailwindcss.com/docs/installation/using-vite
   - https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac
+  - https://support.apple.com/en-us/108967
   - https://github.com/ReagentX/imessage-exporter
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/LICENSE
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
@@ -46,6 +47,11 @@ related:
   URL: https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac
   Why it matters: Confirms the current macOS System Settings path for Full Disk Access guidance in setup permissions.
   Last checked: 2026-06-27 16:05 +05:30
+
+- Title: Apple Support - Back up iPhone
+  URL: https://support.apple.com/en-us/108967
+  Why it matters: Confirms beginner-facing local iPhone backup guidance, including Windows Apple Devices/iTunes backup flow, Trust This Computer, encrypted backup option, Back Up Now, and locating backups through Manage Backups / Show in Explorer.
+  Last checked: 2026-06-28 22:28 +05:30
 
 - Title: ReagentX/imessage-exporter
   URL: https://github.com/ReagentX/imessage-exporter
