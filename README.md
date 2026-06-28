@@ -1,6 +1,6 @@
 # ChatExportMate
 
-ChatExportMate is a local-first Tauri desktop companion for [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter). It does not parse iMessage data itself; it helps users install, configure, run, update, and troubleshoot the upstream exporter through a polished desktop UI.
+ChatExportMate is a local-first desktop companion for [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter). It does not parse iMessage data itself; it helps users install, configure, run, update, and troubleshoot the upstream exporter through a guided desktop UI.
 
 ChatExportMate is intended only as a desktop app. This repository does not target a hosted web app or a mobile app.
 
@@ -8,7 +8,7 @@ ChatExportMate is intended only as a desktop app. This repository does not targe
 
 ChatExportMate is currently an experimental alpha project. It is public so the desktop companion can be tested and improved, but it is not stable release software yet.
 
-This repository currently contains the initial Tauri + React + TypeScript application shell, domain modules, test coverage, and a guided desktop UI prototype. Windows development is supported without a local Messages database by using mock diagnostics and dry-run command previews.
+This repository currently contains the initial Tauri + React + TypeScript application shell, domain modules, test coverage, and a guided desktop UI prototype. Windows development is supported without a local Messages database by using mock diagnostics and testable command-building modules.
 
 ## Alpha Downloads
 
@@ -71,17 +71,17 @@ Desktop development after Rust/Tauri prerequisites are installed:
 pnpm tauri dev
 ```
 
-`pnpm dev` is only a Vite development harness for the Tauri frontend. It is useful for layout checks and dry-run UI work, but it is not a supported web app. Managed installs, selected exporter persistence, exporter detection from app data, opening folders, and process execution require the Tauri desktop runtime.
+`pnpm dev` is only a Vite development harness for the desktop frontend. It is useful for layout checks and frontend iteration, but it is not a supported web app. Managed installs, selected exporter persistence, exporter detection from app data, opening folders, and process execution require the desktop app.
 
 Native file and folder pickers for export destinations, custom macOS `chat.db`
 files, iOS backup folders, attachment roots, and existing `imessage-exporter`
-binaries also require the Tauri desktop runtime. In the development harness,
-picker buttons report that desktop runtime is required instead of fabricating
+binaries also require the desktop app. In the development harness,
+picker buttons report that the desktop app is required instead of fabricating
 local paths.
 
 ## Managed Exporter Storage
 
-ChatExportMate manages downloaded `imessage-exporter` binaries under the app data directory exposed by Tauri. The current backend stores binaries in versioned folders and keeps an `active-version.txt` pointer so previous versions remain available for rollback work.
+ChatExportMate manages downloaded `imessage-exporter` binaries under the local app data directory. The current backend stores binaries in versioned folders and keeps an `active-version.txt` pointer so previous versions remain available for rollback work.
 
 Downloaded release assets are cached under `exporter/cache/<version>/` in app data. Reinstalling or updating to a release reuses a cached asset when its file size still matches the GitHub release metadata, then stages and verifies the executable before activation.
 
@@ -106,42 +106,51 @@ If you already have `imessage-exporter`, use **Use existing** in Diagnostics. Ch
 
 ## Local Export Preferences
 
-ChatExportMate restores the last export options and dry-run mode on startup. In the desktop app, preferences are stored as a local JSON file under the Tauri app data directory. Preferences can include local paths and are not uploaded or synced by ChatExportMate.
+ChatExportMate restores the last export options on startup. In the desktop app, preferences are stored as a local JSON file under the Tauri app data directory. Preferences can include local paths and are not uploaded or synced by ChatExportMate.
 
-## Setup Permissions
+## Guided Export Flow
 
-The setup panel includes a permission guide for the selected export source and destination. For local macOS Messages exports, grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before starting a real export. For iOS exports, choose the local iPhone backup folder that the exporter should read. In both cases, use **Check output access** to verify the export destination before turning dry-run mode off.
+The app is being shaped around a beginner-friendly wizard:
+
+1. Set up the exporter tool automatically.
+2. Choose the Messages database or iPhone backup.
+3. Choose the output folder.
+4. Pick HTML, Text, or CSV and start the export.
+
+For local macOS Messages exports, grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before starting an export. For iOS exports, choose the local iPhone backup folder that the exporter should read. In both cases, use **Check access** to verify the export destination before starting.
 
 The Windows development harness cannot verify Apple privacy permissions; it keeps those checks as review guidance until the app is run on the Mac that contains the Messages database or backup.
 
 Configuration problems are shown both in preflight summaries and next to the form fields that need correction, so users do not need to inspect the generated command to understand what to fix.
 
-When a real export is blocked only because `imessage-exporter` is missing, the Export panel offers **Install exporter** as the primary preflight action. That action uses the managed installer, verifies the downloaded binary, activates it, and returns users to the same guided export flow.
+When an export is blocked only because `imessage-exporter` is missing, the Export panel offers **Set up exporter** as the primary preflight action. That action uses the managed installer, verifies the downloaded binary, activates it, and returns users to the same guided export flow.
+
+HTML and Text are passed through to the upstream exporter. CSV is owned by ChatExportMate: the app runs the upstream text export, then creates `chatexportmate-export.csv` from the generated text transcripts. The first CSV version is line-based with `transcript_file`, `line_number`, and `text` columns.
 
 ## Export Runs And Logs
 
-When dry-run mode is off, the desktop app executes the selected `imessage-exporter` binary through the Tauri backend. Each export attempt captures:
+When the user starts an export, the desktop app executes the selected `imessage-exporter` binary through the desktop backend. Each export attempt captures local troubleshooting details:
 
-- command preview
+- command details
 - stdout
 - stderr
 - exit code
 - start and completion timestamps
 - output path
 
-Run logs are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The Vite development harness cannot execute exports and will show a desktop-runtime message instead.
+Run details are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The Vite development harness cannot execute exports and will show a desktop-app-required message instead.
 
-The Latest result panel summarizes dry runs, exports, diagnostics, and preflight failures in plain English, with suggested fixes and saved log paths when a run creates a log. After a desktop export, it can open the exported folder and the saved run log directly from the result.
+The export result panel summarizes exports, diagnostics, setup actions, and preflight failures in plain English, with suggested fixes. After a desktop export, it can open the exported folder directly. Log files are kept for the Support page and error troubleshooting instead of being front-and-center in the happy path.
 
-The Progress panel shows the current operation steps while ChatExportMate prepares a dry run, runs an export, runs diagnostics, installs an exporter, or activates a stored managed version. Real exports show setup review, destination access, exporter execution, local log capture, and completion/error state. During desktop export and diagnostics runs, the panel also streams recent stdout/stderr lines from the exporter while preserving the complete output in the saved local log.
+The Progress panel shows the current operation steps while ChatExportMate runs an export, runs diagnostics, sets up an exporter, or activates a stored managed version. Exports show setup review, destination access, exporter execution, local log capture, and completion/error state. During desktop export and diagnostics runs, the panel also streams recent stdout/stderr lines from the exporter while preserving the complete output in the saved local log.
 
-The History panel lists saved local export and diagnostic logs when running inside Tauri. Logs stay on the machine and can be searched by file, path, command, output folder, status, or exit code, then previewed or opened from the app for troubleshooting. Large log previews are capped in the UI; open the log file or create a support bundle when you need the complete file.
+The Support page lists saved local export and diagnostic logs when running inside the desktop app. Logs stay on the machine and can be searched by file, path, command, output folder, status, or exit code, then previewed or opened from the app for troubleshooting. Large log previews are capped in the UI; open the log file or create a support bundle when you need the complete file.
 
-The History panel can also create a local support bundle under the app data directory in `support-bundles/support-bundle-<timestamp>/`. A bundle copies saved run and diagnostic logs and adds a manifest with system/exporter context plus a reminder to review logs before sharing.
+The Support page can also create a local support bundle under the app data directory in `support-bundles/support-bundle-<timestamp>/`. A bundle copies saved run and diagnostic logs and adds a manifest with system/exporter context plus a reminder to review logs before sharing.
 
 ## Diagnostics
 
-The diagnostics panel combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, exporter detection, executable launch access, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When a desktop runtime and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d` through Tauri, streams recent process output into the Progress panel, and writes a complete local log under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
+The Diagnostics page combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, exporter detection, executable launch access, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When the desktop app and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d`, streams recent process output into the Progress panel, and writes complete local troubleshooting details under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
 
 Desktop health checks probe the selected output folder, or its existing parent folder when the export folder has not been created yet, by writing and removing a small temporary file. The Vite development harness reports this as a desktop-runtime-only check.
 

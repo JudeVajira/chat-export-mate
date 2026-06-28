@@ -42,7 +42,7 @@ const browserProbe: ExporterProbe = {
   path: null,
   version: null,
   raw_version_output: null,
-  error: "Desktop exporter detection is available when running inside Tauri.",
+  error: "Desktop exporter detection is available in the desktop app.",
   managed: false,
   source: "browser-preview",
 };
@@ -53,7 +53,7 @@ const browserManagedState: ManagedExporterState = {
   activeVersion: null,
   installedVersions: [],
   cachedAssets: [],
-  error: "Managed installs are available when running inside Tauri.",
+  error: "Managed installs are available in the desktop app.",
 };
 
 export async function getSystemSnapshot(): Promise<SystemSnapshot> {
@@ -99,7 +99,7 @@ export async function saveExportPreferences(preferences: ExportPreferences): Pro
 
 export async function setCustomExporterPath(path: string): Promise<ExporterProbe> {
   if (!isTauriRuntime()) {
-    throw new Error("Selecting an existing exporter requires the Tauri desktop runtime.");
+    throw new Error("Selecting an existing exporter requires the desktop app.");
   }
 
   try {
@@ -113,7 +113,7 @@ export async function setCustomExporterPath(path: string): Promise<ExporterProbe
 
 export async function clearCustomExporterPath(): Promise<ExporterProbe> {
   if (!isTauriRuntime()) {
-    throw new Error("Clearing a selected exporter requires the Tauri desktop runtime.");
+    throw new Error("Clearing a selected exporter requires the desktop app.");
   }
 
   try {
@@ -140,7 +140,7 @@ export async function checkLatestExporterRelease(): Promise<ExporterRelease> {
 
 export async function installLatestExporter(): Promise<ManagedInstallResult> {
   if (!isTauriRuntime()) {
-    throw new Error(browserManagedState.error ?? "Managed installs require the Tauri desktop runtime.");
+    throw new Error(browserManagedState.error ?? "Managed installs require the desktop app.");
   }
 
   try {
@@ -154,7 +154,7 @@ export async function activateManagedExporterVersion(
   version: string,
 ): Promise<ManagedActivationResult> {
   if (!isTauriRuntime()) {
-    throw new Error("Managed exporter rollback requires the Tauri desktop runtime.");
+    throw new Error("Managed exporter rollback requires the desktop app.");
   }
 
   try {
@@ -168,7 +168,7 @@ export async function activateManagedExporterVersion(
 
 export async function executeExporter(request: ExportRunRequest): Promise<ExportRunResult> {
   if (!isTauriRuntime()) {
-    throw new Error("Exports can only run inside the Tauri desktop app.");
+    throw new Error("Exports can only run inside the desktop app.");
   }
 
   try {
@@ -197,7 +197,7 @@ export async function checkOutputAccess(outputPath: string): Promise<OutputAcces
       resolvedPath: outputPath,
       writable: false,
       checkedAt: "",
-      detail: "Desktop write access checks are available when running inside Tauri.",
+      detail: "Desktop write access checks are available in the desktop app.",
       error: null,
     };
   }
@@ -215,7 +215,7 @@ export async function runExporterDiagnostics(
   request: DiagnosticRunRequest,
 ): Promise<DiagnosticRunResult> {
   if (!isTauriRuntime()) {
-    throw new Error("Exporter diagnostics can only run inside the Tauri desktop app.");
+    throw new Error("Exporter diagnostics can only run inside the desktop app.");
   }
 
   try {
@@ -239,7 +239,7 @@ export async function listExporterLogs(): Promise<StoredLogEntry[]> {
 
 export async function getStoredLogDetail(log: StoredLogEntry): Promise<StoredLogDetail> {
   if (!isTauriRuntime()) {
-    throw new Error("Saved log previews are available when running inside Tauri.");
+    throw new Error("Saved log previews are available in the desktop app.");
   }
 
   try {
@@ -256,7 +256,7 @@ export async function getStoredLogDetail(log: StoredLogEntry): Promise<StoredLog
 
 export async function createSupportBundle(): Promise<SupportBundleResult> {
   if (!isTauriRuntime()) {
-    throw new Error("Support bundles are available when running inside Tauri.");
+    throw new Error("Support bundles are available in the desktop app.");
   }
 
   try {
@@ -272,7 +272,7 @@ export async function openOutputFolder(path: string): Promise<void> {
 
 export async function openLocalPath(path: string): Promise<void> {
   if (!isTauriRuntime()) {
-    throw new Error("Opening local files is available when running inside Tauri.");
+    throw new Error("Opening local files is available in the desktop app.");
   }
 
   await openPath(path);
@@ -309,12 +309,12 @@ export async function selectAttachmentFolder(): Promise<string | null> {
 
 export async function selectExporterBinary(): Promise<string | null> {
   if (!isTauriRuntime()) {
-    throw new Error("Selecting an existing exporter requires the Tauri desktop runtime.");
+    throw new Error("Selecting an existing exporter requires the desktop app.");
   }
 
   return selectSinglePath({
     directory: false,
-    title: "Choose imessage-exporter binary",
+    title: "Choose exporter tool",
   });
 }
 
@@ -336,7 +336,7 @@ async function selectSinglePath(options: {
   title: string;
 }): Promise<string | null> {
   if (!isTauriRuntime()) {
-    throw new Error("File and folder pickers are available when running inside Tauri.");
+    throw new Error("File and folder pickers are available in the desktop app.");
   }
 
   const selected = await open({

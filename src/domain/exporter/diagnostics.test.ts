@@ -83,7 +83,7 @@ describe("buildDiagnostics", () => {
     });
   });
 
-  it("marks executable access as actionable when a candidate binary cannot launch", () => {
+  it("marks executable access as actionable when an exporter tool cannot launch", () => {
     const item = buildDiagnostics(
       snapshot,
       {
@@ -103,7 +103,7 @@ describe("buildDiagnostics", () => {
 
     expect(item).toMatchObject({
       detail:
-        "ChatExportMate found a candidate binary but could not launch it: Access is denied.",
+        "ChatExportMate found an exporter tool but could not launch it: Access is denied.",
       state: "action",
     });
   });
@@ -127,7 +127,7 @@ describe("buildDiagnostics", () => {
     ).find((diagnostic) => diagnostic.id === "executable-access");
 
     expect(item).toMatchObject({
-      detail: "Install or select imessage-exporter before checking whether ChatExportMate can launch it.",
+      detail: "Set up or select an exporter before checking whether ChatExportMate can launch it.",
       state: "warning",
     });
   });

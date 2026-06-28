@@ -11,7 +11,7 @@ export function validateExportOptions(
   if (!executablePath.trim()) {
     issues.push({
       field: "executablePath",
-      message: "Choose or install imessage-exporter before running an export.",
+      message: "Set up or choose an exporter before running an export.",
     });
   }
 
@@ -79,9 +79,10 @@ export function buildExporterCommand(
   executablePath: string,
   options: ExportOptions,
 ): BuiltCommand {
+  const exporterFormat = options.format === "csv" ? "txt" : options.format;
   const args: string[] = [
     "-f",
-    options.format,
+    exporterFormat,
     "-o",
     options.outputPath,
     "-c",
@@ -119,6 +120,8 @@ export function buildExporterCommand(
     executablePath,
     args,
     displayCommand: formatDisplayCommand(executablePath, args),
+    requestedFormat: options.format,
+    exporterFormat,
   };
 }
 
@@ -137,6 +140,8 @@ export function buildDiagnosticCommand(
     executablePath,
     args,
     displayCommand: formatDisplayCommand(executablePath, args),
+    requestedFormat: options.format,
+    exporterFormat: options.format === "html" ? "html" : "txt",
   };
 }
 

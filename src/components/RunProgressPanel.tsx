@@ -75,7 +75,7 @@ export function RunProgressPanel({
         </div>
       ) : (
         <p className="empty-state">
-          Start a dry run, export, diagnostics check, or managed exporter operation to see the current steps.
+          Start an export, diagnostics check, or managed exporter operation to see the current steps.
         </p>
       )}
     </section>

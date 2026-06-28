@@ -142,6 +142,7 @@ struct ExecuteExporterRequest {
     display_command: String,
     output_path: String,
     event_id: Option<String>,
+    requested_format: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -156,6 +157,7 @@ struct ExportRunResult {
     completed_at: String,
     log_path: String,
     output_path: String,
+    csv_path: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -495,7 +497,7 @@ fn execute_exporter(
         .event_id
         .clone()
         .unwrap_or_else(|| format!("export-{started_at}"));
-    let output = run_process_with_output_events(
+    let mut output = run_process_with_output_events(
         &app,
         &event_id,
         "export",
@@ -503,6 +505,25 @@ fn execute_exporter(
         &request.args,
     );
     let completed_at = timestamp_millis();
+    let mut csv_path = None;
+
+    if output.success && request.requested_format.as_deref() == Some("csv") {
+        match convert_text_export_to_csv(&resolve_output_path(&request.output_path)) {
+            Ok(path) => {
+                output.stdout.push_str(&format!(
+                    "\nChatExportMate created CSV file: {}\n",
+                    path.to_string_lossy()
+                ));
+                csv_path = Some(path.to_string_lossy().to_string());
+            }
+            Err(error) => {
+                output.success = false;
+                output.stderr.push_str(&format!(
+                    "\nChatExportMate could not create CSV from the text export: {error}\n"
+                ));
+            }
+        }
+    }
 
     let log_path = write_run_log(
         &app,
@@ -513,6 +534,7 @@ fn execute_exporter(
         output.success,
         &started_at,
         &completed_at,
+        csv_path.as_deref(),
     )?;
 
     Ok(ExportRunResult {
@@ -525,6 +547,7 @@ fn execute_exporter(
         completed_at,
         log_path: log_path.to_string_lossy().to_string(),
         output_path: request.output_path,
+        csv_path,
     })
 }
 
@@ -858,6 +881,81 @@ fn resolve_output_path(path: &str) -> PathBuf {
         .unwrap_or(expanded_path)
 }
 
+fn convert_text_export_to_csv(output_path: &Path) -> Result<PathBuf, String> {
+    if !output_path.exists() {
+        return Err("The export folder was not created.".to_string());
+    }
+
+    let mut text_files = Vec::new();
+    collect_text_files(output_path, &mut text_files)?;
+    text_files.sort();
+
+    if text_files.is_empty() {
+        return Err("No text transcript files were found in the export folder.".to_string());
+    }
+
+    let csv_path = output_path.join("chatexportmate-export.csv");
+    let mut csv = String::from("transcript_file,line_number,text\n");
+
+    for text_path in text_files {
+        if text_path == csv_path {
+            continue;
+        }
+
+        let content = fs::read_to_string(&text_path).map_err(to_string)?;
+        let transcript_name = text_path
+            .strip_prefix(output_path)
+            .unwrap_or(&text_path)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        for (index, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            csv.push_str(&csv_escape(&transcript_name));
+            csv.push(',');
+            csv.push_str(&(index + 1).to_string());
+            csv.push(',');
+            csv.push_str(&csv_escape(trimmed));
+            csv.push('\n');
+        }
+    }
+
+    fs::write(&csv_path, csv).map_err(to_string)?;
+    Ok(csv_path)
+}
+
+fn collect_text_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    for entry in fs::read_dir(root).map_err(to_string)?.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_text_files(&path, files)?;
+            continue;
+        }
+
+        if path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("txt"))
+        {
+            files.push(path);
+        }
+    }
+
+    Ok(())
+}
+
+fn csv_escape(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        return format!("\"{}\"", value.replace('"', "\"\""));
+    }
+
+    value.to_string()
+}
+
 fn home_dir() -> Option<PathBuf> {
     env::var_os("USERPROFILE")
         .or_else(|| env::var_os("HOME"))
@@ -993,16 +1091,18 @@ fn write_run_log(
     success: bool,
     started_at: &str,
     completed_at: &str,
+    csv_path: Option<&str>,
 ) -> Result<PathBuf, String> {
     let root = run_log_root(app)?;
     fs::create_dir_all(&root).map_err(to_string)?;
     let log_path = root.join(format!("export-run-{}.log", started_at));
     let content = format!(
-        "started_at: {started_at}\ncompleted_at: {completed_at}\nsuccess: {success}\nexit_code: {}\noutput_path: {}\ncommand: {}\n\nstdout:\n{}\n\nstderr:\n{}\n",
+        "started_at: {started_at}\ncompleted_at: {completed_at}\nsuccess: {success}\nexit_code: {}\noutput_path: {}\ncsv_path: {}\ncommand: {}\n\nstdout:\n{}\n\nstderr:\n{}\n",
         exit_code
             .map(|code| code.to_string())
             .unwrap_or_else(|| "none".to_string()),
         request.output_path,
+        csv_path.unwrap_or("none"),
         request.display_command,
         stdout,
         stderr
@@ -1725,6 +1825,32 @@ mod tests {
 
         assert_eq!(payload.bytes, b"cached");
         assert_eq!(payload.status, "reused");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_text_export_to_csv_writes_line_based_rows() {
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-csv-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+        let nested = root.join("conversation");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(
+            nested.join("thread.txt"),
+            "hello\n\ncomma, value\nquote \"value\"\n",
+        )
+        .unwrap();
+
+        let csv_path = convert_text_export_to_csv(&root).unwrap();
+        let csv = fs::read_to_string(csv_path).unwrap();
+
+        assert!(csv.contains("transcript_file,line_number,text"));
+        assert!(csv.contains("conversation/thread.txt,1,hello"));
+        assert!(csv.contains("conversation/thread.txt,3,\"comma, value\""));
+        assert!(csv.contains("conversation/thread.txt,4,\"quote \"\"value\"\"\""));
 
         let _ = fs::remove_dir_all(root);
     }

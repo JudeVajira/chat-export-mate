@@ -82,7 +82,7 @@ function normalizeExportOptions(options: ExportOptions): ExportOptions {
 
 function coerceExportOptions(value: Record<string, unknown>): ExportOptions | null {
   if (
-    (value.format !== "html" && value.format !== "txt") ||
+    (value.format !== "html" && value.format !== "txt" && value.format !== "csv") ||
     (value.platform !== "macOS" && value.platform !== "iOS") ||
     (value.copyMethod !== "disabled" &&
       value.copyMethod !== "clone" &&

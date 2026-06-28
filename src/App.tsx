@@ -1,25 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  ArrowRight,
   BadgeCheck,
+  CheckCircle2,
+  CircleAlert,
   DownloadCloud,
   History,
   Info,
   Lock,
   MessageSquareText,
+  Play,
   Settings2,
   ShieldCheck,
   Wrench,
 } from "lucide-react";
 import "./App.css";
 import { AboutPanel } from "./components/AboutPanel";
-import { CommandPreview } from "./components/CommandPreview";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { ExportConfigurator } from "./components/ExportConfigurator";
 import { type LogEntry, LogTimeline } from "./components/LogTimeline";
 import { RunProgressPanel } from "./components/RunProgressPanel";
 import { RunResultPanel } from "./components/RunResultPanel";
-import { SetupChecklist } from "./components/SetupChecklist";
 import { StatusPill } from "./components/StatusPill";
 import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "./data/mockWorkspace";
 import {
@@ -104,9 +106,40 @@ import {
   subscribeToProcessOutput,
 } from "./services/tauriBridge";
 
+type AppPage = "setup" | "export" | "diagnostics" | "history" | "about";
+
+const pageLabels: Record<AppPage, { title: string; kicker: string; description: string }> = {
+  setup: {
+    title: "Get ready to export",
+    kicker: "Setup",
+    description: "Set up the exporter, choose what to export, and confirm the local destination.",
+  },
+  export: {
+    title: "Configure export",
+    kicker: "Export",
+    description: "Choose what to export, where to save it, and start the local export when setup is ready.",
+  },
+  diagnostics: {
+    title: "Diagnostics",
+    kicker: "Health",
+    description: "Check exporter discovery, release updates, permissions, and saved managed versions.",
+  },
+  history: {
+    title: "Troubleshooting",
+    kicker: "Support",
+    description: "Review saved troubleshooting details and create a local support bundle when needed.",
+  },
+  about: {
+    title: "About ChatExportMate",
+    kicker: "Privacy and license",
+    description: "Local-first desktop companion details, attribution, and license information.",
+  },
+};
+
 function App() {
+  const [activePage, setActivePage] = useState<AppPage>("setup");
   const [options, setOptions] = useState(defaultExportOptions);
-  const [dryRun, setDryRun] = useState(true);
+  const [dryRun] = useState(false);
   const [checkingRelease, setCheckingRelease] = useState(false);
   const [installingExporter, setInstallingExporter] = useState(false);
   const [checkingOutputAccess, setCheckingOutputAccess] = useState(false);
@@ -195,6 +228,14 @@ function App() {
     () => buildPermissionGuide(snapshot, options, outputAccess),
     [options, outputAccess, snapshot],
   );
+  const activePageLabel = pageLabels[activePage];
+  const setupItems = diagnostics.slice(0, 4);
+  const setupState = [...setupItems, ...permissionGuide.items].some((item) => item.state === "action")
+    ? "action"
+    : [...setupItems, ...permissionGuide.items].some((item) => item.state === "warning")
+      ? "warning"
+      : "passed";
+  const setupLabel = setupState === "passed" ? "Setup ready" : setupState === "action" ? "Setup needed" : "Review";
 
   useEffect(() => {
     void bootstrapWorkspace();
@@ -272,9 +313,8 @@ function App() {
   async function restoreExportPreferences(): Promise<typeof defaultExportOptions> {
     try {
       const preferences = await loadExportPreferences();
-      const restored = applyExportPreferences(defaultExportOptions, true, preferences);
+      const restored = applyExportPreferences(defaultExportOptions, false, preferences);
       setOptions(restored.options);
-      setDryRun(restored.dryRun);
       if (preferences) {
         addLog("info", "Restored export preferences from local storage.");
       }
@@ -287,7 +327,7 @@ function App() {
 
   async function persistExportPreferences() {
     try {
-      await saveExportPreferences(createExportPreferences(options, dryRun));
+      await saveExportPreferences(createExportPreferences(options, false));
       lastPreferenceSaveError.current = null;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not save export preferences.";
@@ -328,9 +368,9 @@ function App() {
           title: "Diagnostics need an exporter",
           explanation: "ChatExportMate cannot run upstream diagnostics until an exporter binary is available.",
           likelyCause: nextProbe.error ?? "imessage-exporter is not installed or was not found on PATH.",
-          suggestedFix: "Install the managed exporter or select an existing imessage-exporter binary, then try again.",
+          suggestedFix: "Set up the managed exporter or select an existing exporter tool, then try again.",
           rawDetails: nextProbe.error ?? undefined,
-          message: "Install or select imessage-exporter before running upstream diagnostics.",
+          message: "Set up or select an exporter before running diagnostics.",
         });
         setLatestRunSummary(summary);
         setRunProgress(failRunProgress(progress, "refresh-checks", summary.detail));
@@ -361,7 +401,7 @@ function App() {
       const detail = error instanceof Error ? error.message : "Diagnostics failed before they could start.";
       const summary = createRunBlockedSummary({
         title: "Diagnostics could not start",
-        explanation: "ChatExportMate could not hand diagnostics to the desktop runtime.",
+        explanation: "ChatExportMate could not start diagnostics from the desktop app.",
         likelyCause: detail,
         suggestedFix: "Refresh setup checks, confirm the exporter path, then run diagnostics again.",
         rawDetails: detail,
@@ -506,7 +546,7 @@ function App() {
         nextProbe.found ? "info" : "warn",
         nextProbe.found
           ? `Cleared selected exporter. Detection now uses ${nextProbe.source ?? "available"} exporter.`
-          : "Cleared selected exporter. Install or select imessage-exporter before exporting.",
+          : "Cleared selected exporter. Set up or select an exporter before exporting.",
       );
     } catch (error) {
       addLog("error", error instanceof Error ? error.message : "Could not clear the selected exporter.");
@@ -572,7 +612,7 @@ function App() {
       const detail = error instanceof Error ? error.message : "Export failed before it could start.";
       const summary = createRunBlockedSummary({
         title: "Export could not start",
-        explanation: "ChatExportMate could not hand the export to the desktop runtime.",
+        explanation: "ChatExportMate could not start the export from the desktop app.",
         likelyCause: detail,
         suggestedFix: "Refresh setup checks, confirm the exporter and output folder, then start the export again.",
         rawDetails: detail,
@@ -761,26 +801,11 @@ function App() {
         </div>
 
         <div className="nav-group">
-          <a className="nav-item is-active" href="#setup">
-            <Settings2 aria-hidden="true" />
-            Setup
-          </a>
-          <a className="nav-item" href="#export">
-            <Archive aria-hidden="true" />
-            Export
-          </a>
-          <a className="nav-item" href="#diagnostics">
-            <Wrench aria-hidden="true" />
-            Diagnostics
-          </a>
-          <a className="nav-item" href="#history">
-            <History aria-hidden="true" />
-            History
-          </a>
-          <a className="nav-item" href="#about">
-            <Info aria-hidden="true" />
-            About
-          </a>
+          <NavButton active={activePage === "setup"} icon={Settings2} label="Setup" onClick={() => setActivePage("setup")} />
+          <NavButton active={activePage === "export"} icon={Archive} label="Export" onClick={() => setActivePage("export")} />
+          <NavButton active={activePage === "diagnostics"} icon={Wrench} label="Diagnostics" onClick={() => setActivePage("diagnostics")} />
+          <NavButton active={activePage === "history"} icon={History} label="Support" onClick={() => setActivePage("history")} />
+          <NavButton active={activePage === "about"} icon={Info} label="About" onClick={() => setActivePage("about")} />
         </div>
 
         <div className="sidebar-footer">
@@ -791,14 +816,15 @@ function App() {
 
       <div className="workspace">
         <header className="topbar">
-          <div>
-            <p className="section-kicker">Exporter ready</p>
-            <h1>Guided iMessage export</h1>
+          <div className="page-title">
+            <p className="section-kicker">{activePageLabel.kicker}</p>
+            <h1>{activePageLabel.title}</h1>
+            <p>{activePageLabel.description}</p>
           </div>
           <div className="topbar-status">
             <div className="status-cluster">
               <BadgeCheck aria-hidden="true" />
-              <span>{probe.found ? probe.version ?? "detected" : "setup needed"}</span>
+              <span>{probe.found ? probe.version ?? "exporter detected" : setupLabel}</span>
             </div>
             <div className="status-cluster">
               <DownloadCloud aria-hidden="true" />
@@ -826,51 +852,65 @@ function App() {
             <span>Update</span>
             <strong>{updateStatusLabel}</strong>
           </div>
-          <div>
-            <span>Mode</span>
-            <strong>{dryRun ? "Dry run" : "Export"}</strong>
-          </div>
           <StatusPill
             label={preflight.canRunExport ? "Ready" : "Review"}
             state={preflight.canRunExport ? "passed" : "warning"}
           />
         </section>
 
-        <div className="content-grid">
-          <div className="main-stack">
-            <div id="setup">
-              <SetupChecklist items={diagnostics.slice(0, 4)} permissions={permissionGuide} />
+        <div className="page-body">
+          {activePage === "setup" ? (
+            <div className="page-grid page-grid--setup">
+              <div className="main-stack">
+                <QuickStartPanel
+                  canPrepareExporter={Boolean(selectedAsset)}
+                  exporterFound={probe.found}
+                  installActionLabel={installActionLabel}
+                  installingExporter={installingExporter}
+                  onGoExport={() => setActivePage("export")}
+                  onInstallExporter={installOrUpdateExporter}
+                  onPickOutput={pickOutputFolder}
+                  onPickSource={pickSourcePath}
+                  outputReady={outputAccess.writable}
+                  platform={options.platform}
+                  sourceSelected={Boolean(options.databasePath)}
+                />
+              </div>
             </div>
-            <div id="export">
-              <ExportConfigurator
-                checkingOutputAccess={checkingOutputAccess}
-                dryRun={dryRun}
-                isPreparingExporter={installingExporter}
-                isRunning={isExporting}
-                issueMap={issueMap}
-                onCheckOutputAccess={checkCurrentOutputAccess}
-                onChange={setOptions}
-                onDryRunChange={setDryRun}
-                onOpenOutput={openExportFolder}
-                onPrepareExporter={installOrUpdateExporter}
-                onPickAttachmentRoot={pickAttachmentRoot}
-                onPickOutput={pickOutputFolder}
-                onPickSource={pickSourcePath}
-                onRun={runExport}
-                options={options}
-                preflight={preflight}
-              />
-            </div>
-            <RunProgressPanel outputEvents={processOutputEvents} progress={runProgress} />
-            <CommandPreview command={command} issues={issues} />
-            <RunResultPanel
-              onOpenLog={openLatestRunLog}
-              onOpenOutput={openLatestRunOutput}
-              summary={latestRunSummary}
-            />
-          </div>
+          ) : null}
 
-          <div id="diagnostics">
+          {activePage === "export" ? (
+            <div className="page-grid page-grid--export">
+              <div className="main-stack">
+                <ExportConfigurator
+                  checkingOutputAccess={checkingOutputAccess}
+                  isPreparingExporter={installingExporter}
+                  isRunning={isExporting}
+                  issueMap={issueMap}
+                  onCheckOutputAccess={checkCurrentOutputAccess}
+                  onChange={setOptions}
+                  onOpenOutput={openExportFolder}
+                  onPrepareExporter={installOrUpdateExporter}
+                  onPickAttachmentRoot={pickAttachmentRoot}
+                  onPickOutput={pickOutputFolder}
+                  onPickSource={pickSourcePath}
+                  onRun={runExport}
+                  options={options}
+                  preflight={preflight}
+                />
+              </div>
+              <div className="side-stack">
+                <RunProgressPanel outputEvents={processOutputEvents} progress={runProgress} />
+                <RunResultPanel
+                  onOpenLog={openLatestRunLog}
+                  onOpenOutput={openLatestRunOutput}
+                  summary={latestRunSummary}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {activePage === "diagnostics" ? (
             <DiagnosticsPanel
               activatingManagedVersion={activatingManagedVersion}
               checkingRelease={checkingRelease}
@@ -891,29 +931,194 @@ function App() {
               selectingCustomExporter={selectingCustomExporter}
               selectedAsset={selectedAsset}
             />
-          </div>
-        </div>
+          ) : null}
 
-        <div id="history">
-          <LogTimeline
-            creatingSupportBundle={creatingSupportBundle}
-            entries={logs}
-            loadingLogDetail={loadingLogDetail}
-            loadingStoredLogs={loadingStoredLogs}
-            onCreateSupportBundle={exportSupportBundle}
-            onOpenStoredLog={openStoredLog}
-            onPreviewStoredLog={previewStoredLog}
-            onRefreshStoredLogs={() => void refreshStoredLogs()}
-            selectedLogDetail={selectedLogDetail}
-            storedLogs={storedLogs}
-          />
-        </div>
+          {activePage === "history" ? (
+            <LogTimeline
+              creatingSupportBundle={creatingSupportBundle}
+              entries={logs}
+              loadingLogDetail={loadingLogDetail}
+              loadingStoredLogs={loadingStoredLogs}
+              onCreateSupportBundle={exportSupportBundle}
+              onOpenStoredLog={openStoredLog}
+              onPreviewStoredLog={previewStoredLog}
+              onRefreshStoredLogs={() => void refreshStoredLogs()}
+              selectedLogDetail={selectedLogDetail}
+              storedLogs={storedLogs}
+            />
+          ) : null}
 
-        <div id="about">
-          <AboutPanel />
+          {activePage === "about" ? <AboutPanel /> : null}
         </div>
       </div>
     </main>
+  );
+}
+
+function NavButton({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: typeof Settings2;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-current={active ? "page" : undefined}
+      className={`nav-item ${active ? "is-active" : ""}`}
+      onClick={onClick}
+      type="button"
+    >
+      <Icon aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
+function QuickStartPanel({
+  canPrepareExporter,
+  exporterFound,
+  installActionLabel,
+  installingExporter,
+  onGoExport,
+  onInstallExporter,
+  onPickOutput,
+  onPickSource,
+  outputReady,
+  platform,
+  sourceSelected,
+}: {
+  canPrepareExporter: boolean;
+  exporterFound: boolean;
+  installActionLabel: string;
+  installingExporter: boolean;
+  onGoExport: () => void;
+  onInstallExporter: () => void;
+  onPickOutput: () => void;
+  onPickSource: () => void;
+  outputReady: boolean;
+  platform: string;
+  sourceSelected: boolean;
+}) {
+  const sourceLabel = platform === "iOS" ? "iPhone backup" : "Messages database";
+  const steps = [
+    {
+      number: 1,
+      title: "Get the exporter",
+      detail: exporterFound
+        ? "The exporter tool is ready."
+        : "Let ChatExportMate download and prepare the exporter for you.",
+      state: exporterFound ? "passed" : "action",
+      actionLabel: exporterFound ? "Ready" : installingExporter ? "Setting up" : installActionLabel,
+      onAction: onInstallExporter,
+      disabled: exporterFound || !canPrepareExporter || installingExporter,
+      icon: DownloadCloud,
+    },
+    {
+      number: 2,
+      title: `Choose ${sourceLabel}`,
+      detail: sourceSelected
+        ? `${sourceLabel} selected.`
+        : "Pick the local Messages database or backup you want to export.",
+      state: sourceSelected ? "passed" : "action",
+      actionLabel: sourceSelected ? "Selected" : "Choose source",
+      onAction: onPickSource,
+      disabled: sourceSelected,
+      icon: Archive,
+    },
+    {
+      number: 3,
+      title: "Choose output folder",
+      detail: outputReady
+        ? "The destination can be written by the desktop app."
+        : "Pick where ChatExportMate should write the exported files.",
+      state: outputReady ? "passed" : "action",
+      actionLabel: outputReady ? "Writable" : "Choose folder",
+      onAction: onPickOutput,
+      disabled: outputReady,
+      icon: ShieldCheck,
+    },
+    {
+      number: 4,
+      title: "Start export",
+      detail: "When the setup checks pass, open the Export page and start the local export.",
+      state: "warning",
+      actionLabel: "Open export",
+      onAction: onGoExport,
+      disabled: false,
+      icon: Play,
+    },
+  ] as const;
+  const currentStep = steps.find((step) => step.state !== "passed")?.number ?? 4;
+
+  return (
+    <section className="panel quick-start-panel" aria-labelledby="quick-start-title">
+      <div className="quick-start-hero">
+        <div>
+          <p className="section-kicker">Guided setup</p>
+          <h2 id="quick-start-title">Follow the next step</h2>
+          <p>
+            ChatExportMate can set up the exporter, check local access, and run the export
+            without terminal commands. Your messages and exported files stay on this computer.
+          </p>
+        </div>
+        <button className="button button--primary" onClick={onGoExport} type="button">
+          <ArrowRight aria-hidden="true" />
+          Configure export
+        </button>
+      </div>
+
+      <div className="wizard-progress" aria-label={`Step ${currentStep} of 4`}>
+        {steps.map((step) => (
+          <span
+            className={[
+              "wizard-progress-step",
+              step.state === "passed" ? "is-complete" : "",
+              step.number === currentStep ? "is-current" : "",
+            ].filter(Boolean).join(" ")}
+            key={step.title}
+          >
+            {step.number}
+          </span>
+        ))}
+      </div>
+
+      <div className="quick-start-steps">
+        {steps.map((step) => {
+          const Icon = step.icon;
+          const StateIcon = step.state === "passed" ? CheckCircle2 : CircleAlert;
+          return (
+            <article
+              className={`quick-step quick-step--${step.state} ${step.number === currentStep ? "is-current" : ""}`}
+              key={step.title}
+            >
+              <div className="quick-step-icon">
+                <Icon aria-hidden="true" />
+              </div>
+              <div className="quick-step-main">
+                <div className="quick-step-title">
+                  <StateIcon aria-hidden="true" />
+                  <h3>{step.title}</h3>
+                </div>
+                <p>{step.detail}</p>
+              </div>
+              <button
+                className="button button--secondary button--compact"
+                disabled={step.disabled}
+                onClick={step.onAction}
+                type="button"
+              >
+                {step.actionLabel}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

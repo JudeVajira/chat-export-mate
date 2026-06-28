@@ -119,8 +119,8 @@ function buildExecutableAccessDiagnostic(probe: ExporterProbe): DiagnosticItem {
       id: "executable-access",
       label: "Executable access",
       detail: probe.error
-        ? `ChatExportMate found a candidate binary but could not launch it: ${probe.error}`
-        : "ChatExportMate found a candidate binary but could not verify it can launch.",
+        ? `ChatExportMate found an exporter tool but could not launch it: ${probe.error}`
+        : "ChatExportMate found an exporter tool but could not verify it can launch.",
       state: "action",
     };
   }
@@ -128,7 +128,7 @@ function buildExecutableAccessDiagnostic(probe: ExporterProbe): DiagnosticItem {
   return {
     id: "executable-access",
     label: "Executable access",
-    detail: "Install or select imessage-exporter before checking whether ChatExportMate can launch it.",
+    detail: "Set up or select an exporter before checking whether ChatExportMate can launch it.",
     state: "warning",
   };
 }

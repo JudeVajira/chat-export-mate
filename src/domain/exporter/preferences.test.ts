@@ -98,4 +98,17 @@ describe("export preferences", () => {
       ),
     ).toBeNull();
   });
+
+  it("accepts CSV as an app-owned export format", () => {
+    const preferences = createExportPreferences(
+      {
+        ...defaultOptions,
+        format: "csv",
+      },
+      false,
+      "2026-06-27T09:00:00.000Z",
+    );
+
+    expect(parseExportPreferences(JSON.stringify(preferences))?.options.format).toBe("csv");
+  });
 });

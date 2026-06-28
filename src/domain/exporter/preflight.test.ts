@@ -41,7 +41,7 @@ describe("buildExportPreflightSummary", () => {
     });
   });
 
-  it("keeps dry-run available while explaining real export blockers", () => {
+  it("keeps internal command checks available while explaining real export blockers", () => {
     expect(
       buildExportPreflightSummary(
         [
@@ -57,8 +57,8 @@ describe("buildExportPreflightSummary", () => {
       ),
     ).toMatchObject({
       state: "warning",
-      title: "Preview available, export not ready",
-      actionLabel: "Start dry run",
+      title: "Command check available, export not ready",
+      actionLabel: "Check command",
       canRunExport: false,
       blockingReasons: ["Output access: Desktop write access check has not run."],
     });
@@ -95,7 +95,7 @@ describe("buildExportPreflightSummary", () => {
     });
   });
 
-  it("recommends installing the managed exporter when the exporter is missing and an asset is available", () => {
+  it("recommends setting up the managed exporter when the exporter is missing and an asset is available", () => {
     expect(
       buildExportPreflightSummary(
         [
@@ -131,7 +131,7 @@ describe("buildExportPreflightSummary", () => {
       actionLabel: "Resolve preflight",
       recommendedAction: {
         id: "install-exporter",
-        label: "Install exporter",
+        label: "Set up exporter",
       },
     });
   });

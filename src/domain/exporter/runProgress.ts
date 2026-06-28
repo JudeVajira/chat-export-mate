@@ -32,8 +32,8 @@ type RunProgressDefinition = {
 
 const definitions: Record<RunOperationKind, RunProgressDefinition> = {
   "dry-run": {
-    title: "Preparing dry run",
-    detail: "ChatExportMate is building the command preview without writing export files.",
+    title: "Checking command",
+    detail: "ChatExportMate is building exporter arguments without writing export files.",
     steps: [
       {
         id: "build-command",
@@ -42,8 +42,8 @@ const definitions: Record<RunOperationKind, RunProgressDefinition> = {
       },
       {
         id: "ready",
-        label: "Ready to review",
-        detail: "Show the generated command for review.",
+        label: "Command ready",
+        detail: "Show the generated command for developer review.",
       },
     ],
   },
@@ -68,8 +68,8 @@ const definitions: Record<RunOperationKind, RunProgressDefinition> = {
       },
       {
         id: "save-log",
-        label: "Save run log",
-        detail: "Capture command, stdout, stderr, exit code, and timestamps locally.",
+        label: "Save troubleshooting details",
+        detail: "Keep local details for support if something needs review.",
       },
       {
         id: "finish",
@@ -90,12 +90,12 @@ const definitions: Record<RunOperationKind, RunProgressDefinition> = {
       {
         id: "run-diagnostics",
         label: "Run exporter diagnostics",
-        detail: "Execute imessage-exporter diagnostics through the desktop runtime.",
+        detail: "Run the exporter diagnostics from the desktop app.",
       },
       {
         id: "save-log",
-        label: "Save diagnostic log",
-        detail: "Capture the diagnostic command and process output locally.",
+        label: "Save troubleshooting details",
+        detail: "Keep local diagnostic details for support.",
       },
       {
         id: "finish",
@@ -106,7 +106,7 @@ const definitions: Record<RunOperationKind, RunProgressDefinition> = {
   },
   "managed-install": {
     title: "Preparing exporter",
-    detail: "ChatExportMate is installing or updating the managed imessage-exporter binary.",
+    detail: "ChatExportMate is setting up the managed exporter tool.",
     steps: [
       {
         id: "check-release",

@@ -23,17 +23,16 @@ export const initialLogEntries = [
   {
     time: "12:01",
     level: "info",
-    message: "Workspace initialized in local preview mode.",
+    message: "Workspace initialized in the local development harness.",
   },
   {
     time: "12:02",
     level: "warn",
-    message: "Exporter detection needs the Tauri desktop runtime.",
+    message: "Exporter detection needs the desktop app.",
   },
   {
     time: "12:03",
     level: "info",
-    message: "Command preview updates locally before anything runs.",
+    message: "Export options update locally before anything runs.",
   },
 ] as const;
-

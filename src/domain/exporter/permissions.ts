@@ -77,7 +77,7 @@ function buildSourcePermissionItem(
     label: "Messages database access",
     detail: runningOnMac
       ? "Grant Full Disk Access before reading the local Messages database."
-      : "Review this on the Mac that contains the Messages database; Windows preview cannot verify it.",
+      : "Review this on the Mac that contains the Messages database; Windows development cannot verify it.",
     state: runningOnMac ? "action" : "warning",
     steps: [
       "Open System Settings > Privacy & Security > Full Disk Access.",

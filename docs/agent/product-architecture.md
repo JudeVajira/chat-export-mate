@@ -24,11 +24,12 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Keep domain logic in TypeScript modules that can be tested without Tauri.
 - Keep Tauri commands small and focused on platform capabilities: filesystem, process execution, OS inspection, and opening paths.
 - Use interfaces/adapters for exporter binaries, GitHub release lookups, command execution, logging, and diagnostics.
-- Use fake exporter responses and dry-run data so Windows development can continue without a Messages database or iPhone backup.
+- Use fake exporter responses and testable command-generation modules so Windows development can continue without a Messages database or iPhone backup.
 - Treat platform-specific behavior as an adapter boundary rather than a condition spread across UI components.
 - Native file and folder selection flows go through the Tauri dialog plugin via `src/services/tauriBridge.ts`; the development browser harness should report desktop-runtime-only behavior rather than inventing local paths.
 - Source selection is platform-specific: macOS custom sources use a `chat.db` file picker, while iOS custom sources use a backup-folder picker. Attachment roots are macOS-only and should not be emitted for iOS commands.
 - Existing exporter binary selection also goes through `src/services/tauriBridge.ts`; the backend must verify the selected binary with `--version` before saving it.
+- Keep framework/runtime names such as Tauri out of normal user-facing app copy. Use plain phrases such as "desktop app"; keep implementation terminology in developer docs, diagnostics internals, or code.
 
 # Managed Exporter
 
@@ -51,8 +52,8 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 # Export Execution And Logs
 
-- Export options and dry-run mode should be restored from local desktop app data on startup and saved back after changes. The Tauri runtime owns the app-data JSON file.
-- Non-dry-run exports execute through the Tauri backend using `std::process::Command`.
+- Export options should be restored from local desktop app data on startup and saved back after changes. The Tauri runtime owns the app-data JSON file.
+- User-started exports execute through the Tauri backend using `std::process::Command`.
 - Export and diagnostic process output should be streamed from the Tauri backend to the Progress panel through typed events while still collecting complete stdout/stderr for saved local logs.
 - Every backend export attempt should write a local log under app data `run-logs/`, including command, stdout, stderr, exit code, timestamps, and output path.
 - The Progress panel is driven by the testable `src/domain/exporter/runProgress.ts` model. Keep operation stages in that domain module instead of scattering stage labels through React handlers.
@@ -61,12 +62,13 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Saved log previews are read through a Tauri command constrained to known app-data log roots and `.log` filenames. Keep previews local, capped for large files, and paired with a privacy reminder before sharing.
 - Support bundles should be created locally under app data `support-bundles/`, copy saved logs, include a short manifest, and remind users to review logs before sharing them.
 - The UI should translate failed exporter output through the error translation domain module rather than showing raw stderr as the primary message.
-- Real export readiness should be derived from the tested preflight summary domain module; keep dry-run command preview available while explaining blockers for an actual export.
-- When a real export is blocked by a missing exporter and a compatible release asset is known, the Export panel should surface managed install as the primary repair action so users do not have to discover the Diagnostics panel first.
-- Export form validation should surface near the fields that need correction as well as in preflight/command summaries; users should not need to inspect the command preview to understand configuration issues.
+- Export readiness should be derived from the tested preflight summary domain module; normal users either set up the missing requirement or start the export.
+- When a real export is blocked by a missing exporter and a compatible release asset is known, the Export page should surface managed install as the primary repair action so users do not have to discover the Diagnostics page first.
+- Export form validation should surface near the fields that need correction as well as in preflight summaries; users should not need to inspect generated command details to understand configuration issues.
 - Latest export and diagnostic results should show a structured explanation, likely cause, suggested fix, saved log path when available, and optional raw details; keep the activity log concise.
 - Latest export results should expose desktop actions to open the exported output folder and saved log when those paths are available. Diagnostic results should expose the saved log action when available.
 - The development browser harness must not pretend to execute exports; it should return a clear desktop-runtime-only message.
+- CSV is an app-owned post-processing format. Do not send `-f csv` to upstream unless upstream explicitly supports it; run the exporter in text mode, then create `chatexportmate-export.csv` from generated text transcripts. The first CSV contract is line-based: `transcript_file`, `line_number`, `text`.
 
 # Diagnostics
 
@@ -105,6 +107,11 @@ Prioritize tests for:
 
 # UX Notes
 
-- The first screen should be a usable desktop app workspace with setup, export configuration, diagnostics, logs, and command preview.
+- The first screen should be a usable desktop app workspace with fast-start setup guidance, not a marketing page.
+- Primary navigation should switch between real in-app pages such as Setup, Export, Diagnostics, Support, and About. Do not present all major workflows as one long fake section stack with anchor links.
+- The beginner experience should be a guided wizard: set up exporter, choose source, choose output folder, choose format, run export. Logs and raw troubleshooting details should not sit in the main setup path.
+- Do not expose dry-run or preview mode as a normal-user workflow. If command generation needs a development path, keep it behind developer/troubleshooting affordances.
+- Keep the normal export action path visible in the first desktop viewport. Collapse or de-emphasize advanced options before hiding primary setup/export actions below the fold.
+- Avoid showing long runtime-derived app-data paths in high-level setup/status copy. Full paths belong in diagnostics details, logs, support bundles, or raw troubleshooting output where wrapping and privacy reminders are present.
 - Translate technical failures into a plain-English explanation, likely cause, suggested fix, and optional raw details.
-- Show command preview as a transparency feature without making users understand every flag.
+- Keep raw command details out of the beginner flow; expose them only in logs or developer/troubleshooting contexts where they help diagnose an issue.

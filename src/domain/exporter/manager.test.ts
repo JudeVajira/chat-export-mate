@@ -14,7 +14,7 @@ import {
 
 describe("exporter manager helpers", () => {
   it("labels install, update, and reinstall actions from probe state", () => {
-    expect(getInstallActionLabel({ found: false }, false)).toBe("Install exporter");
+    expect(getInstallActionLabel({ found: false }, false)).toBe("Set up exporter");
     expect(getInstallActionLabel({ found: true, managed: true, source: "managed" }, true)).toBe(
       "Update exporter",
     );
@@ -44,7 +44,7 @@ describe("exporter manager helpers", () => {
     expect(describeProbeSource({ found: true, managed: true, source: "managed" })).toBe("Managed");
     expect(describeProbeSource({ found: true, source: "custom" })).toBe("Selected");
     expect(describeProbeSource({ found: true, source: "path" })).toBe("PATH");
-    expect(describeProbeSource({ found: true, source: "browser-preview" })).toBe("Preview");
+    expect(describeProbeSource({ found: true, source: "browser-preview" })).toBe("Development");
     expect(describeProbeSource({ found: true })).toBe("Exporter");
     expect(isCustomExporterProbe({ found: true, source: "custom" })).toBe(true);
     expect(isCustomExporterProbe({ found: true, source: "path" })).toBe(false);

@@ -13,15 +13,15 @@ export function RunResultPanel({
   const Icon = summary ? (summary.level === "error" ? AlertTriangle : CheckCircle2) : ClipboardList;
   const outputPath = summary?.outputPath;
   const logPath = summary?.logPath;
-  const canOpenLog = Boolean(logPath && onOpenLog);
+  const canOpenLog = Boolean(logPath && onOpenLog && summary?.level === "error");
   const canOpenOutput = Boolean(outputPath && onOpenOutput);
 
   return (
     <section className="panel result-panel" aria-labelledby="run-result-title">
       <div className="section-heading">
         <div>
-          <p className="section-kicker">Latest result</p>
-          <h2 id="run-result-title">{summary?.title ?? "No run result yet"}</h2>
+          <p className="section-kicker">Outcome</p>
+          <h2 id="run-result-title">{summary?.title ?? "Waiting for export"}</h2>
         </div>
         <Icon
           aria-hidden="true"
@@ -66,7 +66,6 @@ export function RunResultPanel({
               />
             ))}
             {outputPath ? <ResultMeta label="Output path" value={outputPath} code /> : null}
-            {logPath ? <ResultMeta label="Log path" value={logPath} code /> : null}
           </div>
 
           {canOpenLog || canOpenOutput ? (
@@ -88,7 +87,7 @@ export function RunResultPanel({
                   type="button"
                 >
                   <FileText aria-hidden="true" />
-                  Open log
+                  Troubleshooting details
                 </button>
               ) : null}
             </div>
@@ -105,7 +104,7 @@ export function RunResultPanel({
           ) : null}
         </div>
       ) : (
-        <p className="empty-state">Completed exports and diagnostics will appear here after they run.</p>
+        <p className="empty-state">Your export result will appear here after it runs.</p>
       )}
     </section>
   );

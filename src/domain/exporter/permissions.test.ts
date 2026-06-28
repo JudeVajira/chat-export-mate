@@ -58,14 +58,14 @@ describe("buildPermissionGuide", () => {
     expect(source?.steps.join(" ")).toContain("System Settings > Privacy & Security > Full Disk Access");
   });
 
-  it("marks macOS database access as review-only in the Windows preview harness", () => {
+  it("marks macOS database access as review-only in Windows development", () => {
     const guide = buildPermissionGuide(windowsSnapshot, macOptions, writableOutput);
 
     const source = guide.items.find((item) => item.id === "macos-full-disk-access");
 
     expect(source).toMatchObject({
       state: "warning",
-      detail: "Review this on the Mac that contains the Messages database; Windows preview cannot verify it.",
+      detail: "Review this on the Mac that contains the Messages database; Windows development cannot verify it.",
     });
   });
 

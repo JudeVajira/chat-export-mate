@@ -39,11 +39,11 @@ export function buildExportPreflightSummary(
   if (canRunExport) {
     return {
       state: "ready",
-      title: dryRun ? "Ready for command preview" : "Ready to export",
+      title: dryRun ? "Ready to check command" : "Ready to export",
       detail: dryRun
-        ? "Dry run will build the exporter command without writing export files."
+        ? "Developer command checks build exporter arguments without writing export files."
         : "ChatExportMate has an exporter, valid options, and a writable output location.",
-      actionLabel: dryRun ? "Start dry run" : "Start export",
+      actionLabel: dryRun ? "Check command" : "Start export",
       canRunExport,
       blockingReasons,
       nonBlockingNotes,
@@ -54,9 +54,9 @@ export function buildExportPreflightSummary(
   if (dryRun) {
     return {
       state: "warning",
-      title: "Preview available, export not ready",
-      detail: "Dry run can still show the command, but a real export needs the items below.",
-      actionLabel: "Start dry run",
+      title: "Command check available, export not ready",
+      detail: "Developer command checks can still build arguments, but a real export needs the items below.",
+      actionLabel: "Check command",
       canRunExport,
       blockingReasons,
       nonBlockingNotes,
@@ -87,8 +87,8 @@ function findRecommendedAction(diagnostics: DiagnosticItem[]): ExportPreflightAc
   if (exporter?.state !== "passed" && asset?.state === "passed") {
     return {
       id: "install-exporter",
-      label: "Install exporter",
-      detail: "ChatExportMate can download, verify, and activate the managed imessage-exporter binary before you export.",
+      label: "Set up exporter",
+      detail: "ChatExportMate can download, verify, and activate the exporter tool before you export.",
     };
   }
 

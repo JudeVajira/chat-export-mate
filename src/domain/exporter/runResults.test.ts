@@ -35,6 +35,25 @@ describe("summarizeExportRunResult", () => {
     });
   });
 
+  it("summarizes app-created CSV exports", () => {
+    expect(
+      summarizeExportRunResult({
+        ...baseResult,
+        csvPath: "C:/exports/chatexportmate-export.csv",
+      }),
+    ).toMatchObject({
+      level: "info",
+      message: "Export finished and CSV was created at C:/exports/chatexportmate-export.csv.",
+      meta: [
+        {
+          label: "CSV file",
+          value: "C:/exports/chatexportmate-export.csv",
+          code: true,
+        },
+      ],
+    });
+  });
+
   it("translates exporter stderr for failed runs", () => {
     const summary = summarizeExportRunResult({
       ...baseResult,
@@ -100,12 +119,12 @@ describe("summarizeDiagnosticRunResult", () => {
 });
 
 describe("local run summaries", () => {
-  it("creates a dry-run result without a saved log path", () => {
+  it("creates a command-check result without a saved log path", () => {
     expect(createDryRunSummary(3)).toEqual({
       level: "info",
-      title: "Dry run ready",
+      title: "Command check ready",
       detail: "3 exporter arguments generated. Nothing was written.",
-      message: "Dry run generated 3 exporter arguments.",
+      message: "Command check generated 3 exporter arguments.",
       exitCode: null,
     });
   });

@@ -32,10 +32,13 @@ export function summarizeExportRunResult(result: ExportRunResult): RunSummary {
       level: "info",
       title: "Export finished",
       detail: `Exit code ${result.exitCode ?? 0}.`,
-      message: `Export finished with exit code ${result.exitCode ?? 0}. Log saved to ${result.logPath}.`,
+      message: result.csvPath
+        ? `Export finished and CSV was created at ${result.csvPath}.`
+        : `Export finished with exit code ${result.exitCode ?? 0}. Log saved to ${result.logPath}.`,
       outputPath: result.outputPath,
       logPath: result.logPath,
       exitCode: result.exitCode ?? 0,
+      ...(result.csvPath ? { meta: [{ label: "CSV file", value: result.csvPath, code: true }] } : {}),
     };
   }
 
@@ -81,9 +84,9 @@ export function summarizeDiagnosticRunResult(result: DiagnosticRunResult): RunSu
 export function createDryRunSummary(argumentCount: number): RunSummary {
   return {
     level: "info",
-    title: "Dry run ready",
+    title: "Command check ready",
     detail: `${argumentCount} exporter argument${argumentCount === 1 ? "" : "s"} generated. Nothing was written.`,
-    message: `Dry run generated ${argumentCount} exporter argument${argumentCount === 1 ? "" : "s"}.`,
+    message: `Command check generated ${argumentCount} exporter argument${argumentCount === 1 ? "" : "s"}.`,
     exitCode: null,
   };
 }

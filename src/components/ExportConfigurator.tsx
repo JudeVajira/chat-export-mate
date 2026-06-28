@@ -21,12 +21,10 @@ interface ExportConfiguratorProps {
   options: ExportOptions;
   onChange: (options: ExportOptions) => void;
   checkingOutputAccess: boolean;
-  dryRun: boolean;
   isRunning: boolean;
   isPreparingExporter?: boolean;
   issueMap: ValidationIssueMap;
   onCheckOutputAccess: () => void;
-  onDryRunChange: (value: boolean) => void;
   onPrepareExporter?: () => void;
   onPickAttachmentRoot: () => void;
   onPickOutput: () => void;
@@ -36,7 +34,11 @@ interface ExportConfiguratorProps {
   preflight: ExportPreflightSummary;
 }
 
-const formats: ExportFormat[] = ["html", "txt"];
+const formats: Array<{ label: string; value: ExportFormat; description: string }> = [
+  { label: "HTML", value: "html", description: "Readable conversation pages" },
+  { label: "Text", value: "txt", description: "Plain text transcripts" },
+  { label: "CSV", value: "csv", description: "Spreadsheet-friendly rows converted from text transcripts" },
+];
 const platforms: ExportPlatform[] = ["macOS", "iOS"];
 const copyMethods: AttachmentCopyMethod[] = ["disabled", "clone", "basic", "full"];
 
@@ -44,12 +46,10 @@ export function ExportConfigurator({
   options,
   onChange,
   checkingOutputAccess,
-  dryRun,
   isRunning,
   isPreparingExporter = false,
   issueMap,
   onCheckOutputAccess,
-  onDryRunChange,
   onPrepareExporter,
   onPickAttachmentRoot,
   onPickOutput,
@@ -93,10 +93,10 @@ export function ExportConfigurator({
   const endDateIssues = validationMessagesFor(issueMap, "endDate");
   const customNameIssues = validationMessagesFor(issueMap, "customName");
   const canPrepareExporter =
-    !dryRun && preflight.recommendedAction?.id === "install-exporter" && Boolean(onPrepareExporter);
+    preflight.recommendedAction?.id === "install-exporter" && Boolean(onPrepareExporter);
   const primaryActionLabel = canPrepareExporter
     ? isPreparingExporter
-      ? "Installing exporter"
+      ? "Setting up exporter"
       : preflight.recommendedAction?.label ?? preflight.actionLabel
     : isRunning
       ? "Running export"
@@ -104,7 +104,7 @@ export function ExportConfigurator({
   const primaryActionDisabled =
     isRunning ||
     isPreparingExporter ||
-    ((!preflight.canRunExport && !dryRun) && !canPrepareExporter);
+    (!preflight.canRunExport && !canPrepareExporter);
   const PrimaryActionIcon = canPrepareExporter ? DownloadCloud : Play;
 
   return (
@@ -114,14 +114,60 @@ export function ExportConfigurator({
           <p className="section-kicker">Export</p>
           <h2 id="export-title">Choose export</h2>
         </div>
-        <label className="toggle">
-          <input
-            checked={dryRun}
-            onChange={(event) => onDryRunChange(event.currentTarget.checked)}
-            type="checkbox"
-          />
-          <span>Dry run</span>
-        </label>
+      </div>
+
+      <div className={`preflight-summary preflight-summary--${preflight.state}`}>
+        <div className="preflight-main">
+          <PreflightIcon aria-hidden="true" />
+          <div>
+            <h3>{preflight.title}</h3>
+            <p>{preflight.detail}</p>
+          </div>
+        </div>
+        {preflight.blockingReasons.length > 0 ? (
+          <ul className="preflight-list">
+            {preflight.blockingReasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        ) : null}
+        {preflight.nonBlockingNotes.length > 0 ? (
+          <div className="preflight-notes">
+            {preflight.nonBlockingNotes.map((note) => (
+              <span key={note}>{note}</span>
+            ))}
+          </div>
+        ) : null}
+        {preflight.recommendedAction ? (
+          <p className="preflight-action-detail">{preflight.recommendedAction.detail}</p>
+        ) : null}
+      </div>
+
+      <div className="action-row">
+        <div className="action-row-group">
+          <button
+            className="button button--secondary"
+            disabled={checkingOutputAccess}
+            onClick={onCheckOutputAccess}
+            type="button"
+          >
+            <ShieldCheck aria-hidden="true" />
+            {checkingOutputAccess ? "Checking" : "Check access"}
+          </button>
+          <button className="button button--secondary" onClick={onOpenOutput} type="button">
+            <FolderOpen aria-hidden="true" />
+            Open folder
+          </button>
+        </div>
+        <button
+          className="button button--primary"
+          disabled={primaryActionDisabled}
+          onClick={canPrepareExporter ? onPrepareExporter : onRun}
+          type="button"
+        >
+          <PrimaryActionIcon aria-hidden="true" />
+          {primaryActionLabel}
+        </button>
       </div>
 
       <div className="config-grid">
@@ -130,15 +176,19 @@ export function ExportConfigurator({
           <div className="segmented-control">
             {formats.map((format) => (
               <button
-                className={options.format === format ? "is-selected" : ""}
-                key={format}
-                onClick={() => update("format", format)}
+                className={options.format === format.value ? "is-selected" : ""}
+                key={format.value}
+                onClick={() => update("format", format.value)}
+                title={format.description}
                 type="button"
               >
-                {format.toUpperCase()}
+                {format.label}
               </button>
             ))}
           </div>
+          <p className="field-hint">
+            CSV is created locally after a text export, so it is best for spreadsheet review.
+          </p>
         </fieldset>
 
         <fieldset>
@@ -289,10 +339,8 @@ export function ExportConfigurator({
           <FieldIssues fieldId="end-date" issues={endDateIssues} />
         </label>
 
-        <div className="advanced-options span-2">
-          <div className="advanced-options-heading">
-            <h3>Advanced options</h3>
-          </div>
+        <details className="advanced-options span-2">
+          <summary>Advanced options</summary>
           <div className="advanced-option-grid">
             <label
               className={`field ${customNameIssues.length > 0 ? "field--error" : ""}`}
@@ -345,62 +393,9 @@ export function ExportConfigurator({
               </label>
             </div>
           </div>
-        </div>
+        </details>
       </div>
 
-      <div className={`preflight-summary preflight-summary--${preflight.state}`}>
-        <div className="preflight-main">
-          <PreflightIcon aria-hidden="true" />
-          <div>
-            <h3>{preflight.title}</h3>
-            <p>{preflight.detail}</p>
-          </div>
-        </div>
-        {preflight.blockingReasons.length > 0 ? (
-          <ul className="preflight-list">
-            {preflight.blockingReasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-        ) : null}
-        {preflight.nonBlockingNotes.length > 0 ? (
-          <div className="preflight-notes">
-            {preflight.nonBlockingNotes.map((note) => (
-              <span key={note}>{note}</span>
-            ))}
-          </div>
-        ) : null}
-        {!dryRun && preflight.recommendedAction ? (
-          <p className="preflight-action-detail">{preflight.recommendedAction.detail}</p>
-        ) : null}
-      </div>
-
-      <div className="action-row">
-        <div className="action-row-group">
-          <button
-            className="button button--secondary"
-            disabled={checkingOutputAccess}
-            onClick={onCheckOutputAccess}
-            type="button"
-          >
-            <ShieldCheck aria-hidden="true" />
-            {checkingOutputAccess ? "Checking" : "Check access"}
-          </button>
-          <button className="button button--secondary" onClick={onOpenOutput} type="button">
-            <FolderOpen aria-hidden="true" />
-            Open folder
-          </button>
-        </div>
-        <button
-          className="button button--primary"
-          disabled={primaryActionDisabled}
-          onClick={canPrepareExporter ? onPrepareExporter : onRun}
-          type="button"
-        >
-          <PrimaryActionIcon aria-hidden="true" />
-          {primaryActionLabel}
-        </button>
-      </div>
     </section>
   );
 }

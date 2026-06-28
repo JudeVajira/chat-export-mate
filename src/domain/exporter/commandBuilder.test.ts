@@ -121,6 +121,17 @@ describe("buildExporterCommand", () => {
     expect(command.args).not.toContain("--no-progress");
   });
 
+  it("uses text exporter output when the user selects CSV conversion", () => {
+    const command = buildExporterCommand("imessage-exporter", {
+      ...baseOptions,
+      format: "csv",
+    });
+
+    expect(command.requestedFormat).toBe("csv");
+    expect(command.exporterFormat).toBe("txt");
+    expect(command.args.slice(0, 2)).toEqual(["-f", "txt"]);
+  });
+
   it("builds iOS backup commands without macOS attachment roots", () => {
     const command = buildExporterCommand("imessage-exporter", {
       ...baseOptions,

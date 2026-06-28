@@ -1,4 +1,4 @@
-export type ExportFormat = "html" | "txt";
+export type ExportFormat = "html" | "txt" | "csv";
 
 export type ExportPlatform = "macOS" | "iOS";
 
@@ -34,6 +34,8 @@ export interface BuiltCommand {
   executablePath: string;
   args: string[];
   displayCommand: string;
+  requestedFormat: ExportFormat;
+  exporterFormat: "html" | "txt";
 }
 
 export interface ExportRunRequest extends BuiltCommand {
@@ -51,6 +53,7 @@ export interface ExportRunResult {
   completedAt: string;
   logPath: string;
   outputPath: string;
+  csvPath?: string | null;
 }
 
 export interface OutputAccessCheck {
