@@ -6,7 +6,20 @@ ChatExportMate is intended only as a desktop app. This repository does not targe
 
 ## Status
 
+ChatExportMate is currently an experimental alpha project. It is public so the desktop companion can be tested and improved, but it is not stable release software yet.
+
 This repository currently contains the initial Tauri + React + TypeScript application shell, domain modules, test coverage, and a guided desktop UI prototype. Windows development is supported without a local Messages database by using mock diagnostics and dry-run command previews.
+
+## Alpha Downloads
+
+Windows x64 alpha installers are built by GitHub Actions. To test the latest build:
+
+1. Open the repository **Actions** tab.
+2. Choose the latest **Desktop alpha build** run for the branch you want to test.
+3. Download the `ChatExportMate-alpha-windows-x64-<run number>` artifact.
+4. Extract the artifact and run the `-setup.exe` installer.
+
+These alpha installers are unsigned, experimental, and retained as GitHub Actions artifacts for 14 days. Windows may show an unknown-publisher warning. Review the source and build logs before installing if you are testing from a public run.
 
 ## Prerequisites
 

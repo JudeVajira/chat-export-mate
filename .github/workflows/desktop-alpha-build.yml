@@ -1,0 +1,68 @@
+name: Desktop alpha build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+      - "codex/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-alpha-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    name: Windows x64 installers
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build Tauri desktop bundles
+        run: pnpm tauri build
+
+      - name: Collect Windows installers
+        shell: pwsh
+        run: |
+          $artifactDir = "artifacts/windows-x64"
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+          Copy-Item -Path "src-tauri/target/release/bundle/nsis/*.exe" -Destination $artifactDir
+          Get-ChildItem -Path $artifactDir | Format-Table Name, Length
+
+      - name: Upload Windows alpha installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatExportMate-alpha-windows-x64-${{ github.run_number }}
+          path: artifacts/windows-x64/*
+          if-no-files-found: error
+          retention-days: 14

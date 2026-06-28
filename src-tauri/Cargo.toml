@@ -1,6 +1,6 @@
 [package]
 name = "chat-export-mate"
-version = "0.1.0"
+version = "0.1.0-alpha.0"
 description = "A local-first Tauri desktop companion for ReagentX/imessage-exporter."
 authors = ["ChatExportMate contributors"]
 license = "GPL-3.0-or-later"

@@ -42,6 +42,12 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Prefer direct executable release assets over `.tar.gz` archives, but managed installs should extract the expected exporter binary from `.tar.gz` assets when a direct binary is not available.
 - The Tauri desktop runtime owns filesystem writes, managed installs, and durable user settings. Development-harness fallback state must not become a supported web-app behavior.
 
+# Distribution
+
+- ChatExportMate is currently an experimental alpha. Keep package metadata, README language, and CI artifact names aligned with that alpha posture until the user decides it is stable enough for normal releases.
+- GitHub Actions publishes Windows x64 alpha NSIS setup installers as run artifacts from `.github/workflows/desktop-alpha-build.yml`. These artifacts are unsigned and intended for testing, not stable release distribution.
+- Keep the MSI target disabled while using human-readable alpha prerelease versions such as `0.1.0-alpha.0`; Tauri's MSI bundler rejects non-numeric prerelease identifiers.
+
 # Export Execution And Logs
 
 - Export options and dry-run mode should be restored from local desktop app data on startup and saved back after changes. The Tauri runtime owns the app-data JSON file.
