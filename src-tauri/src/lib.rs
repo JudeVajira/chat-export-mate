@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     env, fs,
-    io::{BufRead, BufReader, Cursor, Read, Write},
+    io::{BufRead, BufReader, Cursor, ErrorKind, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
@@ -1693,7 +1693,7 @@ fn convert_text_export_to_spenlio_sender_csvs(
 ) -> Result<CsvConversionResult, String> {
     let rows = collect_spenlio_csv_rows(output_path)?;
     let folder_path = output_path.join("spenlio-sms-export-by-sender");
-    fs::create_dir_all(&folder_path).map_err(to_string)?;
+    prepare_clean_output_directory(&folder_path)?;
 
     let mut grouped: BTreeMap<String, Vec<SpenlioCsvRow>> = BTreeMap::new();
     for row in rows {
@@ -1760,7 +1760,7 @@ fn collect_spenlio_csv_rows(output_path: &Path) -> Result<Vec<SpenlioCsvRow>, St
 
     if rows.is_empty() {
         return Err(
-            "No named business-sender messages were found in the text export. Phone-number conversations and your own sent messages are skipped for finance CSV output."
+            "No named business-sender messages were found in the text export. Phone-number conversations, email senders, and your own sent messages are skipped for finance CSV output."
                 .to_string(),
         );
     }
@@ -1782,7 +1782,7 @@ fn write_spenlio_csv_layout(
     match layout.unwrap_or("spenlioCombined") {
         "spenlioBySender" => {
             let folder_path = output_path.join("spenlio-sms-export-by-sender");
-            fs::create_dir_all(&folder_path).map_err(to_string)?;
+            prepare_clean_output_directory(&folder_path)?;
 
             let mut grouped: BTreeMap<String, Vec<SpenlioCsvRow>> = BTreeMap::new();
             for row in rows {
@@ -1996,14 +1996,16 @@ fn unique_sender_csv_file_name(
 ) -> String {
     let base = safe_sender_file_stem(sender, fallback_index);
     let mut candidate = format!("{base}.csv");
+    let mut candidate_key = sender_csv_file_key(&candidate);
     let mut suffix = 2;
 
-    while used_file_names.contains(&candidate) {
+    while used_file_names.contains(&candidate_key) {
         candidate = format!("{base}-{suffix}.csv");
+        candidate_key = sender_csv_file_key(&candidate);
         suffix += 1;
     }
 
-    used_file_names.insert(candidate.clone());
+    used_file_names.insert(candidate_key);
     candidate
 }
 
@@ -2025,12 +2027,65 @@ fn safe_sender_file_stem(sender: &str, fallback_index: usize) -> String {
         }
     }
 
-    let trimmed = stem.trim_matches('-').to_string();
-    if trimmed.is_empty() {
+    let stem = if stem.trim_matches('-').is_empty() {
         format!("sender-{fallback_index:03}")
     } else {
-        trimmed
+        stem.trim_matches('-').to_string()
+    };
+
+    if is_windows_reserved_file_stem(&stem) {
+        format!("sender-{stem}")
+    } else {
+        stem
     }
+}
+
+fn sender_csv_file_key(file_name: &str) -> String {
+    file_name.to_ascii_lowercase()
+}
+
+fn is_windows_reserved_file_stem(stem: &str) -> bool {
+    let base = stem
+        .split_once('.')
+        .map(|(base, _)| base)
+        .unwrap_or(stem)
+        .trim_end_matches([' ', '.'])
+        .to_ascii_uppercase();
+
+    matches!(
+        base.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || (base.len() == 4
+        && (base.starts_with("COM") || base.starts_with("LPT"))
+        && base
+            .as_bytes()
+            .get(3)
+            .is_some_and(|digit| (b'1'..=b'9').contains(digit)))
+}
+
+fn prepare_clean_output_directory(path: &Path) -> Result<(), String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => remove_existing_output_path(path, &metadata)?,
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => return Err(error.to_string()),
+    }
+
+    fs::create_dir_all(path).map_err(to_string)
+}
+
+fn remove_existing_output_path(path: &Path, metadata: &fs::Metadata) -> Result<(), String> {
+    let file_type = metadata.file_type();
+    if metadata.is_dir() && !file_type.is_symlink() {
+        return fs::remove_dir_all(path).map_err(to_string);
+    }
+
+    if file_type.is_symlink() && path.is_dir() {
+        return fs::remove_dir(path)
+            .or_else(|_| fs::remove_file(path))
+            .map_err(to_string);
+    }
+
+    fs::remove_file(path).map_err(to_string)
 }
 
 fn collect_text_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -3057,12 +3112,17 @@ mod tests {
         )
         .unwrap();
 
+        let stale_folder = root.join("spenlio-sms-export-by-sender");
+        fs::create_dir_all(&stale_folder).unwrap();
+        fs::write(stale_folder.join("STALE.csv"), "stale").unwrap();
+
         let result = convert_text_export_to_csv(&root, Some("spenlioBySender")).unwrap();
         let bank_csv = fs::read_to_string(result.path.join("BANKSMS.csv")).unwrap();
         let shop_csv = fs::read_to_string(result.path.join("SHOP-ALERT.csv")).unwrap();
 
         assert_eq!(result.row_count, 3);
         assert_eq!(result.file_count, 2);
+        assert!(!result.path.join("STALE.csv").exists());
         assert!(bank_csv.contains("row-000001,First bank message"));
         assert!(bank_csv.contains("row-000002,Second bank message"));
         assert!(shop_csv.contains("row-000001,Shop message"));
@@ -3119,13 +3179,40 @@ mod tests {
         assert!(!csv.contains("+94771234567"));
         assert!(!csv.contains("normal@example.com"));
 
+        let stale_folder = root.join("spenlio-sms-export-by-sender");
+        fs::create_dir_all(&stale_folder).unwrap();
+        fs::write(stale_folder.join("STALE.csv"), "stale").unwrap();
+
         let by_sender = write_spenlio_csv_layout(&root, Some("spenlioBySender"), rows).unwrap();
         let bank_csv = fs::read_to_string(by_sender.path.join("BANKSMS.csv")).unwrap();
         let alert_csv = fs::read_to_string(by_sender.path.join("ALERT99.csv")).unwrap();
+        assert!(!by_sender.path.join("STALE.csv").exists());
         assert!(bank_csv.contains(",SMS-GUID-10,"));
         assert!(alert_csv.contains(",rowid-12,"));
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn sender_csv_file_names_are_windows_safe() {
+        let mut used_file_names = HashSet::new();
+
+        assert_eq!(
+            unique_sender_csv_file_name("BANK", &mut used_file_names, 1),
+            "BANK.csv",
+        );
+        assert_eq!(
+            unique_sender_csv_file_name("bank", &mut used_file_names, 2),
+            "bank-2.csv",
+        );
+        assert_eq!(
+            unique_sender_csv_file_name("CON", &mut used_file_names, 3),
+            "sender-CON.csv",
+        );
+        assert_eq!(
+            unique_sender_csv_file_name("lpt1", &mut used_file_names, 4),
+            "sender-lpt1.csv",
+        );
     }
 
     #[test]

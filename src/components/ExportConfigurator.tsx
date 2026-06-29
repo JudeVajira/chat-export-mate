@@ -127,6 +127,10 @@ export function ExportConfigurator({
   const startDateIssues = validationMessagesFor(issueMap, "startDate");
   const endDateIssues = validationMessagesFor(issueMap, "endDate");
   const customNameIssues = validationMessagesFor(issueMap, "customName");
+  const csvLayoutHint =
+    options.csvLayout === "transcriptLines"
+      ? "Transcript lines creates one row per generated transcript line for general review."
+      : "Finance CSV layouts skip phone-number conversations, email senders, non-SMS messages, and your own sent messages.";
   const canPrepareExporter =
     preflight.recommendedAction?.id === "install-exporter" && Boolean(onPrepareExporter);
   const primaryActionLabel = canPrepareExporter
@@ -259,7 +263,7 @@ export function ExportConfigurator({
               ))}
             </div>
             <p className="field-hint">
-              Finance CSV layouts skip phone-number conversations and your own sent messages.
+              {csvLayoutHint}
             </p>
           </fieldset>
         ) : null}

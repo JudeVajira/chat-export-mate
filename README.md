@@ -149,7 +149,7 @@ For export modes that need the external export tool, when an export is blocked o
 
 HTML and Text are passed through to the upstream exporter. CSV is owned by ChatExportMate:
 
-- **One finance CSV**: default Spenlio-compatible output at `spenlio-sms-export.csv` with `sender`, `received_at`, `message_id`, and `message` columns. ChatExportMate reads the local Messages database through ReagentX libraries, uses Apple's `message.guid` when available, falls back to the SQLite message row ID when the GUID is blank, and skips phone-number conversations plus the user's own sent messages.
+- **One finance CSV**: default Spenlio-compatible output at `spenlio-sms-export.csv` with `sender`, `received_at`, `message_id`, and `message` columns. ChatExportMate reads the local Messages database through ReagentX libraries, uses Apple's `message.guid` when available, falls back to the SQLite message row ID when the GUID is blank, and skips phone-number conversations, email senders, non-SMS services, and the user's own sent messages.
 - **One CSV per sender**: writes `spenlio-sms-export-by-sender/` with one CSV per named business sender using the same four columns and the same Apple-backed message IDs.
 - **Transcript lines**: legacy row-per-line output at `chatexportmate-transcript-lines.csv` with `transcript_file`, `line_number`, and `text` columns. This layout runs the upstream text export first and converts the generated text transcripts locally.
 

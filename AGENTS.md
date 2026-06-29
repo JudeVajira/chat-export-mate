@@ -39,4 +39,5 @@ No local subtree `AGENTS.md` files exist yet.
 - Build the actual desktop utility surface first; do not replace app workflows with a landing page.
 - Prefer calm, dense, readable product UI: clear status hierarchy, restrained color, stable panels, and native controls.
 - Avoid nested cards, decorative orbs, marketing hero sections, telemetry-heavy UX, and raw CLI terminology unless it helps troubleshooting.
+- Setup flows must show the currently selected message source or iPhone backup folder and export folder inline, with obvious change and OS file-manager open actions. Do not collapse real local locations into vague labels like `Ready` or `Selected`.
 - For visual UI changes, capture Playwright screenshots at practical desktop window widths and check for overflow, clipped controls, and text collisions before wrapping up. Do not add mobile-specific layouts beyond ordinary responsive resilience for narrow desktop windows.
