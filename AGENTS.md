@@ -20,7 +20,8 @@ No local subtree `AGENTS.md` files exist yet.
 - ChatExportMate is a Tauri, React, TypeScript, and Rust desktop companion for `ReagentX/imessage-exporter`.
 - ChatExportMate is desktop-only. Do not build, position, or optimize it as a web app or mobile app.
 - `pnpm dev` / browser rendering is a development harness for the Tauri frontend only; it is not a supported product surface.
-- Do not reimplement iMessage parsing. The upstream `imessage-exporter` CLI remains the parsing source of truth.
+- Do not reimplement general iMessage exporting. The upstream `imessage-exporter` CLI remains the source of truth for HTML/Text exports, diagnostics, and normal exporter behavior.
+- CSV output is app-owned. The Spenlio finance layouts should read local Messages database fields through upstream ReagentX libraries so `message_id` can use Apple `message.guid` when available and SQLite message row IDs as a fallback. These finance layouts do not need an external exporter executable; HTML/Text, diagnostics, and legacy transcript-lines CSV still do. For encrypted iPhone backup finance CSV, do not write the decrypted Messages database to a temp file; stream it into an in-memory SQLite connection for the current run only. Keep the `sender`, `received_at`, `message_id`, `message` contract and conservative business-sender filtering.
 - Keep message data local. Do not add accounts, cloud sync, default analytics, or any network path for conversations.
 - Development is Windows-first today, but platform behavior must be isolated so macOS support can be added later.
 - Use dependency inversion for exporter discovery, release lookup, command execution, diagnostics, and filesystem/platform access so fake exporters and dry-run flows are testable on Windows.

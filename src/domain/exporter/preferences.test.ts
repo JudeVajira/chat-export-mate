@@ -18,6 +18,7 @@ const defaultOptions: ExportOptions = {
   endDate: "",
   conversationFilter: "",
   customName: "",
+  csvLayout: "spenlioCombined",
   useCallerId: false,
   noLazyImages: false,
   ignoreDiskWarning: false,
@@ -111,6 +112,35 @@ describe("export preferences", () => {
     );
 
     expect(parseExportPreferences(JSON.stringify(preferences))?.options.format).toBe("csv");
+  });
+
+  it("defaults older preference payloads to the combined Spenlio CSV layout", () => {
+    const preferences = createExportPreferences(defaultOptions, false, "2026-06-27T09:00:00.000Z");
+    const olderOptions: Record<string, unknown> = { ...preferences.options };
+    delete olderOptions.csvLayout;
+    const olderPayload = {
+      ...preferences,
+      options: {
+        ...olderOptions,
+        format: "csv",
+      },
+    };
+
+    expect(parseExportPreferences(JSON.stringify(olderPayload))?.options.csvLayout).toBe("spenlioCombined");
+  });
+
+  it("keeps the selected CSV layout in preferences", () => {
+    const preferences = createExportPreferences(
+      {
+        ...defaultOptions,
+        format: "csv",
+        csvLayout: "spenlioBySender",
+      },
+      false,
+      "2026-06-27T09:00:00.000Z",
+    );
+
+    expect(parseExportPreferences(JSON.stringify(preferences))?.options.csvLayout).toBe("spenlioBySender");
   });
 
   it("does not serialize volatile backup password fields", () => {

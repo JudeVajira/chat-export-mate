@@ -4,6 +4,8 @@ export type ExportPlatform = "macOS" | "iOS";
 
 export type AttachmentCopyMethod = "disabled" | "clone" | "basic" | "full";
 
+export type CsvExportLayout = "spenlioCombined" | "spenlioBySender" | "transcriptLines";
+
 export type DiagnosticState = "passed" | "warning" | "action";
 
 export interface ExportOptions {
@@ -18,6 +20,7 @@ export interface ExportOptions {
   endDate?: string;
   conversationFilter?: string;
   customName?: string;
+  csvLayout: CsvExportLayout;
   useCallerId: boolean;
   noLazyImages: boolean;
   ignoreDiskWarning: boolean;
@@ -37,6 +40,7 @@ export interface BuiltCommand {
   displayCommand: string;
   requestedFormat: ExportFormat;
   exporterFormat: "html" | "txt";
+  csvLayout?: CsvExportLayout;
 }
 
 export interface ExportRuntimeSecrets {
@@ -46,6 +50,11 @@ export interface ExportRuntimeSecrets {
 export interface ExportRunRequest extends BuiltCommand {
   eventId?: string;
   outputPath: string;
+  platform?: ExportPlatform;
+  sourcePath?: string;
+  startDate?: string;
+  endDate?: string;
+  conversationFilter?: string;
   backupPassword?: string;
 }
 

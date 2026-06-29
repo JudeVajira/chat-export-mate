@@ -136,6 +136,40 @@ describe("buildExportPreflightSummary", () => {
     });
   });
 
+  it("does not block structured finance CSV when only the external exporter is missing", () => {
+    expect(
+      buildExportPreflightSummary(
+        [
+          {
+            id: "exporter",
+            label: "Exporter",
+            detail: "imessage-exporter was not found",
+            state: "action",
+          },
+          {
+            id: "configuration",
+            label: "Configuration",
+            detail: "Export options are ready",
+            state: "passed",
+          },
+          {
+            id: "output-access",
+            label: "Output access",
+            detail: "Output folder is writable.",
+            state: "passed",
+          },
+        ],
+        false,
+        false,
+      ),
+    ).toMatchObject({
+      state: "ready",
+      canRunExport: true,
+      blockingReasons: [],
+      recommendedAction: null,
+    });
+  });
+
   it("does not recommend managed install when no compatible release asset is available", () => {
     expect(
       buildExportPreflightSummary(

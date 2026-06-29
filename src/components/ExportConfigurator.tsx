@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type {
   AttachmentCopyMethod,
+  CsvExportLayout,
   ExportFormat,
   ExportOptions,
   ExportPlatform,
@@ -41,6 +42,23 @@ const formats: Array<{ label: string; value: ExportFormat; description: string }
   { label: "Easy to read", value: "html", description: "HTML files you can open in a browser." },
   { label: "Plain text archive", value: "txt", description: "Simple transcript files for long-term storage." },
   { label: "Spreadsheet", value: "csv", description: "CSV rows for Excel, Sheets, searching, and filtering." },
+];
+const csvLayouts: Array<{ label: string; value: CsvExportLayout; description: string }> = [
+  {
+    label: "One finance CSV",
+    value: "spenlioCombined",
+    description: "Single Spenlio-ready CSV with Apple message IDs when available.",
+  },
+  {
+    label: "One CSV per sender",
+    value: "spenlioBySender",
+    description: "Separate Spenlio-ready CSV files for each named business sender.",
+  },
+  {
+    label: "Transcript lines",
+    value: "transcriptLines",
+    description: "Legacy row-per-line CSV for general transcript review.",
+  },
 ];
 const platforms: Array<{ label: string; value: ExportPlatform }> = [
   { label: "Mac Messages", value: "macOS" },
@@ -191,11 +209,11 @@ export function ExportConfigurator({
         <div className="output-preview span-2" aria-label="What the export creates">
           <div>
             <span>What you will get</span>
-            <strong>{formatPreviewTitle(options.format)}</strong>
-            <p>{formatPreviewDescription(options.format)}</p>
+            <strong>{formatPreviewTitle(options)}</strong>
+            <p>{formatPreviewDescription(options)}</p>
           </div>
           <ul>
-            {formatPreviewFiles(options.format).map((item) => (
+            {formatPreviewFiles(options).map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
@@ -221,6 +239,30 @@ export function ExportConfigurator({
             Choose the format that matches how you want to use the saved messages.
           </p>
         </fieldset>
+
+        {options.format === "csv" ? (
+          <fieldset className="span-2">
+            <legend>CSV layout</legend>
+            <div className="csv-layout-list">
+              {csvLayouts.map((layout) => (
+                <button
+                  className={`csv-layout-option ${
+                    options.csvLayout === layout.value ? "is-selected" : ""
+                  }`}
+                  key={layout.value}
+                  onClick={() => update("csvLayout", layout.value)}
+                  type="button"
+                >
+                  <strong>{layout.label}</strong>
+                  <small>{layout.description}</small>
+                </button>
+              ))}
+            </div>
+            <p className="field-hint">
+              Finance CSV layouts skip phone-number conversations and your own sent messages.
+            </p>
+          </fieldset>
+        ) : null}
 
         {showMacSourceChoice ? (
           <fieldset>
@@ -484,36 +526,60 @@ export function ExportConfigurator({
   );
 }
 
-function formatPreviewTitle(format: ExportFormat): string {
-  if (format === "csv") {
+function formatPreviewTitle(options: ExportOptions): string {
+  if (options.format === "csv" && options.csvLayout === "spenlioCombined") {
+    return "Spenlio-compatible message rows";
+  }
+
+  if (options.format === "csv" && options.csvLayout === "spenlioBySender") {
+    return "Sender-grouped finance CSV files";
+  }
+
+  if (options.format === "csv") {
     return "Spreadsheet-friendly message rows";
   }
 
-  if (format === "txt") {
+  if (options.format === "txt") {
     return "Plain transcript files";
   }
 
   return "Readable conversation pages";
 }
 
-function formatPreviewDescription(format: ExportFormat): string {
-  if (format === "csv") {
-    return "Best when you want to filter, search, or review messages in Excel or Google Sheets.";
+function formatPreviewDescription(options: ExportOptions): string {
+  if (options.format === "csv" && options.csvLayout === "spenlioCombined") {
+    return "Best for importing into Spenlio or similar finance parsers. Uses sender, received_at, message_id, and message columns from the selected Messages source.";
   }
 
-  if (format === "txt") {
+  if (options.format === "csv" && options.csvLayout === "spenlioBySender") {
+    return "Best when you want separate files for each named business sender before importing or reviewing.";
+  }
+
+  if (options.format === "csv") {
+    return "Best for a simple spreadsheet view of transcript lines.";
+  }
+
+  if (options.format === "txt") {
     return "Best for a simple long-term archive that opens in any text editor.";
   }
 
   return "Best for browsing your saved conversations later in a normal web browser.";
 }
 
-function formatPreviewFiles(format: ExportFormat): string[] {
-  if (format === "csv") {
-    return ["ChatExportMate Export folder", "messages.csv", "attachments folder when selected"];
+function formatPreviewFiles(options: ExportOptions): string[] {
+  if (options.format === "csv" && options.csvLayout === "spenlioCombined") {
+    return ["ChatExportMate Export folder", "spenlio-sms-export.csv", "Apple message IDs when available"];
   }
 
-  if (format === "txt") {
+  if (options.format === "csv" && options.csvLayout === "spenlioBySender") {
+    return ["ChatExportMate Export folder", "spenlio-sms-export-by-sender folder", "Apple message IDs when available"];
+  }
+
+  if (options.format === "csv") {
+    return ["ChatExportMate Export folder", "chatexportmate-transcript-lines.csv", "text transcripts used for conversion"];
+  }
+
+  if (options.format === "txt") {
     return ["ChatExportMate Export folder", "conversation text files", "attachments folder when selected"];
   }
 

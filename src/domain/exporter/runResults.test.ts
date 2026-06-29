@@ -46,7 +46,7 @@ describe("summarizeExportRunResult", () => {
       message: "Export finished and CSV was created at C:/exports/chatexportmate-export.csv.",
       meta: [
         {
-          label: "CSV file",
+          label: "CSV output",
           value: "C:/exports/chatexportmate-export.csv",
           code: true,
         },

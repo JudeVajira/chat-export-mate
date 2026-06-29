@@ -19,6 +19,10 @@ sources:
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/LICENSE
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
   - https://github.com/ReagentX/imessage-exporter/releases
+  - https://docs.rs/imessage-database/4.2.0
+  - https://crates.io/crates/imessage-database/4.2.0
+  - https://docs.rs/crabapple/0.4.7
+  - https://crates.io/crates/crabapple/0.4.7
 related:
   - ./product-architecture.md
 ---
@@ -85,3 +89,25 @@ related:
   URL: https://github.com/ReagentX/imessage-exporter/releases
   Why it matters: Release feed used to discover versions and downloadable exporter assets dynamically; API check found latest version `4.2.0` with direct binaries and `.tar.gz` archives on 2026-06-27, but future work should re-check live.
   Last checked: 2026-06-27 15:02 +05:30
+
+- Title: imessage-database crate documentation
+  URL: https://docs.rs/imessage-database/4.2.0
+  Why it matters: ReagentX library used by ChatExportMate's Spenlio-compatible CSV path to read local Messages database rows, services, handles, dates, and message body fields while preserving Apple message identifiers.
+  Last checked: 2026-06-29 20:25 +05:30
+  Notes: `cargo info imessage-database` reported version `4.2.0`, GPL-3.0-or-later, and repository `https://github.com/ReagentX/imessage-exporter`.
+
+- Title: imessage-database crate package
+  URL: https://crates.io/crates/imessage-database/4.2.0
+  Why it matters: Confirms the packaged crate metadata used by Cargo for the app-owned structured CSV implementation.
+  Last checked: 2026-06-29 20:25 +05:30
+
+- Title: crabapple crate documentation
+  URL: https://docs.rs/crabapple/0.4.7
+  Why it matters: ReagentX library used to open encrypted iOS backups and stream the decrypted Messages database into an in-memory SQLite connection for the current finance CSV export only.
+  Last checked: 2026-06-29 20:25 +05:30
+  Notes: `cargo info crabapple` reported version `0.4.7`, GPL-3.0-or-later, and repository `https://github.com/ReagentX/crabapple`.
+
+- Title: crabapple crate package
+  URL: https://crates.io/crates/crabapple/0.4.7
+  Why it matters: Confirms the packaged crate metadata used by Cargo for encrypted iOS backup handling.
+  Last checked: 2026-06-29 20:25 +05:30

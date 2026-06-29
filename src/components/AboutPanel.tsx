@@ -26,7 +26,8 @@ export function AboutPanel() {
             <h3>Exporter companion</h3>
             <p>
               ChatExportMate wraps ReagentX/imessage-exporter for discovery, setup, execution,
-              diagnostics, logs, and updates. The upstream exporter remains the parser.
+              diagnostics, logs, and updates. Finance CSV support uses ReagentX libraries for local
+              database fields.
             </p>
           </article>
 

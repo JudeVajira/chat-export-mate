@@ -27,6 +27,7 @@ import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "
 import {
   buildDiagnosticCommand,
   buildExporterCommand,
+  usesStructuredCsvExport,
   validateExportOptions,
 } from "./domain/exporter/commandBuilder";
 import { buildDiagnostics } from "./domain/exporter/diagnostics";
@@ -197,6 +198,7 @@ function App() {
 
   const executablePath = probe.path ?? defaultExecutablePath;
   const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
+  const structuredCsvExport = useMemo(() => usesStructuredCsvExport(options), [options]);
   const diagnosticCommand = useMemo(
     () => buildDiagnosticCommand(executablePath, options),
     [executablePath, options],
@@ -227,8 +229,8 @@ function App() {
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
   const preflight = useMemo(
-    () => buildExportPreflightSummary(diagnostics, dryRun),
-    [diagnostics, dryRun],
+    () => buildExportPreflightSummary(diagnostics, dryRun, !structuredCsvExport),
+    [diagnostics, dryRun, structuredCsvExport],
   );
   const permissionGuide = useMemo(
     () => buildPermissionGuide(snapshot, options, outputAccess),
@@ -618,6 +620,11 @@ function App() {
         ...command,
         eventId,
         outputPath: options.outputPath,
+        platform: options.platform,
+        sourcePath: options.databasePath,
+        startDate: options.startDate,
+        endDate: options.endDate,
+        conversationFilter: options.conversationFilter,
         backupPassword:
           options.platform === "iOS" && options.encryptedBackup ? backupPassword : undefined,
       });
@@ -938,7 +945,7 @@ function App() {
               </div>
               <div className="status-cluster">
                 <BadgeCheck aria-hidden="true" />
-                <span>{probe.found ? "Helper ready" : setupLabel}</span>
+                <span>{probe.found ? "Helper ready" : structuredCsvExport ? "CSV ready" : setupLabel}</span>
               </div>
             </div>
           </header>
@@ -946,7 +953,7 @@ function App() {
           <section className="status-strip" aria-label="Workspace status">
             <div>
               <span>Export tool</span>
-              <strong>{probe.found ? "Ready" : "Needs setup"}</strong>
+              <strong>{probe.found ? "Ready" : structuredCsvExport ? "Optional for CSV" : "Needs setup"}</strong>
             </div>
             <div>
               <span>iPhone backup</span>
@@ -979,6 +986,7 @@ function App() {
                 <QuickStartPanel
                   canPrepareExporter={Boolean(selectedAsset)}
                   exporterFound={probe.found}
+                  exporterRequired={!structuredCsvExport}
                   installActionLabel={installActionLabel}
                   installingExporter={installingExporter}
                   onGoExport={() => setActivePage("export")}
@@ -1122,6 +1130,7 @@ function NavButton({
 function QuickStartPanel({
   canPrepareExporter,
   exporterFound,
+  exporterRequired,
   installActionLabel,
   installingExporter,
   onGoExport,
@@ -1134,6 +1143,7 @@ function QuickStartPanel({
 }: {
   canPrepareExporter: boolean;
   exporterFound: boolean;
+  exporterRequired: boolean;
   installActionLabel: string;
   installingExporter: boolean;
   onGoExport: () => void;
@@ -1148,14 +1158,16 @@ function QuickStartPanel({
   const steps = [
     {
       number: 1,
-      title: "Install export tool",
+      title: exporterRequired ? "Install export tool" : "CSV reader ready",
       detail: exporterFound
         ? "The local export tool is ready."
-        : "ChatExportMate installs the local tool it uses to turn your backup into files.",
-      state: exporterFound ? "passed" : "action",
-      actionLabel: exporterFound ? "Ready" : installingExporter ? "Setting up" : installActionLabel,
+        : exporterRequired
+          ? "ChatExportMate installs the local tool it uses to turn your backup into files."
+          : "Finance CSV uses ChatExportMate's built-in local database reader. Install the export tool later for HTML, text, or transcript-line CSV.",
+      state: exporterFound || !exporterRequired ? "passed" : "action",
+      actionLabel: exporterFound || !exporterRequired ? "Ready" : installingExporter ? "Setting up" : installActionLabel,
       onAction: onInstallExporter,
-      disabled: exporterFound || !canPrepareExporter || installingExporter,
+      disabled: exporterFound || !exporterRequired || !canPrepareExporter || installingExporter,
       icon: DownloadCloud,
     },
     {

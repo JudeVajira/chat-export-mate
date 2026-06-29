@@ -1,4 +1,6 @@
-import type { ExportOptions, ExportPreferences } from "./types";
+import type { CsvExportLayout, ExportOptions, ExportPreferences } from "./types";
+
+const defaultCsvLayout: CsvExportLayout = "spenlioCombined";
 
 export function createExportPreferences(
   options: ExportOptions,
@@ -81,6 +83,7 @@ function normalizeExportOptions(options: ExportOptions): ExportOptions {
     endDate: options.endDate ?? "",
     conversationFilter: options.conversationFilter ?? "",
     customName: options.customName ?? "",
+    csvLayout: normalizeCsvLayout(options.csvLayout),
     useCallerId: options.useCallerId,
     noLazyImages: options.noLazyImages,
     ignoreDiskWarning: options.ignoreDiskWarning,
@@ -127,6 +130,7 @@ function coerceExportOptions(value: Record<string, unknown>): ExportOptions | nu
     endDate: optionalString(value.endDate),
     conversationFilter: optionalString(value.conversationFilter),
     customName: optionalString(value.customName),
+    csvLayout: normalizeCsvLayout(value.csvLayout),
     useCallerId: value.useCallerId,
     noLazyImages: value.noLazyImages,
     ignoreDiskWarning: value.ignoreDiskWarning,
@@ -136,6 +140,12 @@ function coerceExportOptions(value: Record<string, unknown>): ExportOptions | nu
 
 function optionalString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function normalizeCsvLayout(value: unknown): CsvExportLayout {
+  return value === "spenlioBySender" || value === "transcriptLines"
+    ? value
+    : defaultCsvLayout;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

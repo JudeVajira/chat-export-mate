@@ -1,6 +1,6 @@
 # ChatExportMate
 
-ChatExportMate is a local-first desktop companion for [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter). It does not parse iMessage data itself; it helps users install, configure, run, update, and troubleshoot the upstream exporter through a guided desktop UI.
+ChatExportMate is a local-first desktop companion for [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter). It helps users install, configure, run, update, and troubleshoot the upstream exporter through a guided desktop UI. Its Spenlio-compatible CSV mode is an app-owned feature inspired by the upstream project and uses ReagentX libraries to read local Messages database fields safely.
 
 ChatExportMate is intended only as a desktop app. This repository does not target a hosted web app or a mobile app.
 
@@ -137,7 +137,7 @@ When choosing manually, select the device-specific folder inside the `Backup` di
 
 Apple's backup guide is linked from the source guide: <https://support.apple.com/en-us/108967>.
 
-Encrypted iPhone backups are supported through an in-app password prompt. The backup password is used only for the current export, is not saved to preferences, is not written to logs or support bundles, and is not passed as a command-line argument. ChatExportMate sends it to `imessage-exporter` through the helper process stdin prompt instead of using `--cleartext-password`.
+Encrypted iPhone backups are supported through an in-app password prompt. The backup password is used only for the current export, is not saved to preferences, is not written to logs or support bundles, and is not passed as a command-line argument. Finance CSV unlocks the backup inside the desktop backend and loads the decrypted Messages database into an in-memory SQLite connection. HTML, Text, diagnostics, and legacy transcript-line CSV still use `imessage-exporter`; when those modes need the password, ChatExportMate sends it through the helper process stdin prompt instead of using `--cleartext-password`.
 
 In all cases, use **Check access** to verify the export destination before starting.
 
@@ -145,13 +145,23 @@ The Windows development harness cannot verify Apple privacy permissions; it keep
 
 Configuration problems are shown both in preflight summaries and next to the form fields that need correction, so users do not need to inspect the generated command to understand what to fix.
 
-When an export is blocked only because the export tool is missing, the Export panel offers **Install export tool** as the primary preflight action. That action uses the managed installer, verifies the downloaded `imessage-exporter` binary, activates it, and returns users to the same guided export flow.
+For export modes that need the external export tool, when an export is blocked only because that tool is missing, the Export panel offers **Install export tool** as the primary preflight action. That action uses the managed installer, verifies the downloaded `imessage-exporter` binary, activates it, and returns users to the same guided export flow.
 
-HTML and Text are passed through to the upstream exporter. CSV is owned by ChatExportMate: the app runs the upstream text export, then creates `chatexportmate-export.csv` from the generated text transcripts. The first CSV version is line-based with `transcript_file`, `line_number`, and `text` columns.
+HTML and Text are passed through to the upstream exporter. CSV is owned by ChatExportMate:
+
+- **One finance CSV**: default Spenlio-compatible output at `spenlio-sms-export.csv` with `sender`, `received_at`, `message_id`, and `message` columns. ChatExportMate reads the local Messages database through ReagentX libraries, uses Apple's `message.guid` when available, falls back to the SQLite message row ID when the GUID is blank, and skips phone-number conversations plus the user's own sent messages.
+- **One CSV per sender**: writes `spenlio-sms-export-by-sender/` with one CSV per named business sender using the same four columns and the same Apple-backed message IDs.
+- **Transcript lines**: legacy row-per-line output at `chatexportmate-transcript-lines.csv` with `transcript_file`, `line_number`, and `text` columns. This layout runs the upstream text export first and converts the generated text transcripts locally.
+
+The finance CSV layouts do not require the external `imessage-exporter` executable to be installed, because the desktop app reads the selected local Messages source directly through bundled ReagentX libraries. HTML, Text, diagnostics, and legacy transcript-line CSV still use the upstream executable.
+
+For encrypted backup finance CSV, the decrypted Messages database is not written to a temp file. It is streamed into an in-memory SQLite connection for the current export and released when the run finishes.
+
+Only the legacy transcript-line conversion uses generated row-style IDs, because plain text transcripts do not reliably carry the database message identifier.
 
 ## Export Runs And Logs
 
-When the user starts an export, the desktop app executes the selected `imessage-exporter` binary through the desktop backend. Each export attempt captures local troubleshooting details:
+When the user starts an export, the desktop app either runs the selected `imessage-exporter` binary through the desktop backend or uses the built-in structured CSV reader for finance CSV. Each export attempt captures local troubleshooting details:
 
 - command details
 - stdout
@@ -185,17 +195,31 @@ pnpm build
 
 `pnpm build` runs TypeScript checks and creates the Vite production bundle. A full desktop package requires Rust/Cargo through the Tauri CLI.
 
+Rust tests can be run with:
+
+```powershell
+cargo test --manifest-path src-tauri\Cargo.toml
+```
+
+There is also an ignored local-only smoke test for a real iPhone backup. It writes sensitive CSV output, so only run it with a backup you own and an output folder outside the repository:
+
+```powershell
+$env:CHAT_EXPORT_MATE_REAL_BACKUP_PATH = "path\to\device-backup-folder"
+$env:CHAT_EXPORT_MATE_REAL_OUTPUT_PATH = "path\outside\the\repo"
+cargo test --manifest-path src-tauri\Cargo.toml local_iphone_backup_structured_csv_smoke_export -- --ignored
+```
+
 ## Project Principles
 
 - Keep all message data local.
-- Do not reimplement `imessage-exporter` parsing behavior.
+- Do not reimplement general `imessage-exporter` behavior. Keep app-owned format work narrow, local-first, and covered by focused tests.
 - Use dynamic GitHub release discovery rather than hardcoded exporter versions.
 - Keep command generation, diagnostics, release parsing, and error translation independently testable.
 - Treat Windows as the current development platform while isolating platform-specific behavior for future macOS support.
 
 ## Attribution And License
 
-ChatExportMate wraps and attributes [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter), which is licensed under GPL-3.0. This project is intended to remain GPL-3.0 compatible.
+ChatExportMate wraps and attributes [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter), which is licensed under GPL-3.0. The Spenlio-compatible CSV path also uses ReagentX's GPL-3.0-or-later Rust libraries for Messages database access and encrypted backup handling. This project is intended to remain GPL-3.0 compatible.
 
 The app includes an **About / Privacy and license** section that summarizes
 the local-first privacy model, upstream attribution, and GPL status for users.

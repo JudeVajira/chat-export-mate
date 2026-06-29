@@ -2,8 +2,13 @@
 
 ChatExportMate is a graphical desktop companion for
 [ReagentX/imessage-exporter](https://github.com/ReagentX/imessage-exporter).
-The upstream exporter remains the source of truth for iMessage parsing,
-diagnostics, and export behavior.
+The upstream exporter remains the source of truth for diagnostics and the main
+HTML/Text export behavior.
+
+The Spenlio-compatible CSV feature is an app-owned export path inspired by the
+upstream project. It uses ReagentX Rust libraries to read local Messages
+database fields so ChatExportMate can preserve Apple message identifiers where
+the database exposes them.
 
 ## Upstream Project
 
@@ -12,8 +17,9 @@ diagnostics, and export behavior.
 - License: GPL-3.0
 
 ChatExportMate discovers, downloads, configures, executes, and presents results
-from `imessage-exporter`; it does not reimplement the exporter or include an
-alternative message parser.
+from `imessage-exporter`. It does not try to be a replacement Messages exporter;
+format-specific features should stay narrow, local-first, and attributed to the
+upstream ecosystem they build on.
 
 ## ChatExportMate License
 

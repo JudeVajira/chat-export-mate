@@ -49,12 +49,12 @@ const definitions: Record<RunOperationKind, RunProgressDefinition> = {
   },
   export: {
     title: "Running export",
-    detail: "ChatExportMate is handing the configured export to imessage-exporter.",
+    detail: "ChatExportMate is creating the configured local export.",
     steps: [
       {
         id: "preflight",
         label: "Review setup",
-        detail: "Confirm the exporter, configuration, permissions, and destination are ready.",
+        detail: "Confirm the selected source, configuration, permissions, and destination are ready.",
       },
       {
         id: "output-access",
@@ -63,8 +63,8 @@ const definitions: Record<RunOperationKind, RunProgressDefinition> = {
       },
       {
         id: "run-exporter",
-        label: "Run exporter",
-        detail: "Let imessage-exporter read the local source and write the export.",
+        label: "Create export",
+        detail: "Read the local source and write the selected output files.",
       },
       {
         id: "save-log",
