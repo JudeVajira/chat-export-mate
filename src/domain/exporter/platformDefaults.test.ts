@@ -11,6 +11,7 @@ const baseOptions: ExportOptions = {
   platform: "macOS",
   outputPath: "~/imessage_export",
   databasePath: "",
+  encryptedBackup: false,
   attachmentRoot: "/Users/me/Library/Messages/Attachments",
   copyMethod: "full",
   startDate: "",

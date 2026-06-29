@@ -7,6 +7,7 @@ export const defaultExportOptions: ExportOptions = {
   platform: "macOS",
   outputPath: "~/imessage_export",
   databasePath: "",
+  encryptedBackup: false,
   attachmentRoot: "",
   copyMethod: "full",
   startDate: "",

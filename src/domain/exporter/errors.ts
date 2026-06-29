@@ -25,13 +25,13 @@ const rules: ErrorRule[] = [
     },
   },
   {
-    pattern: /encrypted.*backup|password/i,
+    pattern: /encrypted.*backup|password|decrypt|decryption|unlock/i,
     error: {
-      title: "Encrypted backup needs a password",
-      explanation: "The selected iPhone backup is encrypted, and this alpha app does not collect backup passwords yet.",
-      likelyCause: "Encrypted iPhone backups require a password. ChatExportMate currently runs the helper without an interactive password prompt.",
+      title: "Backup could not be unlocked",
+      explanation: "The backup password did not work, or the backup could not be unlocked. Re-enter the password and try again.",
+      likelyCause: "The selected iPhone backup is encrypted, the password was mistyped, or the backup data could not be decrypted.",
       suggestedFix:
-        "Create a new unencrypted local backup in Apple Devices, then choose that backup folder in ChatExportMate.",
+        "Turn on My backup is encrypted, enter the backup password for this export, and run the export again.",
     },
   },
   {

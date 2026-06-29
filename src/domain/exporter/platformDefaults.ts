@@ -25,6 +25,7 @@ export function alignSourcePlatformToHost(
   return {
     ...options,
     platform: nextPlatform,
+    encryptedBackup: nextPlatform === "iOS" ? options.encryptedBackup : false,
     attachmentRoot: nextPlatform === "iOS" ? "" : options.attachmentRoot,
   };
 }

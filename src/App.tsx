@@ -74,6 +74,7 @@ import type {
   ExportPlatform,
   ExporterProbe,
   ExporterRelease,
+  IphoneBackupCandidate,
   ManagedExporterState,
   OutputAccessCheck,
   ProcessOutputEvent,
@@ -93,6 +94,7 @@ import {
   getSystemSnapshot,
   getStoredLogDetail,
   installLatestExporter,
+  listIphoneBackups,
   listExporterLogs,
   loadExportPreferences,
   openLocalPath,
@@ -141,6 +143,7 @@ const pageLabels: Record<AppPage, { title: string; kicker: string; description: 
 function App() {
   const [activePage, setActivePage] = useState<AppPage>("setup");
   const [options, setOptions] = useState(defaultExportOptions);
+  const [backupPassword, setBackupPassword] = useState("");
   const [sourceGuideOpen, setSourceGuideOpen] = useState(false);
   const [dryRun] = useState(false);
   const [checkingRelease, setCheckingRelease] = useState(false);
@@ -154,6 +157,7 @@ function App() {
   const [creatingSupportBundle, setCreatingSupportBundle] = useState(false);
   const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
   const [loadingLogDetail, setLoadingLogDetail] = useState(false);
+  const [loadingBackupCandidates, setLoadingBackupCandidates] = useState(false);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [release, setRelease] = useState<ExporterRelease | null>(null);
   const [managedState, setManagedState] = useState<ManagedExporterState>({
@@ -180,6 +184,7 @@ function App() {
   });
   const [logs, setLogs] = useState<LogEntry[]>([...initialLogEntries]);
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
+  const [backupCandidates, setBackupCandidates] = useState<IphoneBackupCandidate[]>([]);
   const [selectedLogDetail, setSelectedLogDetail] = useState<StoredLogDetail | null>(null);
   const [latestRunSummary, setLatestRunSummary] = useState<RunSummary | null>(null);
   const [runProgress, setRunProgress] = useState<RunProgress | null>(null);
@@ -196,7 +201,11 @@ function App() {
     () => buildDiagnosticCommand(executablePath, options),
     [executablePath, options],
   );
-  const issues = useMemo(() => validateExportOptions(executablePath, options), [executablePath, options]);
+  const runtimeSecrets = useMemo(() => ({ backupPassword }), [backupPassword]);
+  const issues = useMemo(
+    () => validateExportOptions(executablePath, options, runtimeSecrets),
+    [executablePath, options, runtimeSecrets],
+  );
   const issueMap = useMemo(() => groupValidationIssues(issues), [issues]);
   const target = useMemo(() => detectRuntimeTarget(snapshot), [snapshot]);
   const selectedAsset = useMemo(() => (release ? selectBestAsset(release, target) : null), [release, target]);
@@ -211,8 +220,9 @@ function App() {
         options,
         managedState,
         outputAccess,
+        runtimeSecrets,
       ),
-    [executablePath, managedState, options, outputAccess, probe, release, snapshot, target],
+    [executablePath, managedState, options, outputAccess, probe, release, runtimeSecrets, snapshot, target],
   );
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
@@ -304,7 +314,12 @@ function App() {
     const startupOptions = await restoreExportPreferences(startupSnapshot);
     const healthCheckPromise = refreshHealthChecks(startupOptions.outputPath, startupSnapshot);
     const releasePromise = refreshLatestRelease(false);
-    await Promise.all([healthCheckPromise, releasePromise, refreshStoredLogs(false)]);
+    await Promise.all([
+      healthCheckPromise,
+      releasePromise,
+      refreshStoredLogs(false),
+      refreshIphoneBackups(false),
+    ]);
     announceStartupReleaseStatus(await healthCheckPromise, await releasePromise);
     setPreferencesLoaded(true);
   }
@@ -603,6 +618,8 @@ function App() {
         ...command,
         eventId,
         outputPath: options.outputPath,
+        backupPassword:
+          options.platform === "iOS" && options.encryptedBackup ? backupPassword : undefined,
       });
       progress = advanceRunProgress(progress, "save-log");
       setRunProgress(progress);
@@ -630,6 +647,9 @@ function App() {
       addLog("error", summary.message);
     } finally {
       stopProcessOutput(eventId);
+      if (options.encryptedBackup) {
+        setBackupPassword("");
+      }
       setIsExporting(false);
     }
   }
@@ -667,6 +687,7 @@ function App() {
 
   function openSourceGuide() {
     setSourceGuideOpen(true);
+    void refreshIphoneBackups(false);
   }
 
   async function pickIphoneBackupSource() {
@@ -687,8 +708,27 @@ function App() {
       (current) => ({
         ...current,
         platform,
+        encryptedBackup: platform === "iOS" ? current.encryptedBackup : false,
         attachmentRoot: platform === "iOS" ? "" : current.attachmentRoot,
       }),
+    );
+  }
+
+  function chooseDetectedIphoneBackup(candidate: IphoneBackupCandidate) {
+    const selectedPath = candidate.resolvedPath ?? candidate.path;
+    setBackupPassword("");
+    setOptions((current) => ({
+      ...current,
+      platform: "iOS",
+      databasePath: selectedPath,
+      attachmentRoot: "",
+    }));
+    setSourceGuideOpen(false);
+    addLog(
+      "info",
+      candidate.relocated
+        ? "iPhone backup selected from a relocated Apple backup folder."
+        : "iPhone backup selected from Apple's standard backup location.",
     );
   }
 
@@ -708,6 +748,9 @@ function App() {
         return;
       }
 
+      if (field === "databasePath") {
+        setBackupPassword("");
+      }
       setOptions((current) => ({
         ...(updateBeforeSave ? updateBeforeSave(current) : current),
         [field]: selectedPath,
@@ -715,6 +758,28 @@ function App() {
       addLog("info", message);
     } catch (error) {
       addLog("warn", error instanceof Error ? error.message : "Could not open the file picker.");
+    }
+  }
+
+  async function refreshIphoneBackups(announce = true) {
+    setLoadingBackupCandidates(true);
+    try {
+      const nextCandidates = await listIphoneBackups();
+      setBackupCandidates(nextCandidates);
+      if (announce) {
+        addLog(
+          nextCandidates.length > 0 ? "info" : "warn",
+          nextCandidates.length > 0
+            ? `Found ${nextCandidates.length} local iPhone backup${nextCandidates.length === 1 ? "" : "s"}.`
+            : "No local iPhone backups were found in Apple's standard folders.",
+        );
+      }
+    } catch (error) {
+      if (announce) {
+        addLog("warn", error instanceof Error ? error.message : "Could not scan for iPhone backups.");
+      }
+    } finally {
+      setLoadingBackupCandidates(false);
     }
   }
 
@@ -752,6 +817,20 @@ function App() {
     } finally {
       setCheckingOutputAccess(false);
     }
+  }
+
+  function handleOptionsChange(nextOptions: ExportOptions) {
+    if (shouldClearBackupPassword(options, nextOptions)) {
+      setBackupPassword("");
+    }
+    setOptions(nextOptions);
+  }
+
+  function handleEncryptedBackupChange(encryptedBackup: boolean) {
+    handleOptionsChange({
+      ...options,
+      encryptedBackup,
+    });
   }
 
   async function openStoredLog(log: StoredLogEntry) {
@@ -866,15 +945,15 @@ function App() {
 
           <section className="status-strip" aria-label="Workspace status">
             <div>
-              <span>Message reader</span>
+              <span>Export tool</span>
               <strong>{probe.found ? "Ready" : "Needs setup"}</strong>
             </div>
             <div>
-              <span>Backup folder</span>
-              <strong>{options.databasePath ? "Selected" : "Not chosen"}</strong>
+              <span>iPhone backup</span>
+              <strong>{options.databasePath ? "Selected" : "Not selected"}</strong>
             </div>
             <div>
-              <span>Save folder</span>
+              <span>Export location</span>
               <strong>{outputAccess.writable ? "Ready" : "Choose folder"}</strong>
             </div>
             <StatusPill
@@ -919,11 +998,13 @@ function App() {
               <div className="main-stack">
                 <ExportConfigurator
                   checkingOutputAccess={checkingOutputAccess}
+                  backupPassword={backupPassword}
                   isPreparingExporter={installingExporter}
                   isRunning={isExporting}
                   issueMap={issueMap}
+                  onBackupPasswordChange={setBackupPassword}
                   onCheckOutputAccess={checkCurrentOutputAccess}
-                  onChange={setOptions}
+                  onChange={handleOptionsChange}
                   onOpenOutput={openExportFolder}
                   onPrepareExporter={installOrUpdateExporter}
                   onPickAttachmentRoot={pickAttachmentRoot}
@@ -990,13 +1071,27 @@ function App() {
       </main>
       {sourceGuideOpen ? (
         <SourceGuideDialog
+          backupCandidates={backupCandidates}
+          encryptedBackup={options.encryptedBackup}
+          loadingBackupCandidates={loadingBackupCandidates}
+          onChooseDetectedIphoneBackup={chooseDetectedIphoneBackup}
           onChooseIphoneBackup={pickIphoneBackupSource}
           onChooseMacDatabase={pickMacMessagesSource}
           onClose={() => setSourceGuideOpen(false)}
+          onEncryptedBackupChange={handleEncryptedBackupChange}
+          onRefreshBackups={() => void refreshIphoneBackups()}
           showMacSourceChoice={showMacSourceChoice}
         />
       ) : null}
     </>
+  );
+}
+
+function shouldClearBackupPassword(previousOptions: ExportOptions, nextOptions: ExportOptions): boolean {
+  return (
+    previousOptions.platform !== nextOptions.platform ||
+    previousOptions.databasePath !== nextOptions.databasePath ||
+    previousOptions.encryptedBackup !== nextOptions.encryptedBackup
   );
 }
 
@@ -1049,14 +1144,14 @@ function QuickStartPanel({
   platform: string;
   sourceSelected: boolean;
 }) {
-  const sourceLabel = platform === "iOS" ? "iPhone backup folder" : "Messages source";
+  const sourceLabel = platform === "iOS" ? "iPhone backup" : "Messages source";
   const steps = [
     {
       number: 1,
-      title: "Set up message reader",
+      title: "Install export tool",
       detail: exporterFound
-        ? "The local message reader is ready."
-        : "ChatExportMate installs the local message reader it uses to turn your backup into files.",
+        ? "The local export tool is ready."
+        : "ChatExportMate installs the local tool it uses to turn your backup into files.",
       state: exporterFound ? "passed" : "action",
       actionLabel: exporterFound ? "Ready" : installingExporter ? "Setting up" : installActionLabel,
       onAction: onInstallExporter,
@@ -1065,7 +1160,7 @@ function QuickStartPanel({
     },
     {
       number: 2,
-      title: "Find your messages",
+      title: platform === "iOS" ? "Choose your iPhone backup" : "Choose message source",
       detail: sourceSelected
         ? `${sourceLabel} selected.`
         : "Create or choose the local iPhone backup that contains the messages you want to save.",
@@ -1077,7 +1172,7 @@ function QuickStartPanel({
     },
     {
       number: 3,
-      title: "Choose output folder",
+      title: "Choose export location",
       detail: outputReady
         ? "The selected export folder can accept saved files."
         : "Pick where ChatExportMate should save the exported files.",
@@ -1099,6 +1194,7 @@ function QuickStartPanel({
     },
   ] as const;
   const currentStep = steps.find((step) => step.state !== "passed")?.number ?? 4;
+  const currentStepTitle = steps.find((step) => step.number === currentStep)?.title ?? "current step";
 
   return (
     <section className="panel quick-start-panel" aria-labelledby="quick-start-title">
@@ -1119,6 +1215,7 @@ function QuickStartPanel({
           const StateIcon = step.state === "passed" ? CheckCircle2 : CircleAlert;
           const isCurrent = step.number === currentStep;
           const isLocked = step.number > currentStep;
+          const actionLabel = isLocked ? `${currentStepTitle} first` : step.actionLabel;
           return (
             <article
               className={`quick-step quick-step--${step.state} ${isCurrent ? "is-current" : ""} ${isLocked ? "is-locked" : ""}`}
@@ -1139,11 +1236,11 @@ function QuickStartPanel({
               </div>
               <button
                 className={`button ${isCurrent ? "button--primary" : "button--secondary"} button--compact`}
-                disabled={step.disabled}
+                disabled={step.disabled || isLocked}
                 onClick={step.onAction}
                 type="button"
               >
-                {step.actionLabel}
+                {actionLabel}
               </button>
             </article>
           );

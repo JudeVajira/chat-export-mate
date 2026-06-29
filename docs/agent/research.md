@@ -13,6 +13,8 @@ sources:
   - https://tailwindcss.com/docs/installation/using-vite
   - https://support.apple.com/guide/mac-help/change-privacy-security-settings-on-mac-mchl211c911f/mac
   - https://support.apple.com/en-us/108967
+  - https://support.apple.com/en-us/108809
+  - https://discussions.apple.com/docs/DOC-7392#relocate
   - https://github.com/ReagentX/imessage-exporter
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/LICENSE
   - https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
@@ -53,6 +55,16 @@ related:
   Why it matters: Confirms beginner-facing local iPhone backup guidance, including Windows Apple Devices/iTunes backup flow, Trust This Computer, encrypted backup option, Back Up Now, and locating backups through Manage Backups / Show in Explorer.
   Last checked: 2026-06-28 22:28 +05:30
 
+- Title: Apple Support - Locate iPhone backups
+  URL: https://support.apple.com/en-us/108809
+  Why it matters: Confirms the current Apple-supported entry points for locating local iPhone backup folders on Windows and macOS. ChatExportMate uses these as the default scan roots before asking users to browse manually.
+  Last checked: 2026-06-29 12:23 +05:30
+
+- Title: Apple Community - Locate backups and relocate iOS device backups
+  URL: https://discussions.apple.com/docs/DOC-7392#relocate
+  Why it matters: Gives the repo-relevant relocation pattern: move the default MobileSync Backup folder and replace it with a filesystem link, so scanning Apple's default path can still find backups when the link is intact.
+  Last checked: 2026-06-29 12:23 +05:30
+
 - Title: ReagentX/imessage-exporter
   URL: https://github.com/ReagentX/imessage-exporter
   Why it matters: Upstream exporter project that ChatExportMate wraps and attributes.
@@ -66,8 +78,8 @@ related:
 - Title: imessage-exporter binary documentation
   URL: https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
   Why it matters: Source for supported CLI flags, formats, platform/source arguments, diagnostics, and examples used by command generation.
-  Last checked: 2026-06-29 11:37 +05:30
-  Notes: Rechecked iOS backup handling. Upstream documents encrypted backup support through `--cleartext-password` or an interactive password prompt, but ChatExportMate alpha does not yet provide a safe password prompt or stdin flow, so beginner guidance should stay on unencrypted local backups.
+  Last checked: 2026-06-29 13:02 +05:30
+  Notes: Rechecked iOS backup handling. Upstream documents encrypted backup support through `--cleartext-password` or an interactive password prompt. ChatExportMate uses the prompt path by piping the current-run password through stdin and must not use `--cleartext-password` in the normal app flow.
 
 - Title: imessage-exporter releases
   URL: https://github.com/ReagentX/imessage-exporter/releases

@@ -21,6 +21,7 @@ const macOptions: ExportOptions = {
   platform: "macOS",
   outputPath: "C:/exports",
   databasePath: "",
+  encryptedBackup: false,
   attachmentRoot: "",
   copyMethod: "full",
   startDate: "",

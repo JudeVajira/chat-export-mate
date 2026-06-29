@@ -5,14 +5,14 @@ export function getInstallActionLabel(
   updateAvailable: boolean,
 ): string {
   if (!probe.found) {
-    return "Set up reader";
+    return "Install export tool";
   }
 
   if (probe.source === "custom" || probe.source === "path") {
     return updateAvailable ? "Install managed update" : "Install managed copy";
   }
 
-  return updateAvailable ? "Update reader" : "Reinstall reader";
+  return updateAvailable ? "Update tool" : "Reinstall tool";
 }
 
 export function getReleaseStatusLabel(

@@ -70,13 +70,21 @@ export function coerceExportPreferences(value: unknown): ExportPreferences | nul
 
 function normalizeExportOptions(options: ExportOptions): ExportOptions {
   return {
-    ...options,
+    format: options.format,
+    platform: options.platform,
+    outputPath: options.outputPath,
     databasePath: options.databasePath ?? "",
+    encryptedBackup: options.encryptedBackup ?? false,
     attachmentRoot: options.attachmentRoot ?? "",
+    copyMethod: options.copyMethod,
     startDate: options.startDate ?? "",
     endDate: options.endDate ?? "",
     conversationFilter: options.conversationFilter ?? "",
     customName: options.customName ?? "",
+    useCallerId: options.useCallerId,
+    noLazyImages: options.noLazyImages,
+    ignoreDiskWarning: options.ignoreDiskWarning,
+    noProgress: options.noProgress,
   };
 }
 
@@ -89,6 +97,11 @@ function coerceExportOptions(value: Record<string, unknown>): ExportOptions | nu
       value.copyMethod !== "basic" &&
       value.copyMethod !== "full")
   ) {
+    return null;
+  }
+
+  const encryptedBackup = value.encryptedBackup ?? false;
+  if (typeof encryptedBackup !== "boolean") {
     return null;
   }
 
@@ -107,6 +120,7 @@ function coerceExportOptions(value: Record<string, unknown>): ExportOptions | nu
     platform: value.platform,
     outputPath: value.outputPath,
     databasePath: optionalString(value.databasePath),
+    encryptedBackup,
     attachmentRoot: optionalString(value.attachmentRoot),
     copyMethod: value.copyMethod,
     startDate: optionalString(value.startDate),

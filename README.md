@@ -117,17 +117,27 @@ The app is being shaped around a beginner-friendly wizard:
 3. Choose the output folder.
 4. Pick HTML, Text, or CSV and start the export.
 
-The source guide starts with plain choices:
+The source guide starts with task-based choices:
 
-- **I only have an iPhone**: install or open Apple Devices on Windows, connect the iPhone by USB, trust the computer, choose a local backup to this computer, choose **Don't Encrypt** if Apple asks about encryption, then use **Back Up Now** and **Manage Backups > Show in Explorer** to find the backup folder.
-- **I already made a backup**: choose the local iPhone backup folder directly. If that backup is encrypted, create a new unencrypted local backup for this alpha version.
+- **I need to create a backup**: install or open Apple Devices on Windows, connect the iPhone by USB, trust the computer, choose a local backup to this computer, then use **Back Up Now** and **Manage Backups > Show in Explorer** to find the backup folder. Leaving encryption off is the simplest beginner path, but encrypted backups are supported when you know the backup password.
+- **I already created a backup**: let ChatExportMate scan Apple's standard local backup folders, or choose the local iPhone backup folder directly. If that backup needs a password, turn on **My backup is encrypted** before exporting.
 - **I am on the Mac with Messages**: shown on macOS, where local Messages data can be exported. Grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before choosing `chat.db` or using the default Mac Messages location.
 
 On Windows, ChatExportMate defaults the source flow to **iPhone backup** and does not ask users to choose a Mac Messages source. If saved preferences contain no selected source path, the app aligns the source type to the detected operating system on startup.
 
+For iPhone backups, ChatExportMate checks the standard Apple backup folders for child folders that look like real iOS backups:
+
+- Apple Devices or Microsoft Store iTunes on Windows: `%USERPROFILE%\Apple\MobileSync\Backup`
+- Older desktop iTunes on Windows: `%AppData%\Apple Computer\MobileSync\Backup`
+- Finder or Apple Devices on macOS: `~/Library/Application Support/MobileSync/Backup`
+
+If a user relocated backups by moving the default `Backup` folder and replacing it with a junction or symlink, ChatExportMate follows the filesystem link and marks the found backup as relocated. If backups were moved without leaving a link at Apple's default location, use **Choose manually** in the source guide.
+
+When choosing manually, select the device-specific folder inside the `Backup` directory, not the parent `Backup` directory itself. The right folder normally contains `Manifest.db`, `Manifest.plist`, `Info.plist`, `Status.plist`, and many numbered subfolders. Treat backup folders as sensitive local data: do not upload them or share their contents when asking for support.
+
 Apple's backup guide is linked from the source guide: <https://support.apple.com/en-us/108967>.
 
-Upstream `imessage-exporter` supports encrypted iOS backups when a password is supplied, but ChatExportMate alpha does not yet provide a safe password prompt or stdin flow. The beginner path intentionally guides users to an unencrypted local backup.
+Encrypted iPhone backups are supported through an in-app password prompt. The backup password is used only for the current export, is not saved to preferences, is not written to logs or support bundles, and is not passed as a command-line argument. ChatExportMate sends it to `imessage-exporter` through the helper process stdin prompt instead of using `--cleartext-password`.
 
 In all cases, use **Check access** to verify the export destination before starting.
 
@@ -135,7 +145,7 @@ The Windows development harness cannot verify Apple privacy permissions; it keep
 
 Configuration problems are shown both in preflight summaries and next to the form fields that need correction, so users do not need to inspect the generated command to understand what to fix.
 
-When an export is blocked only because the message reader is missing, the Export panel offers **Set up reader** as the primary preflight action. That action uses the managed installer, verifies the downloaded `imessage-exporter` binary, activates it, and returns users to the same guided export flow.
+When an export is blocked only because the export tool is missing, the Export panel offers **Install export tool** as the primary preflight action. That action uses the managed installer, verifies the downloaded `imessage-exporter` binary, activates it, and returns users to the same guided export flow.
 
 HTML and Text are passed through to the upstream exporter. CSV is owned by ChatExportMate: the app runs the upstream text export, then creates `chatexportmate-export.csv` from the generated text transcripts. The first CSV version is line-based with `transcript_file`, `line_number`, and `text` columns.
 

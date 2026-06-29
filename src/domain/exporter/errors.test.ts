@@ -16,10 +16,13 @@ describe("translateExporterError", () => {
     expect(error.rawDetails).toBe("totally new upstream failure");
   });
 
-  it("keeps encrypted iPhone backup advice inside the alpha app's supported path", () => {
+  it("keeps encrypted iPhone backup advice inside the supported path", () => {
     const error = translateExporterError("encrypted backup requires password");
 
-    expect(error.title).toBe("Encrypted backup needs a password");
-    expect(error.suggestedFix).toContain("unencrypted local backup");
+    expect(error.title).toBe("Backup could not be unlocked");
+    expect(error.explanation).toBe(
+      "The backup password did not work, or the backup could not be unlocked. Re-enter the password and try again.",
+    );
+    expect(error.suggestedFix).toContain("My backup is encrypted");
   });
 });

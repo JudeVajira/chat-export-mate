@@ -1,10 +1,11 @@
-import type { BuiltCommand, ExportOptions, ValidationIssue } from "./types";
+import type { BuiltCommand, ExportOptions, ExportRuntimeSecrets, ValidationIssue } from "./types";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export function validateExportOptions(
   executablePath: string,
   options: ExportOptions,
+  runtimeSecrets: ExportRuntimeSecrets = {},
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -41,6 +42,13 @@ export function validateExportOptions(
     issues.push({
       field: "databasePath",
       message: "iOS sources should point to an iPhone backup folder, not a chat.db file.",
+    });
+  }
+
+  if (options.platform === "iOS" && options.encryptedBackup && !runtimeSecrets.backupPassword?.trim()) {
+    issues.push({
+      field: "backupPassword",
+      message: "Enter the backup password for this encrypted iPhone backup.",
     });
   }
 

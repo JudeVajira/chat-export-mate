@@ -89,7 +89,7 @@ describe("buildExportPreflightSummary", () => {
       actionLabel: "Finish setup",
       canRunExport: false,
       blockingReasons: [
-        "Set up the message reader so ChatExportMate can read your local backup.",
+        "Install the export tool so ChatExportMate can read your local backup.",
         "Choose an output folder for exported files.",
       ],
     });
@@ -131,7 +131,7 @@ describe("buildExportPreflightSummary", () => {
       actionLabel: "Finish setup",
       recommendedAction: {
         id: "install-exporter",
-        label: "Set up reader",
+        label: "Install export tool",
       },
     });
   });

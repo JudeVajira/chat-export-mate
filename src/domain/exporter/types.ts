@@ -11,6 +11,7 @@ export interface ExportOptions {
   platform: ExportPlatform;
   outputPath: string;
   databasePath?: string;
+  encryptedBackup: boolean;
   attachmentRoot?: string;
   copyMethod: AttachmentCopyMethod;
   startDate?: string;
@@ -38,9 +39,14 @@ export interface BuiltCommand {
   exporterFormat: "html" | "txt";
 }
 
+export interface ExportRuntimeSecrets {
+  backupPassword?: string;
+}
+
 export interface ExportRunRequest extends BuiltCommand {
   eventId?: string;
   outputPath: string;
+  backupPassword?: string;
 }
 
 export interface ExportRunResult {
@@ -121,8 +127,21 @@ export interface SupportBundleResult {
   createdAt: string;
 }
 
+export interface IphoneBackupCandidate {
+  id: string;
+  path: string;
+  resolvedPath?: string | null;
+  rootPath: string;
+  source: string;
+  displayName: string;
+  lastModified?: number | null;
+  relocated: boolean;
+}
+
+export type ValidationIssueField = keyof ExportOptions | "executablePath" | "backupPassword";
+
 export interface ValidationIssue {
-  field: keyof ExportOptions | "executablePath";
+  field: ValidationIssueField;
   message: string;
 }
 

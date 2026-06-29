@@ -18,6 +18,7 @@ import type {
   ManagedActivationResult,
   ManagedExporterState,
   ManagedInstallResult,
+  IphoneBackupCandidate,
   OutputAccessCheck,
   ProcessOutputEvent,
   StoredLogDetail,
@@ -266,6 +267,10 @@ export async function createSupportBundle(): Promise<SupportBundleResult> {
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
+}
+
+export async function listIphoneBackups(): Promise<IphoneBackupCandidate[]> {
+  return invokeWithFallback<IphoneBackupCandidate[]>("list_iphone_backups", []);
 }
 
 export async function openOutputFolder(path: string): Promise<void> {

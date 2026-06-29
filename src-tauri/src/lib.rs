@@ -1,9 +1,9 @@
 use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env, fs,
-    io::{BufRead, BufReader, Cursor, Read},
+    io::{BufRead, BufReader, Cursor, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
@@ -145,6 +145,7 @@ struct ExecuteExporterRequest {
     output_path: String,
     event_id: Option<String>,
     requested_format: Option<String>,
+    backup_password: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -262,6 +263,25 @@ struct SupportBundleResult {
     manifest_path: String,
     log_count: usize,
     created_at: String,
+}
+
+#[derive(Clone)]
+struct IphoneBackupRoot {
+    path: PathBuf,
+    source: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IphoneBackupCandidate {
+    id: String,
+    path: String,
+    resolved_path: Option<String>,
+    root_path: String,
+    source: String,
+    display_name: String,
+    last_modified: Option<u64>,
+    relocated: bool,
 }
 
 #[tauri::command]
@@ -459,9 +479,39 @@ fn save_export_preferences(
 ) -> Result<serde_json::Value, String> {
     let app_data = app.path().app_data_dir().map_err(to_string)?;
     fs::create_dir_all(&app_data).map_err(to_string)?;
-    let content = serde_json::to_string_pretty(&request.preferences).map_err(to_string)?;
+    let mut preferences = request.preferences;
+    remove_sensitive_preference_fields(&mut preferences);
+    let content = serde_json::to_string_pretty(&preferences).map_err(to_string)?;
     fs::write(app_data.join(EXPORT_PREFERENCES_FILE), content).map_err(to_string)?;
-    Ok(request.preferences)
+    Ok(preferences)
+}
+
+fn remove_sensitive_preference_fields(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            map.retain(|key, nested_value| {
+                let keep = !is_sensitive_preference_key(key);
+                if keep {
+                    remove_sensitive_preference_fields(nested_value);
+                }
+                keep
+            });
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                remove_sensitive_preference_fields(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_sensitive_preference_key(key: &str) -> bool {
+    key.chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_lowercase()
+        .contains("password")
 }
 
 fn detect_exporter_probe(app: &AppHandle) -> ExporterProbe {
@@ -504,12 +554,21 @@ fn execute_exporter(
         .event_id
         .clone()
         .unwrap_or_else(|| format!("export-{started_at}"));
+    let backup_password = request
+        .backup_password
+        .as_deref()
+        .filter(|password| !password.is_empty());
+    let redaction_values = backup_password
+        .map(|password| vec![password.to_string()])
+        .unwrap_or_default();
     let mut output = run_process_with_output_events(
         &app,
         &event_id,
         "export",
         &request.executable_path,
         &request.args,
+        backup_password,
+        &redaction_values,
     );
     let completed_at = timestamp_millis();
     let mut csv_path = None;
@@ -614,6 +673,203 @@ fn check_output_access(request: OutputAccessRequest) -> OutputAccessResult {
 }
 
 #[tauri::command]
+fn list_iphone_backups() -> Vec<IphoneBackupCandidate> {
+    discover_iphone_backups()
+}
+
+fn discover_iphone_backups() -> Vec<IphoneBackupCandidate> {
+    let mut candidates = Vec::new();
+    let mut seen_paths = HashSet::new();
+
+    for root in iphone_backup_roots() {
+        collect_iphone_backup_candidates(&root, &mut candidates, &mut seen_paths);
+    }
+
+    candidates.sort_by(|left, right| {
+        right
+            .last_modified
+            .unwrap_or_default()
+            .cmp(&left.last_modified.unwrap_or_default())
+            .then_with(|| left.display_name.cmp(&right.display_name))
+    });
+    candidates
+}
+
+fn iphone_backup_roots() -> Vec<IphoneBackupRoot> {
+    iphone_backup_roots_for(
+        env::var_os("USERPROFILE").map(PathBuf::from),
+        env::var_os("APPDATA").map(PathBuf::from),
+        env::var_os("HOME").map(PathBuf::from),
+        env::consts::OS,
+    )
+}
+
+fn iphone_backup_roots_for(
+    user_profile: Option<PathBuf>,
+    app_data: Option<PathBuf>,
+    home: Option<PathBuf>,
+    os: &str,
+) -> Vec<IphoneBackupRoot> {
+    let mut roots = Vec::new();
+
+    if os == "windows" {
+        if let Some(path) = user_profile {
+            roots.push(IphoneBackupRoot {
+                path: path.join("Apple").join("MobileSync").join("Backup"),
+                source: "Apple Devices or Microsoft Store iTunes".to_string(),
+            });
+        }
+
+        if let Some(path) = app_data {
+            roots.push(IphoneBackupRoot {
+                path: path
+                    .join("Apple Computer")
+                    .join("MobileSync")
+                    .join("Backup"),
+                source: "Older iTunes for Windows".to_string(),
+            });
+        }
+
+        return roots;
+    }
+
+    if os == "macos" {
+        if let Some(path) = home {
+            roots.push(IphoneBackupRoot {
+                path: path
+                    .join("Library")
+                    .join("Application Support")
+                    .join("MobileSync")
+                    .join("Backup"),
+                source: "Finder or Apple Devices on macOS".to_string(),
+            });
+        }
+    }
+
+    roots
+}
+
+fn collect_iphone_backup_candidates(
+    root: &IphoneBackupRoot,
+    candidates: &mut Vec<IphoneBackupCandidate>,
+    seen_paths: &mut HashSet<String>,
+) {
+    if !root.path.is_dir() {
+        return;
+    }
+
+    let Ok(entries) = fs::read_dir(&root.path) else {
+        return;
+    };
+
+    let root_path_text = root.path.to_string_lossy().to_string();
+    let resolved_root = fs::canonicalize(&root.path).ok();
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if !looks_like_ios_backup_directory(&path) {
+            continue;
+        }
+
+        let resolved_path = fs::canonicalize(&path).ok();
+        let dedupe_key = resolved_path
+            .as_ref()
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .to_lowercase();
+        if !seen_paths.insert(dedupe_key) {
+            continue;
+        }
+
+        let relocated = resolved_path
+            .as_ref()
+            .is_some_and(|resolved| !same_filesystem_path_text(&path, resolved))
+            || resolved_root
+                .as_ref()
+                .is_some_and(|resolved| !same_filesystem_path_text(&root.path, resolved));
+        let last_modified = backup_modified_millis(&path);
+        candidates.push(IphoneBackupCandidate {
+            id: resolved_path
+                .as_ref()
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string(),
+            path: path.to_string_lossy().to_string(),
+            resolved_path: resolved_path.map(|path| path.to_string_lossy().to_string()),
+            root_path: root_path_text.clone(),
+            source: root.source.clone(),
+            display_name: backup_display_name(&path),
+            last_modified,
+            relocated,
+        });
+    }
+}
+
+fn looks_like_ios_backup_directory(path: &Path) -> bool {
+    if !path.is_dir() {
+        return false;
+    }
+
+    path.join("Manifest.db").is_file()
+        || (path.join("Info.plist").is_file() && path.join("Manifest.plist").is_file())
+}
+
+fn backup_modified_millis(path: &Path) -> Option<u64> {
+    let mut latest = modified_millis(&fs::metadata(path).ok()?);
+    for marker in [
+        "Manifest.db",
+        "Info.plist",
+        "Manifest.plist",
+        "Status.plist",
+    ] {
+        let marker_modified = fs::metadata(path.join(marker))
+            .ok()
+            .and_then(|metadata| modified_millis(&metadata));
+        latest = latest.max(marker_modified);
+    }
+    latest
+}
+
+fn modified_millis(metadata: &fs::Metadata) -> Option<u64> {
+    metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|duration| duration.as_millis().try_into().ok())
+}
+
+fn backup_display_name(path: &Path) -> String {
+    let folder_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("backup");
+    if folder_name.len() > 14 {
+        let suffix = folder_name
+            .chars()
+            .rev()
+            .take(8)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<String>();
+        return format!("Backup ending {suffix}");
+    }
+
+    format!("Backup {folder_name}")
+}
+
+fn same_filesystem_path_text(left: &Path, right: &Path) -> bool {
+    let left_text = left.to_string_lossy().replace('/', "\\");
+    let right_text = right.to_string_lossy().replace('/', "\\");
+
+    if cfg!(windows) {
+        return left_text.eq_ignore_ascii_case(&right_text);
+    }
+
+    left_text == right_text
+}
+
+#[tauri::command]
 fn run_exporter_diagnostics(
     app: AppHandle,
     request: DiagnosticRunRequest,
@@ -633,6 +889,8 @@ fn run_exporter_diagnostics(
         "diagnostic",
         &request.executable_path,
         &request.args,
+        None,
+        &[],
     );
     let completed_at = timestamp_millis();
 
@@ -665,17 +923,44 @@ fn run_process_with_output_events(
     kind: &str,
     executable_path: &str,
     args: &[String],
+    stdin_line: Option<&str>,
+    redaction_values: &[String],
 ) -> ProcessRunOutput {
-    let mut child = match Command::new(executable_path)
+    run_process_collecting_output(
+        executable_path,
+        args,
+        stdin_line,
+        redaction_values,
+        |stream, line| emit_process_output(app, event_id, kind, stream, line),
+    )
+}
+
+fn run_process_collecting_output<F>(
+    executable_path: &str,
+    args: &[String],
+    stdin_line: Option<&str>,
+    redaction_values: &[String],
+    mut emit_output: F,
+) -> ProcessRunOutput
+where
+    F: FnMut(&str, &str),
+{
+    let mut command = Command::new(executable_path);
+    command
         .args(args)
+        .stdin(if stdin_line.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
+        .stderr(Stdio::piped());
+
+    let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            let stderr = error.to_string();
-            emit_process_output(app, event_id, kind, "stderr", &stderr);
+            let stderr = redact_sensitive_text(&error.to_string(), redaction_values);
+            emit_output("stderr", &stderr);
             return ProcessRunOutput {
                 stdout: String::new(),
                 stderr,
@@ -684,6 +969,35 @@ fn run_process_with_output_events(
             };
         }
     };
+
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+
+    if let Some(stdin_line) = stdin_line {
+        match child.stdin.take() {
+            Some(mut child_stdin) => {
+                if let Err(error) = child_stdin
+                    .write_all(stdin_line.as_bytes())
+                    .and_then(|_| child_stdin.write_all(b"\n"))
+                    .and_then(|_| child_stdin.flush())
+                {
+                    let message =
+                        format!("Could not send backup password to imessage-exporter: {error}");
+                    stderr.push_str(&message);
+                    stderr.push('\n');
+                    emit_output("stderr", &message);
+                }
+            }
+            None => {
+                let message =
+                    "Could not send backup password to imessage-exporter: stdin was unavailable."
+                        .to_string();
+                stderr.push_str(&message);
+                stderr.push('\n');
+                emit_output("stderr", &message);
+            }
+        }
+    }
 
     let (sender, receiver) = mpsc::channel::<ProcessPipeChunk>();
     if let Some(stdout) = child.stdout.take() {
@@ -694,17 +1008,17 @@ fn run_process_with_output_events(
     }
     drop(sender);
 
-    let mut stdout = String::new();
-    let mut stderr = String::new();
     for chunk in receiver {
+        let text = redact_sensitive_text(&chunk.text, redaction_values);
+        let line = redact_sensitive_text(&chunk.line, redaction_values);
         if chunk.stream == "stdout" {
-            stdout.push_str(&chunk.text);
+            stdout.push_str(&text);
         } else {
-            stderr.push_str(&chunk.text);
+            stderr.push_str(&text);
         }
 
-        if !chunk.line.is_empty() {
-            emit_process_output(app, event_id, kind, chunk.stream, &chunk.line);
+        if !line.is_empty() {
+            emit_output(chunk.stream, &line);
         }
     }
 
@@ -716,12 +1030,12 @@ fn run_process_with_output_events(
             success: status.success(),
         },
         Err(error) => {
-            let message = error.to_string();
+            let message = redact_sensitive_text(&error.to_string(), redaction_values);
             if !stderr.is_empty() && !stderr.ends_with('\n') {
                 stderr.push('\n');
             }
             stderr.push_str(&message);
-            emit_process_output(app, event_id, kind, "stderr", &message);
+            emit_output("stderr", &message);
             ProcessRunOutput {
                 stdout,
                 stderr,
@@ -730,6 +1044,15 @@ fn run_process_with_output_events(
             }
         }
     }
+}
+
+fn redact_sensitive_text(text: &str, sensitive_values: &[String]) -> String {
+    sensitive_values
+        .iter()
+        .filter(|value| !value.is_empty())
+        .fold(text.to_string(), |redacted, value| {
+            redacted.replace(value, "[REDACTED]")
+        })
 }
 
 fn spawn_pipe_reader<R>(reader: R, stream: &'static str, sender: mpsc::Sender<ProcessPipeChunk>)
@@ -1098,7 +1421,7 @@ diagnostic_logs: {diagnostic_log_count}\n\
 active_managed_version: {}\n\
 installed_managed_versions: {}\n\
 cached_release_assets: {cached_asset_count}\n\n\
-Privacy note: this bundle is created locally and is not uploaded by ChatExportMate. Logs may contain local file paths, exporter command arguments, stdout, stderr, and other troubleshooting details. Review the files before sharing them in a bug report.\n",
+Privacy note: this bundle is created locally and is not uploaded by ChatExportMate. Logs may contain local file paths, exporter command arguments, stdout, stderr, and other troubleshooting details. Backup passwords are not written to logs or support bundles. Review the files before sharing them in a bug report.\n",
         env::consts::OS,
         env::consts::ARCH,
         active_managed_version,
@@ -1758,6 +2081,7 @@ pub fn run() {
             get_export_preferences,
             save_export_preferences,
             check_output_access,
+            list_iphone_backups,
             execute_exporter,
             run_exporter_diagnostics,
             list_exporter_logs,
@@ -1881,6 +2205,70 @@ mod tests {
     }
 
     #[test]
+    fn iphone_backup_roots_use_standard_apple_locations() {
+        let windows_roots = iphone_backup_roots_for(
+            Some(PathBuf::from(r"C:\Users\Alice")),
+            Some(PathBuf::from(r"C:\Users\Alice\AppData\Roaming")),
+            None,
+            "windows",
+        );
+
+        assert_eq!(windows_roots.len(), 2);
+        assert_eq!(
+            windows_roots[0].path,
+            PathBuf::from(r"C:\Users\Alice")
+                .join("Apple")
+                .join("MobileSync")
+                .join("Backup"),
+        );
+        assert_eq!(
+            windows_roots[1].path,
+            PathBuf::from(r"C:\Users\Alice\AppData\Roaming")
+                .join("Apple Computer")
+                .join("MobileSync")
+                .join("Backup"),
+        );
+
+        let mac_roots =
+            iphone_backup_roots_for(None, None, Some(PathBuf::from("/Users/alice")), "macos");
+        assert_eq!(mac_roots.len(), 1);
+        assert_eq!(
+            mac_roots[0].path,
+            PathBuf::from("/Users/alice")
+                .join("Library")
+                .join("Application Support")
+                .join("MobileSync")
+                .join("Backup"),
+        );
+    }
+
+    #[test]
+    fn ios_backup_directory_detection_requires_backup_markers() {
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-backup-marker-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+        let backup = root.join("00008110-0012345678901234");
+        let partial = root.join("partial");
+        fs::create_dir_all(&backup).unwrap();
+        fs::create_dir_all(&partial).unwrap();
+
+        assert!(!looks_like_ios_backup_directory(&backup));
+
+        fs::write(backup.join("Manifest.db"), b"sqlite").unwrap();
+        assert!(looks_like_ios_backup_directory(&backup));
+
+        fs::write(partial.join("Info.plist"), b"info").unwrap();
+        assert!(!looks_like_ios_backup_directory(&partial));
+
+        fs::write(partial.join("Manifest.plist"), b"manifest").unwrap();
+        assert!(looks_like_ios_backup_directory(&partial));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn spawn_pipe_reader_trims_line_breaks_and_retains_original_text() {
         let (sender, receiver) = mpsc::channel();
         spawn_pipe_reader(Cursor::new(b"first\r\nsecond".to_vec()), "stdout", sender);
@@ -1893,6 +2281,88 @@ mod tests {
         assert_eq!(chunks[0].text, "first\r\n");
         assert_eq!(chunks[1].line, "second");
         assert_eq!(chunks[1].text, "second");
+    }
+
+    #[test]
+    fn redact_sensitive_text_removes_exact_secret_values() {
+        let secret = "correct horse battery staple";
+        let redacted = redact_sensitive_text(
+            "password was correct horse battery staple",
+            &[secret.to_string()],
+        );
+
+        assert_eq!(redacted, "password was [REDACTED]");
+    }
+
+    #[test]
+    fn process_runner_writes_stdin_and_redacts_the_backup_password() {
+        let secret = "correct horse battery staple";
+        let (executable, args) = stdin_echo_command();
+        let mut emitted_lines: Vec<(String, String)> = Vec::new();
+
+        let output = run_process_collecting_output(
+            &executable,
+            &args,
+            Some(secret),
+            &[secret.to_string()],
+            |stream, line| emitted_lines.push((stream.to_string(), line.to_string())),
+        );
+
+        assert!(output.success, "stderr: {}", output.stderr);
+        assert!(output.stdout.contains("[REDACTED]"));
+        assert!(output.stderr.contains("[REDACTED]"));
+        assert!(!output.stdout.contains(secret));
+        assert!(!output.stderr.contains(secret));
+        assert!(emitted_lines
+            .iter()
+            .any(|(_, line)| line.contains("[REDACTED]")));
+        assert!(emitted_lines.iter().all(|(_, line)| !line.contains(secret)));
+    }
+
+    #[test]
+    fn preference_scrubber_removes_password_named_fields_recursively() {
+        let mut preferences = serde_json::json!({
+            "schemaVersion": 1,
+            "backupPassword": "secret",
+            "options": {
+                "encryptedBackup": true,
+                "backup_password": "secret",
+                "nested": [{ "cleartext-password": "secret" }]
+            }
+        });
+
+        remove_sensitive_preference_fields(&mut preferences);
+        let serialized = preferences.to_string();
+
+        assert!(!serialized.contains("secret"));
+        assert!(!serialized.contains("backupPassword"));
+        assert!(!serialized.contains("backup_password"));
+        assert!(!serialized.contains("cleartext-password"));
+        assert!(serialized.contains("encryptedBackup"));
+    }
+
+    #[cfg(windows)]
+    fn stdin_echo_command() -> (String, Vec<String>) {
+        (
+            "powershell.exe".to_string(),
+            vec![
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                "$p = [Console]::In.ReadLine(); Write-Output \"stdout:$p\"; [Console]::Error.WriteLine(\"stderr:$p\")".to_string(),
+            ],
+        )
+    }
+
+    #[cfg(not(windows))]
+    fn stdin_echo_command() -> (String, Vec<String>) {
+        (
+            "sh".to_string(),
+            vec![
+                "-c".to_string(),
+                "IFS= read -r p; printf 'stdout:%s\\n' \"$p\"; printf 'stderr:%s\\n' \"$p\" >&2"
+                    .to_string(),
+            ],
+        )
     }
 
     #[test]

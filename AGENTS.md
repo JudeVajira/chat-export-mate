@@ -31,6 +31,7 @@ No local subtree `AGENTS.md` files exist yet.
 - Rust/Cargo is required for full Tauri desktop builds; frontend typecheck/build and Vitest can run without Rust.
 - On Windows, run `pnpm tauri build` from a Visual Studio Build Tools developer environment, or initialize it with `VsDevCmd.bat`, so Cargo can find MSVC libraries such as `msvcrt.lib`.
 - Keep `README.md` accurate when setup, prerequisites, run commands, test commands, or platform requirements change.
+- Never commit generated export outputs, portable build zips, installer artifacts, or local backup-derived files. Keep those under ignored locations such as `output/` or `artifacts/`, or outside the repo.
 - For substantive implementation, add focused tests around command generation, GitHub release parsing, validation, diagnostics, and error translation.
 
 ## Frontend

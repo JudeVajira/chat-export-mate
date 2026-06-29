@@ -11,6 +11,7 @@ const defaultOptions: ExportOptions = {
   platform: "macOS",
   outputPath: "~/imessage_export",
   databasePath: "",
+  encryptedBackup: false,
   attachmentRoot: "",
   copyMethod: "full",
   startDate: "",
@@ -110,5 +111,24 @@ describe("export preferences", () => {
     );
 
     expect(parseExportPreferences(JSON.stringify(preferences))?.options.format).toBe("csv");
+  });
+
+  it("does not serialize volatile backup password fields", () => {
+    const preferences = createExportPreferences(
+      {
+        ...defaultOptions,
+        platform: "iOS",
+        databasePath: "C:/Users/Jude/Apple/MobileSync/Backup/device",
+        encryptedBackup: true,
+        backupPassword: "never-write-this",
+      } as ExportOptions & { backupPassword: string },
+      false,
+      "2026-06-27T09:00:00.000Z",
+    );
+    const serialized = JSON.stringify(preferences);
+
+    expect(preferences.options.encryptedBackup).toBe(true);
+    expect(serialized).not.toContain("never-write-this");
+    expect(serialized).not.toContain("backupPassword");
   });
 });

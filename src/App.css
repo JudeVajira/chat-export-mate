@@ -856,6 +856,53 @@ fieldset {
   white-space: nowrap;
 }
 
+.encrypted-backup-option {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.encrypted-backup-option.is-selected {
+  border-color: #8eb8ff;
+  background: #f1f6ff;
+  box-shadow: inset 0 0 0 1px #8eb8ff;
+}
+
+.encrypted-backup-toggle {
+  min-height: 0;
+  align-items: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 11px 12px;
+}
+
+.encrypted-backup-toggle span {
+  display: grid;
+  gap: 3px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.encrypted-backup-toggle strong {
+  color: #172033;
+  font-size: 0.86rem;
+}
+
+.encrypted-backup-toggle small {
+  color: #526278;
+  font-size: 0.78rem;
+  font-weight: 560;
+  line-height: 1.4;
+}
+
+.backup-password-field {
+  border-top: 1px solid #d8e0ea;
+  padding: 10px 12px 12px 36px;
+}
+
 legend,
 .field span,
 .field-label {
@@ -1149,6 +1196,44 @@ select:focus {
   padding: 18px 18px 28px;
 }
 
+.source-encrypted-choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-top: 1px solid #e4eaf1;
+  background: #f8fafc;
+  padding: 12px 18px;
+}
+
+.source-encrypted-choice.is-selected {
+  background: #f1f6ff;
+}
+
+.source-encrypted-choice input {
+  width: 16px;
+  min-height: 16px;
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.source-encrypted-choice span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.source-encrypted-choice strong {
+  color: #172033;
+  font-size: 0.86rem;
+  font-weight: 820;
+}
+
+.source-encrypted-choice small {
+  color: #526278;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .source-guide-intro {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
@@ -1174,6 +1259,139 @@ select:focus {
 .source-guide-content {
   display: grid;
   gap: 12px;
+}
+
+.detected-backups {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.detected-backups-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.detected-backups-header h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 0.98rem;
+  font-weight: 820;
+  letter-spacing: 0;
+}
+
+.detected-backups-header p {
+  margin: 4px 0 0;
+  color: #526278;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.backup-candidate-list {
+  display: grid;
+  gap: 8px;
+}
+
+.backup-candidate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #d5e6fb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.backup-candidate-main {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.backup-candidate-main strong,
+.backup-candidate-main span,
+.backup-candidate-main code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-candidate-main strong {
+  color: #172033;
+  font-size: 0.86rem;
+  font-weight: 820;
+}
+
+.backup-candidate-main span {
+  color: #526278;
+  font-size: 0.78rem;
+}
+
+.backup-candidate-main code {
+  color: #26415f;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+}
+
+.no-backup-guide {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #cdd8e5;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.no-backup-guide strong {
+  color: #172033;
+  font-size: 0.92rem;
+}
+
+.no-backup-guide p {
+  margin: 0;
+  color: #526278;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.no-backup-guide ol {
+  display: grid;
+  gap: 6px;
+  list-style: decimal;
+  list-style-position: outside;
+  margin: 0;
+  padding-left: 20px;
+  color: #32445f;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.source-guide-advanced {
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #526278;
+  font-size: 0.82rem;
+}
+
+.source-guide-advanced summary {
+  color: #26364f;
+  cursor: pointer;
+  font-weight: 760;
+}
+
+.source-guide-advanced p {
+  margin: 8px 0 0;
+  line-height: 1.45;
 }
 
 .source-guide-steps {
@@ -1232,6 +1450,13 @@ select:focus {
   padding: 10px 12px;
   color: #2d6b4f;
   font-weight: 720;
+}
+
+.source-guide-note--neutral {
+  border-color: #d8e0ea;
+  background: #ffffff;
+  color: #526278;
+  font-weight: 620;
 }
 
 .source-guide-actions {
@@ -2202,7 +2427,9 @@ dd {
   .source-guide-header,
   .source-choice-list,
   .source-guide-intro,
-  .source-guide-steps li {
+  .source-guide-steps li,
+  .detected-backups-header,
+  .backup-candidate {
     grid-template-columns: 1fr;
   }
 

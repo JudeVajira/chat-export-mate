@@ -19,7 +19,9 @@ import type { ValidationIssueMap } from "../domain/exporter/validation";
 
 interface ExportConfiguratorProps {
   options: ExportOptions;
+  backupPassword: string;
   onChange: (options: ExportOptions) => void;
+  onBackupPasswordChange: (password: string) => void;
   checkingOutputAccess: boolean;
   isRunning: boolean;
   isPreparingExporter?: boolean;
@@ -54,7 +56,9 @@ const copyMethodLabels: Record<AttachmentCopyMethod, string> = {
 
 export function ExportConfigurator({
   options,
+  backupPassword,
   onChange,
+  onBackupPasswordChange,
   checkingOutputAccess,
   isRunning,
   isPreparingExporter = false,
@@ -81,6 +85,7 @@ export function ExportConfigurator({
       ...options,
       platform,
       databasePath: "",
+      encryptedBackup: platform === "iOS" ? options.encryptedBackup : false,
       attachmentRoot: platform === "iOS" ? "" : options.attachmentRoot,
     });
   };
@@ -100,6 +105,7 @@ export function ExportConfigurator({
         : CircleAlert;
   const outputIssues = validationMessagesFor(issueMap, "outputPath");
   const sourceIssues = validationMessagesFor(issueMap, "databasePath");
+  const backupPasswordIssues = validationMessagesFor(issueMap, "backupPassword");
   const startDateIssues = validationMessagesFor(issueMap, "startDate");
   const endDateIssues = validationMessagesFor(issueMap, "endDate");
   const customNameIssues = validationMessagesFor(issueMap, "customName");
@@ -107,7 +113,7 @@ export function ExportConfigurator({
     preflight.recommendedAction?.id === "install-exporter" && Boolean(onPrepareExporter);
   const primaryActionLabel = canPrepareExporter
     ? isPreparingExporter
-      ? "Setting up reader"
+      ? "Setting up tool"
       : preflight.recommendedAction?.label ?? preflight.actionLabel
     : isRunning
       ? "Exporting messages"
@@ -289,6 +295,51 @@ export function ExportConfigurator({
           <p className="field-hint">{sourceHint}</p>
           <FieldIssues fieldId="custom-source" issues={sourceIssues} />
         </div>
+
+        {isIosSource ? (
+          <div
+            className={`encrypted-backup-option span-2 ${
+              options.encryptedBackup ? "is-selected" : ""
+            } ${backupPasswordIssues.length > 0 ? "field--error" : ""}`}
+          >
+            <label className="checkbox-option encrypted-backup-toggle">
+              <input
+                checked={options.encryptedBackup}
+                onChange={(event) => update("encryptedBackup", event.currentTarget.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>My backup is encrypted</strong>
+                <small>
+                  Encrypted backups need the backup password. The password is used only for this
+                  export and is not saved.
+                </small>
+              </span>
+            </label>
+            {options.encryptedBackup ? (
+              <div className="field backup-password-field">
+                <label className="field-label" htmlFor="backup-password">
+                  Backup password
+                </label>
+                <input
+                  aria-describedby={
+                    backupPasswordIssues.length > 0 ? "backup-password-errors" : "backup-password-hint"
+                  }
+                  aria-invalid={backupPasswordIssues.length > 0}
+                  autoComplete="off"
+                  id="backup-password"
+                  onChange={(event) => onBackupPasswordChange(event.currentTarget.value)}
+                  type="password"
+                  value={backupPassword}
+                />
+                <p className="field-hint" id="backup-password-hint">
+                  ChatExportMate sends this once to the export tool through a private input pipe.
+                </p>
+                <FieldIssues fieldId="backup-password" issues={backupPasswordIssues} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <label className="field">
           <span>Attachments</span>

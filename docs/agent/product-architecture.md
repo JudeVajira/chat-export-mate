@@ -30,7 +30,9 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Source selection is platform-specific: macOS custom sources use a `chat.db` file picker, while iOS custom sources use a backup-folder picker. Attachment roots are macOS-only and should not be emitted for iOS commands.
 - Beginner source selection is guide-first, not picker-first. Users who only have an iPhone must be guided through creating and locating a local Apple Devices/iTunes backup before the app asks them to choose a folder; raw `chat.db` and backup folder pickers belong behind "already have it" paths.
 - Source defaults should follow the detected host OS. On Windows, default and empty saved source settings should align to iPhone backup and hide Mac `chat.db` choices from the primary flow; on macOS, the Mac Messages path can be offered.
-- Keep encrypted iPhone backup guidance conservative until the app implements a safe password flow. Upstream `imessage-exporter` can use encrypted backups with a password, but ChatExportMate alpha currently does not collect backup passwords or provide stdin to the helper process. Beginner guidance should prefer a new unencrypted local backup.
+- iPhone backup discovery should stay conservative: scan Apple's documented MobileSync backup roots for the current OS, require normal iOS backup marker files in child folders, and follow filesystem links at the default `Backup` folder so junction/symlink relocations still work. Do not scan arbitrary drives or parse message contents during discovery.
+- Encrypted iPhone backup support must use a volatile in-app password prompt and piped stdin to `imessage-exporter`. Never use upstream `--cleartext-password` in the normal app flow, and never persist, log, display, preview, or include backup passwords in preferences, support bundles, process args, command previews, or telemetry.
+- Keep Tauri `security.csp` enabled for packaged builds. If local development needs extra Vite/HMR allowances, use `devCsp` rather than setting the production CSP back to `null`.
 - Existing exporter binary selection also goes through `src/services/tauriBridge.ts`; the backend must verify the selected binary with `--version` before saving it.
 - Keep framework/runtime names such as Tauri out of normal user-facing app copy. Use plain phrases such as "desktop app"; keep implementation terminology in developer docs, diagnostics internals, or code.
 
@@ -114,7 +116,7 @@ Prioritize tests for:
 - The first screen should be a usable desktop app workspace with fast-start setup guidance, not a marketing page.
 - Primary navigation should switch between real in-app pages such as Setup, Export, Diagnostics, Support, and About. Do not present all major workflows as one long fake section stack with anchor links.
 - The beginner experience should be a guided wizard: set up exporter, choose source, choose output folder, choose format, run export. Logs and raw troubleshooting details should not sit in the main setup path.
-- The source step should ask what the user has in human terms such as "I only have an iPhone", "I already made a backup", or "I am on the Mac with Messages"; do not lead with platform names or database terminology.
+- The source step should ask what the user needs to do in task terms such as "I need to create a backup", "I already created a backup", or "I am on the Mac with Messages"; do not lead with platform names or database terminology.
 - Setup steps should render as four full-width ordered cards, not a two-column grid. The order must be visually unambiguous: 1 exporter, 2 message source, 3 output folder, 4 export.
 - Do not expose dry-run or preview mode as a normal-user workflow. If command generation needs a development path, keep it behind developer/troubleshooting affordances.
 - Keep the normal export action path visible in the first desktop viewport. Collapse or de-emphasize advanced options before hiding primary setup/export actions below the fold.

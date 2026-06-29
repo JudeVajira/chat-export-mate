@@ -14,12 +14,12 @@ import {
 
 describe("exporter manager helpers", () => {
   it("labels install, update, and reinstall actions from probe state", () => {
-    expect(getInstallActionLabel({ found: false }, false)).toBe("Set up reader");
+    expect(getInstallActionLabel({ found: false }, false)).toBe("Install export tool");
     expect(getInstallActionLabel({ found: true, managed: true, source: "managed" }, true)).toBe(
-      "Update reader",
+      "Update tool",
     );
     expect(getInstallActionLabel({ found: true, managed: true, source: "managed" }, false)).toBe(
-      "Reinstall reader",
+      "Reinstall tool",
     );
     expect(getInstallActionLabel({ found: true, source: "custom" }, true)).toBe(
       "Install managed update",

@@ -3,6 +3,7 @@ import { isUpdateAvailable, selectBestAsset } from "./release";
 import type {
   DiagnosticItem,
   ExportOptions,
+  ExportRuntimeSecrets,
   ExporterProbe,
   ExporterRelease,
   ManagedExporterState,
@@ -21,8 +22,9 @@ export function buildDiagnostics(
   options: ExportOptions,
   managedState?: ManagedExporterState,
   outputAccess?: OutputAccessCheck,
+  runtimeSecrets: ExportRuntimeSecrets = {},
 ): DiagnosticItem[] {
-  const validationIssues = validateExportOptions(executablePath, options);
+  const validationIssues = validateExportOptions(executablePath, options, runtimeSecrets);
   const selectedAsset = release ? selectBestAsset(release, target) : null;
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
 

@@ -48,7 +48,7 @@ export function buildExportPreflightSummary(
       title: dryRun ? "Ready to check command" : "Ready to export messages",
       detail: dryRun
         ? "Developer command checks build exporter arguments without writing export files."
-        : "The helper tool, message source, and save folder are ready.",
+        : "The export tool, iPhone backup, and export location are ready.",
       actionLabel: dryRun ? "Check command" : "Start export",
       canRunExport,
       blockingReasons,
@@ -85,8 +85,8 @@ export function buildExportPreflightSummary(
 function formatDiagnosticReason(item: DiagnosticItem): string {
   if (item.id === "exporter") {
     return item.state === "passed"
-      ? "The message reader is ready."
-      : "Set up the message reader so ChatExportMate can read your local backup.";
+      ? "The export tool is ready."
+      : "Install the export tool so ChatExportMate can read your local backup.";
   }
 
   if (item.id === "configuration") {
@@ -95,14 +95,14 @@ function formatDiagnosticReason(item: DiagnosticItem): string {
 
   if (item.id === "output-access") {
     return item.state === "passed"
-      ? "The save folder is ready."
+      ? "The export location is ready."
       : "Choose where ChatExportMate should save your exported messages.";
   }
 
   if (item.id === "executable-access") {
     return item.state === "passed"
-      ? "The message reader can run."
-      : "Set up the message reader before ChatExportMate checks it.";
+      ? "The export tool can run."
+      : "Install the export tool before ChatExportMate checks it.";
   }
 
   if (item.id === "release") {
@@ -119,8 +119,8 @@ function findRecommendedAction(diagnostics: DiagnosticItem[]): ExportPreflightAc
   if (exporter?.state !== "passed" && asset?.state === "passed") {
     return {
       id: "install-exporter",
-      label: "Set up reader",
-      detail: "ChatExportMate will download and verify the local message reader it uses to read your backup.",
+      label: "Install export tool",
+      detail: "ChatExportMate will download and verify the local tool it uses to read your backup.",
     };
   }
 

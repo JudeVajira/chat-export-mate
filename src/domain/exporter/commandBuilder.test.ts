@@ -7,6 +7,7 @@ const baseOptions: ExportOptions = {
   platform: "macOS",
   outputPath: "~/export output",
   databasePath: "/Users/me/Library/Messages/chat.db",
+  encryptedBackup: false,
   attachmentRoot: "",
   copyMethod: "full",
   startDate: "2020-01-01",
@@ -145,12 +146,39 @@ describe("buildExporterCommand", () => {
       ...baseOptions,
       platform: "iOS",
       databasePath: "/Users/me/Library/Application Support/MobileSync/Backup/ABC",
+      encryptedBackup: true,
       attachmentRoot: "/Users/me/Library/Messages/Attachments",
     });
 
     expect(command.args).toContain("iOS");
     expect(command.args).toContain("/Users/me/Library/Application Support/MobileSync/Backup/ABC");
     expect(command.args).not.toContain("-r");
+    expect(command.args).not.toContain("--cleartext-password");
+  });
+
+  it("requires a current-run password only for encrypted iPhone backups", () => {
+    const encryptedOptions: ExportOptions = {
+      ...baseOptions,
+      platform: "iOS",
+      databasePath: "/Users/me/Library/Application Support/MobileSync/Backup/ABC",
+      encryptedBackup: true,
+    };
+
+    expect(validateExportOptions("imessage-exporter", encryptedOptions)).toContainEqual({
+      field: "backupPassword",
+      message: "Enter the backup password for this encrypted iPhone backup.",
+    });
+    expect(
+      validateExportOptions("imessage-exporter", encryptedOptions, {
+        backupPassword: "correct horse battery staple",
+      }),
+    ).toEqual([]);
+    expect(
+      validateExportOptions("imessage-exporter", {
+        ...encryptedOptions,
+        encryptedBackup: false,
+      }),
+    ).toEqual([]);
   });
 
   it("builds upstream diagnostic arguments with optional source paths", () => {
