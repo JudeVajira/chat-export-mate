@@ -162,6 +162,8 @@ export interface SystemSnapshot {
   arch: string;
   family: string;
   default_exporter_name: string;
+  executable_path?: string | null;
+  launch_warning?: string | null;
 }
 
 export interface ExporterProbe {

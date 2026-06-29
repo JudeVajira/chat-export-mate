@@ -32,6 +32,7 @@ interface ExportConfiguratorProps {
   onOpenOutput: () => void;
   onRun: () => void;
   preflight: ExportPreflightSummary;
+  showMacSourceChoice: boolean;
 }
 
 const formats: Array<{ label: string; value: ExportFormat; description: string }> = [
@@ -60,6 +61,7 @@ export function ExportConfigurator({
   onOpenOutput,
   onRun,
   preflight,
+  showMacSourceChoice,
 }: ExportConfiguratorProps) {
   const update = <Key extends keyof ExportOptions>(key: Key, value: ExportOptions[Key]) => {
     onChange({ ...options, [key]: value });
@@ -194,21 +196,29 @@ export function ExportConfigurator({
           </p>
         </fieldset>
 
-        <fieldset>
-          <legend>Source</legend>
-          <div className="segmented-control">
-            {platforms.map((platform) => (
-              <button
-                className={options.platform === platform.value ? "is-selected" : ""}
-                key={platform.value}
-                onClick={() => selectPlatform(platform.value)}
-                type="button"
-              >
-                {platform.label}
-              </button>
-            ))}
+        {showMacSourceChoice ? (
+          <fieldset>
+            <legend>Source</legend>
+            <div className="segmented-control">
+              {platforms.map((platform) => (
+                <button
+                  className={options.platform === platform.value ? "is-selected" : ""}
+                  key={platform.value}
+                  onClick={() => selectPlatform(platform.value)}
+                  type="button"
+                >
+                  {platform.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        ) : (
+          <div className="source-summary">
+            <span>Source</span>
+            <strong>iPhone backup</strong>
+            <p>Detected Windows, so ChatExportMate will guide you to a local iPhone backup folder.</p>
           </div>
-        </fieldset>
+        )}
 
         <div className={`field span-2 ${outputIssues.length > 0 ? "field--error" : ""}`}>
           <label className="field-label" htmlFor="output-folder">

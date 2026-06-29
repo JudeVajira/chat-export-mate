@@ -22,12 +22,12 @@ To test the latest build:
 1. Open the repository **Actions** tab.
 2. Choose the latest **Desktop alpha build** run for the branch you want to test.
 3. Download either `ChatExportMate-alpha-windows-x64-installer-<run number>` or `ChatExportMate-alpha-windows-x64-portable-<run number>`.
-4. Extract the artifact.
+4. Extract the artifact. For the portable build, also extract the portable ZIP contents into a normal folder before running `ChatExportMate.exe`; do not run the app from inside Windows' ZIP/compressed-folder view.
 5. For the installer build, run the `-setup.exe` installer. For the portable build, run `ChatExportMate.exe` from the extracted folder.
 
 These alpha builds are unsigned, experimental, and retained as GitHub Actions artifacts for 14 days. Windows may show an unknown-publisher warning. Review the source and build logs before installing or running a portable build from a public run.
 
-The portable app avoids system installation, but it still stores ChatExportMate app data, managed `imessage-exporter` binaries, preferences, and logs in the normal local app data directory.
+The portable app avoids system installation, but it still stores ChatExportMate app data, managed `imessage-exporter` binaries, preferences, and logs in the normal local app data directory. If ChatExportMate detects that it was launched from a temporary compressed-folder location, it shows an in-app warning to extract the portable ZIP first.
 
 ## Prerequisites
 
@@ -121,7 +121,9 @@ The source guide starts with plain choices:
 
 - **I only have an iPhone**: install or open Apple Devices on Windows, connect the iPhone by USB, trust the computer, use **General > Back Up Now** to create a local backup, then use **Manage Backups > Show in Explorer** to find the backup folder.
 - **I already made a backup**: choose the local iPhone backup folder directly.
-- **I am on the Mac with Messages**: grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before choosing `chat.db` or using the default Mac Messages location.
+- **I am on the Mac with Messages**: shown on macOS, where local Messages data can be exported. Grant ChatExportMate Full Disk Access in **System Settings > Privacy & Security > Full Disk Access**, then quit and reopen the app before choosing `chat.db` or using the default Mac Messages location.
+
+On Windows, ChatExportMate defaults the source flow to **iPhone backup** and does not ask users to choose a Mac Messages source. If saved preferences contain no selected source path, the app aligns the source type to the detected operating system on startup.
 
 Apple's backup guide is linked from the source guide: <https://support.apple.com/en-us/108967>.
 

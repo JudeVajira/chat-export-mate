@@ -34,6 +34,8 @@ struct SystemSnapshot {
     arch: String,
     family: String,
     default_exporter_name: String,
+    executable_path: Option<String>,
+    launch_warning: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -263,12 +265,17 @@ struct SupportBundleResult {
 }
 
 #[tauri::command]
-fn get_system_snapshot() -> SystemSnapshot {
+fn get_system_snapshot(_app: AppHandle) -> SystemSnapshot {
+    let executable_path = env::current_exe().ok();
+    let launch_warning = executable_path.as_deref().and_then(portable_launch_warning);
+
     SystemSnapshot {
         os: env::consts::OS.to_string(),
         arch: env::consts::ARCH.to_string(),
         family: env::consts::FAMILY.to_string(),
         default_exporter_name: exporter_binary_name(),
+        executable_path: executable_path.map(|path| path.to_string_lossy().to_string()),
+        launch_warning,
     }
 }
 
@@ -929,7 +936,10 @@ fn convert_text_export_to_csv(output_path: &Path) -> Result<PathBuf, String> {
 }
 
 fn collect_text_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
-    for entry in fs::read_dir(root).map_err(to_string)?.filter_map(Result::ok) {
+    for entry in fs::read_dir(root)
+        .map_err(to_string)?
+        .filter_map(Result::ok)
+    {
         let path = entry.path();
         if path.is_dir() {
             collect_text_files(&path, files)?;
@@ -960,6 +970,21 @@ fn home_dir() -> Option<PathBuf> {
     env::var_os("USERPROFILE")
         .or_else(|| env::var_os("HOME"))
         .map(PathBuf::from)
+}
+
+fn portable_launch_warning(executable_path: &Path) -> Option<String> {
+    let temp_dir = env::temp_dir();
+    let path_text = executable_path.to_string_lossy().to_lowercase();
+    let is_temp_launch = executable_path.starts_with(&temp_dir) || path_text.contains("\\temp\\");
+
+    if !is_temp_launch {
+        return None;
+    }
+
+    Some(
+        "It looks like ChatExportMate is running from a temporary compressed folder. Extract the portable ZIP first, then run ChatExportMate.exe from the extracted folder so setup files and helper tools stay in a stable location."
+            .to_string(),
+    )
 }
 
 fn writable_probe_directory(path: &Path) -> Result<(PathBuf, bool), String> {
@@ -1868,6 +1893,21 @@ mod tests {
         assert_eq!(chunks[0].text, "first\r\n");
         assert_eq!(chunks[1].line, "second");
         assert_eq!(chunks[1].text, "second");
+    }
+
+    #[test]
+    fn portable_launch_warning_detects_temp_executables() {
+        let temp_executable = env::temp_dir()
+            .join("Temp1_ChatExportMate-alpha-windows-x64-portable.zip")
+            .join("ChatExportMate.exe");
+        let normal_executable = home_dir()
+            .unwrap_or_else(env::temp_dir)
+            .join("Downloads")
+            .join("ChatExportMate")
+            .join("ChatExportMate.exe");
+
+        assert!(portable_launch_warning(&temp_executable).is_some());
+        assert!(portable_launch_warning(&normal_executable).is_none());
     }
 
     #[test]

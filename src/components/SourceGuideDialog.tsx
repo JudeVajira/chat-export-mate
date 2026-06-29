@@ -14,6 +14,7 @@ interface SourceGuideDialogProps {
   onChooseIphoneBackup: () => void;
   onChooseMacDatabase: () => void;
   onClose: () => void;
+  showMacSourceChoice: boolean;
 }
 
 const sourceGuideChoices: Array<{
@@ -46,9 +47,15 @@ export function SourceGuideDialog({
   onChooseIphoneBackup,
   onChooseMacDatabase,
   onClose,
+  showMacSourceChoice,
 }: SourceGuideDialogProps) {
-  const [choice, setChoice] = useState<SourceGuideChoice>("iphone-new");
-  const selectedChoice = sourceGuideChoices.find((item) => item.id === choice) ?? sourceGuideChoices[0];
+  const initialChoice = showMacSourceChoice ? "mac-messages" : "iphone-new";
+  const [choice, setChoice] = useState<SourceGuideChoice>(initialChoice);
+  const visibleChoices = sourceGuideChoices.filter(
+    (item) => showMacSourceChoice || item.id !== "mac-messages",
+  );
+  const safeChoice = visibleChoices.some((item) => item.id === choice) ? choice : "iphone-new";
+  const selectedChoice = visibleChoices.find((item) => item.id === safeChoice) ?? visibleChoices[0];
   const SelectedIcon = selectedChoice.icon;
 
   return (
@@ -72,8 +79,9 @@ export function SourceGuideDialog({
             <p className="section-kicker">Message source</p>
             <h2 id="source-guide-title">Start with what you have</h2>
             <p id="source-guide-description">
-              ChatExportMate needs a local Messages source before it can export. If you only have
-              an iPhone, make a local computer backup first.
+              {showMacSourceChoice
+                ? "ChatExportMate needs a local Messages source before it can export."
+                : "This Windows build exports from a local iPhone backup. If you only have an iPhone, make a local computer backup first."}
             </p>
           </div>
           <button
@@ -87,9 +95,9 @@ export function SourceGuideDialog({
         </header>
 
         <div className="source-choice-list" role="tablist" aria-label="Choose your source path">
-          {sourceGuideChoices.map((item) => {
+          {visibleChoices.map((item) => {
             const Icon = item.icon;
-            const isSelected = item.id === choice;
+            const isSelected = item.id === safeChoice;
             return (
               <button
                 aria-selected={isSelected}
@@ -119,9 +127,9 @@ export function SourceGuideDialog({
             </div>
           </div>
 
-          {choice === "iphone-new" ? <IphoneBackupWalkthrough /> : null}
-          {choice === "iphone-backup" ? <ExistingBackupHelp /> : null}
-          {choice === "mac-messages" ? <MacMessagesHelp /> : null}
+          {safeChoice === "iphone-new" ? <IphoneBackupWalkthrough /> : null}
+          {safeChoice === "iphone-backup" ? <ExistingBackupHelp /> : null}
+          {safeChoice === "mac-messages" ? <MacMessagesHelp /> : null}
         </div>
 
         <footer className="source-guide-actions">
@@ -136,11 +144,11 @@ export function SourceGuideDialog({
           </a>
           <button
             className="button button--primary"
-            onClick={choice === "mac-messages" ? onChooseMacDatabase : onChooseIphoneBackup}
+            onClick={safeChoice === "mac-messages" ? onChooseMacDatabase : onChooseIphoneBackup}
             type="button"
           >
             <FolderOpen aria-hidden="true" />
-            {choice === "mac-messages" ? "Choose chat.db" : "Choose backup folder"}
+            {safeChoice === "mac-messages" ? "Choose chat.db" : "Choose backup folder"}
           </button>
         </footer>
       </section>

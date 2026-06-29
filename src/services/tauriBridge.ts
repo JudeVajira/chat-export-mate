@@ -35,6 +35,8 @@ const browserSnapshot: SystemSnapshot = {
   default_exporter_name: navigator.userAgent.includes("Windows")
     ? "imessage-exporter.exe"
     : "imessage-exporter",
+  executable_path: null,
+  launch_warning: null,
 };
 
 const browserProbe: ExporterProbe = {

@@ -37,6 +37,10 @@ import {
   getUpdateStatusLabel,
 } from "./domain/exporter/manager";
 import {
+  alignSourcePlatformToHost,
+  shouldShowMacSourceChoice,
+} from "./domain/exporter/platformDefaults";
+import {
   applyExportPreferences,
   createExportPreferences,
 } from "./domain/exporter/preferences";
@@ -240,6 +244,7 @@ function App() {
       ? "warning"
       : "passed";
   const setupLabel = setupState === "passed" ? "Setup ready" : setupState === "action" ? "Setup needed" : "Review";
+  const showMacSourceChoice = shouldShowMacSourceChoice(snapshot);
 
   useEffect(() => {
     void bootstrapWorkspace();
@@ -306,26 +311,33 @@ function App() {
   }, [dryRun, options, preferencesLoaded]);
 
   async function bootstrapWorkspace() {
-    const startupOptions = await restoreExportPreferences();
-    const healthCheckPromise = refreshHealthChecks(startupOptions.outputPath);
+    const startupSnapshot = await getSystemSnapshot();
+    setSnapshot(startupSnapshot);
+    const startupOptions = await restoreExportPreferences(startupSnapshot);
+    const healthCheckPromise = refreshHealthChecks(startupOptions.outputPath, startupSnapshot);
     const releasePromise = refreshLatestRelease(false);
     await Promise.all([healthCheckPromise, releasePromise, refreshStoredLogs(false)]);
     announceStartupReleaseStatus(await healthCheckPromise, await releasePromise);
     setPreferencesLoaded(true);
   }
 
-  async function restoreExportPreferences(): Promise<typeof defaultExportOptions> {
+  async function restoreExportPreferences(
+    hostSnapshot: SystemSnapshot = snapshot,
+  ): Promise<typeof defaultExportOptions> {
     try {
       const preferences = await loadExportPreferences();
       const restored = applyExportPreferences(defaultExportOptions, false, preferences);
-      setOptions(restored.options);
+      const alignedOptions = alignSourcePlatformToHost(restored.options, hostSnapshot);
+      setOptions(alignedOptions);
       if (preferences) {
         addLog("info", "Restored export preferences from local storage.");
       }
-      return restored.options;
+      return alignedOptions;
     } catch (error) {
+      const alignedOptions = alignSourcePlatformToHost(defaultExportOptions, hostSnapshot);
+      setOptions(alignedOptions);
       addLog("warn", error instanceof Error ? error.message : "Could not restore export preferences.");
-      return defaultExportOptions;
+      return alignedOptions;
     }
   }
 
@@ -342,9 +354,12 @@ function App() {
     }
   }
 
-  async function refreshHealthChecks(outputPath = options.outputPath): Promise<ExporterProbe> {
+  async function refreshHealthChecks(
+    outputPath = options.outputPath,
+    knownSnapshot?: SystemSnapshot,
+  ): Promise<ExporterProbe> {
     const [nextSnapshot, nextProbe, nextManagedState, nextOutputAccess] = await Promise.all([
-      getSystemSnapshot(),
+      knownSnapshot ? Promise.resolve(knownSnapshot) : getSystemSnapshot(),
       detectExporter(),
       getExporterManagementState(),
       checkOutputAccess(outputPath),
@@ -843,50 +858,60 @@ function App() {
         </nav>
 
         <div className="workspace">
-        <header className="topbar">
-          <div className="page-title">
-            <p className="section-kicker">{activePageLabel.kicker}</p>
-            <h1>{activePageLabel.title}</h1>
-            <p>{activePageLabel.description}</p>
-          </div>
-          <div className="topbar-status">
-            <div className="status-cluster">
-              <BadgeCheck aria-hidden="true" />
-              <span>{probe.found ? probe.version ?? "exporter detected" : setupLabel}</span>
+          <header className="topbar">
+            <div className="page-title">
+              <p className="section-kicker">{activePageLabel.kicker}</p>
+              <h1>{activePageLabel.title}</h1>
+              <p>{activePageLabel.description}</p>
             </div>
-            <div className="status-cluster">
-              <DownloadCloud aria-hidden="true" />
-              <span>{releaseStatusLabel}</span>
+            <div className="topbar-status">
+              <div className="status-cluster">
+                <BadgeCheck aria-hidden="true" />
+                <span>{probe.found ? probe.version ?? "exporter detected" : setupLabel}</span>
+              </div>
+              <div className="status-cluster">
+                <DownloadCloud aria-hidden="true" />
+                <span>{releaseStatusLabel}</span>
+              </div>
+              <div className="status-cluster">
+                <Lock aria-hidden="true" />
+                <span>Local only</span>
+              </div>
             </div>
-            <div className="status-cluster">
-              <Lock aria-hidden="true" />
-              <span>Local only</span>
-            </div>
-          </div>
-        </header>
+          </header>
 
-        <section className="status-strip" aria-label="Workspace status">
-          <div>
-            <span>Exporter</span>
-            <strong>{probe.found ? (probe.managed ? "Managed" : "Detected") : "Not installed"}</strong>
-          </div>
-          <div>
-            <span>Platform</span>
-            <strong>
-              {snapshot.os} / {snapshot.arch}
-            </strong>
-          </div>
-          <div>
-            <span>Update</span>
-            <strong>{updateStatusLabel}</strong>
-          </div>
-          <StatusPill
-            label={preflight.canRunExport ? "Ready" : "Review"}
-            state={preflight.canRunExport ? "passed" : "warning"}
-          />
-        </section>
+          <section className="status-strip" aria-label="Workspace status">
+            <div>
+              <span>Exporter</span>
+              <strong>{probe.found ? (probe.managed ? "Managed" : "Detected") : "Not installed"}</strong>
+            </div>
+            <div>
+              <span>Platform</span>
+              <strong>
+                {snapshot.os} / {snapshot.arch}
+              </strong>
+            </div>
+            <div>
+              <span>Update</span>
+              <strong>{updateStatusLabel}</strong>
+            </div>
+            <StatusPill
+              label={preflight.canRunExport ? "Ready" : "Review"}
+              state={preflight.canRunExport ? "passed" : "warning"}
+            />
+          </section>
 
-        <div className="page-body">
+          {snapshot.launch_warning ? (
+            <section className="runtime-warning" aria-label="Portable app warning">
+              <CircleAlert aria-hidden="true" />
+              <div>
+                <strong>Extract the portable app first</strong>
+                <p>{snapshot.launch_warning}</p>
+              </div>
+            </section>
+          ) : null}
+
+          <div className="page-body">
           {activePage === "setup" ? (
             <div className="page-grid page-grid--setup">
               <div className="main-stack">
@@ -925,6 +950,7 @@ function App() {
                   onRun={runExport}
                   options={options}
                   preflight={preflight}
+                  showMacSourceChoice={showMacSourceChoice}
                 />
               </div>
               <div className="side-stack">
@@ -985,6 +1011,7 @@ function App() {
           onChooseIphoneBackup={pickIphoneBackupSource}
           onChooseMacDatabase={pickMacMessagesSource}
           onClose={() => setSourceGuideOpen(false)}
+          showMacSourceChoice={showMacSourceChoice}
         />
       ) : null}
     </>
@@ -1070,10 +1097,10 @@ function QuickStartPanel({
       number: 3,
       title: "Choose output folder",
       detail: outputReady
-        ? "The destination can be written by the desktop app."
-        : "Pick where ChatExportMate should write the exported files.",
+        ? "The selected export folder can accept saved files."
+        : "Pick where ChatExportMate should save the exported files.",
       state: outputReady ? "passed" : "action",
-      actionLabel: outputReady ? "Writable" : "Choose folder",
+      actionLabel: outputReady ? "Ready" : "Choose folder",
       onAction: onPickOutput,
       disabled: outputReady,
       icon: ShieldCheck,
@@ -1081,7 +1108,7 @@ function QuickStartPanel({
     {
       number: 4,
       title: "Start export",
-      detail: "When the setup checks pass, open the Export page and start the local export.",
+      detail: "When the first three steps are ready, open the Export page and start the local export.",
       state: "warning",
       actionLabel: "Open export",
       onAction: onGoExport,
@@ -1108,21 +1135,6 @@ function QuickStartPanel({
         </button>
       </div>
 
-      <div className="wizard-progress" aria-label={`Step ${currentStep} of 4`}>
-        {steps.map((step) => (
-          <span
-            className={[
-              "wizard-progress-step",
-              step.state === "passed" ? "is-complete" : "",
-              step.number === currentStep ? "is-current" : "",
-            ].filter(Boolean).join(" ")}
-            key={step.title}
-          >
-            {step.number}
-          </span>
-        ))}
-      </div>
-
       <div className="quick-start-steps">
         {steps.map((step) => {
           const Icon = step.icon;
@@ -1132,6 +1144,9 @@ function QuickStartPanel({
               className={`quick-step quick-step--${step.state} ${step.number === currentStep ? "is-current" : ""}`}
               key={step.title}
             >
+              <div className="quick-step-number" aria-hidden="true">
+                {step.number}
+              </div>
               <div className="quick-step-icon">
                 <Icon aria-hidden="true" />
               </div>
