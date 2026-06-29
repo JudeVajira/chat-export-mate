@@ -1283,7 +1283,9 @@ function QuickStartPanel({
       title: platform === "iOS" ? "Choose your iPhone backup" : "Choose message source",
       detail: sourceSelected
         ? `${sourceLabel} selected.`
-        : "Create or choose the local iPhone backup that contains the messages you want to save.",
+        : platform === "iOS"
+          ? "Create or choose the local iPhone backup that contains the messages you want to save."
+          : "Choose the local Messages database that contains the messages you want to save.",
       state: sourceSelected ? "passed" : "action",
       icon: Archive,
       location: sourceSelected

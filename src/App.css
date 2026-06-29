@@ -1371,7 +1371,7 @@ select:focus {
 .backup-candidate-main code {
   color: #26415f;
   font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 0.76rem;
 }
 
@@ -1659,7 +1659,7 @@ select:focus {
 .quick-step-location code {
   min-width: 0;
   color: #172033;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 0.76rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -1868,7 +1868,7 @@ pre {
   min-width: 0;
   overflow-wrap: anywhere;
   color: #e5e7eb;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 0.76rem;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -1982,7 +1982,7 @@ pre {
 
 .result-meta-row code {
   overflow-wrap: anywhere;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
 .result-actions {
