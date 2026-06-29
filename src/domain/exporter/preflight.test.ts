@@ -33,7 +33,7 @@ describe("buildExportPreflightSummary", () => {
   it("allows a real export when exporter, configuration, and output checks pass", () => {
     expect(buildExportPreflightSummary(readyDiagnostics, false)).toMatchObject({
       state: "ready",
-      title: "Ready to export",
+      title: "Ready to export messages",
       actionLabel: "Start export",
       canRunExport: true,
       blockingReasons: [],
@@ -60,7 +60,7 @@ describe("buildExportPreflightSummary", () => {
       title: "Command check available, export not ready",
       actionLabel: "Check command",
       canRunExport: false,
-      blockingReasons: ["Output access: Desktop write access check has not run."],
+      blockingReasons: ["Choose where ChatExportMate should save your exported messages."],
     });
   });
 
@@ -85,12 +85,12 @@ describe("buildExportPreflightSummary", () => {
       ),
     ).toMatchObject({
       state: "blocked",
-      title: "Export needs attention",
-      actionLabel: "Resolve preflight",
+      title: "Finish setup before exporting",
+      actionLabel: "Finish setup",
       canRunExport: false,
       blockingReasons: [
-        "Exporter: imessage-exporter was not found",
-        "Configuration: Choose an output folder for exported files.",
+        "Set up the message reader so ChatExportMate can read your local backup.",
+        "Choose an output folder for exported files.",
       ],
     });
   });
@@ -128,10 +128,10 @@ describe("buildExportPreflightSummary", () => {
       ),
     ).toMatchObject({
       state: "blocked",
-      actionLabel: "Resolve preflight",
+      actionLabel: "Finish setup",
       recommendedAction: {
         id: "install-exporter",
-        label: "Set up exporter",
+        label: "Set up reader",
       },
     });
   });
@@ -160,6 +160,30 @@ describe("buildExportPreflightSummary", () => {
     });
   });
 
+  it("does not repeat executable access notes before the helper is ready", () => {
+    expect(
+      buildExportPreflightSummary(
+        [
+          {
+            id: "exporter",
+            label: "Exporter",
+            detail: "imessage-exporter was not found",
+            state: "action",
+          },
+          {
+            id: "executable-access",
+            label: "Executable access",
+            detail: "Set up or select an exporter before checking whether ChatExportMate can launch it.",
+            state: "warning",
+          },
+        ],
+        false,
+      ),
+    ).toMatchObject({
+      nonBlockingNotes: [],
+    });
+  });
+
   it("preserves non-blocking warning notes separately from blockers", () => {
     expect(
       buildExportPreflightSummary(
@@ -177,7 +201,7 @@ describe("buildExportPreflightSummary", () => {
     ).toMatchObject({
       state: "ready",
       canRunExport: true,
-      nonBlockingNotes: ["Latest release: Version 4.3.0 is available"],
+      nonBlockingNotes: ["Version 4.3.0 is available"],
     });
   });
 });

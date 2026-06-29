@@ -25,12 +25,18 @@ export function buildExportPreflightSummary(
   diagnostics: DiagnosticItem[],
   dryRun: boolean,
 ): ExportPreflightSummary {
+  const exporterReady = diagnostics.some((item) => item.id === "exporter" && item.state === "passed");
   const blockingReasons = diagnostics
     .filter((item) => exportBlockingCheckIds.has(item.id) && item.state !== "passed")
     .map(formatDiagnosticReason);
 
   const nonBlockingNotes = diagnostics
-    .filter((item) => item.state === "warning" && !exportBlockingCheckIds.has(item.id))
+    .filter(
+      (item) =>
+        item.state === "warning" &&
+        !exportBlockingCheckIds.has(item.id) &&
+        (item.id !== "executable-access" || exporterReady),
+    )
     .map(formatDiagnosticReason);
 
   const canRunExport = blockingReasons.length === 0;
@@ -39,10 +45,10 @@ export function buildExportPreflightSummary(
   if (canRunExport) {
     return {
       state: "ready",
-      title: dryRun ? "Ready to check command" : "Ready to export",
+      title: dryRun ? "Ready to check command" : "Ready to export messages",
       detail: dryRun
         ? "Developer command checks build exporter arguments without writing export files."
-        : "ChatExportMate has an exporter, valid options, and a writable output location.",
+        : "The helper tool, message source, and save folder are ready.",
       actionLabel: dryRun ? "Check command" : "Start export",
       canRunExport,
       blockingReasons,
@@ -66,9 +72,9 @@ export function buildExportPreflightSummary(
 
   return {
     state: "blocked",
-    title: "Export needs attention",
-    detail: "Resolve the preflight items below before starting the exporter.",
-    actionLabel: "Resolve preflight",
+    title: "Finish setup before exporting",
+    detail: "Complete the items below, then ChatExportMate can save your messages.",
+    actionLabel: "Finish setup",
     canRunExport,
     blockingReasons,
     nonBlockingNotes,
@@ -77,7 +83,33 @@ export function buildExportPreflightSummary(
 }
 
 function formatDiagnosticReason(item: DiagnosticItem): string {
-  return `${item.label}: ${item.detail}`;
+  if (item.id === "exporter") {
+    return item.state === "passed"
+      ? "The message reader is ready."
+      : "Set up the message reader so ChatExportMate can read your local backup.";
+  }
+
+  if (item.id === "configuration") {
+    return item.detail;
+  }
+
+  if (item.id === "output-access") {
+    return item.state === "passed"
+      ? "The save folder is ready."
+      : "Choose where ChatExportMate should save your exported messages.";
+  }
+
+  if (item.id === "executable-access") {
+    return item.state === "passed"
+      ? "The message reader can run."
+      : "Set up the message reader before ChatExportMate checks it.";
+  }
+
+  if (item.id === "release") {
+    return item.detail;
+  }
+
+  return item.detail;
 }
 
 function findRecommendedAction(diagnostics: DiagnosticItem[]): ExportPreflightAction | null {
@@ -87,8 +119,8 @@ function findRecommendedAction(diagnostics: DiagnosticItem[]): ExportPreflightAc
   if (exporter?.state !== "passed" && asset?.state === "passed") {
     return {
       id: "install-exporter",
-      label: "Set up exporter",
-      detail: "ChatExportMate can download, verify, and activate the exporter tool before you export.",
+      label: "Set up reader",
+      detail: "ChatExportMate will download and verify the local message reader it uses to read your backup.",
     };
   }
 

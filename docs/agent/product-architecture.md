@@ -30,6 +30,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Source selection is platform-specific: macOS custom sources use a `chat.db` file picker, while iOS custom sources use a backup-folder picker. Attachment roots are macOS-only and should not be emitted for iOS commands.
 - Beginner source selection is guide-first, not picker-first. Users who only have an iPhone must be guided through creating and locating a local Apple Devices/iTunes backup before the app asks them to choose a folder; raw `chat.db` and backup folder pickers belong behind "already have it" paths.
 - Source defaults should follow the detected host OS. On Windows, default and empty saved source settings should align to iPhone backup and hide Mac `chat.db` choices from the primary flow; on macOS, the Mac Messages path can be offered.
+- Keep encrypted iPhone backup guidance conservative until the app implements a safe password flow. Upstream `imessage-exporter` can use encrypted backups with a password, but ChatExportMate alpha currently does not collect backup passwords or provide stdin to the helper process. Beginner guidance should prefer a new unencrypted local backup.
 - Existing exporter binary selection also goes through `src/services/tauriBridge.ts`; the backend must verify the selected binary with `--version` before saving it.
 - Keep framework/runtime names such as Tauri out of normal user-facing app copy. Use plain phrases such as "desktop app"; keep implementation terminology in developer docs, diagnostics internals, or code.
 

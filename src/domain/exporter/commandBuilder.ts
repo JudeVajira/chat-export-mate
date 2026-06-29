@@ -23,6 +23,13 @@ export function validateExportOptions(
   }
 
   const sourcePath = options.databasePath?.trim();
+  if (!sourcePath && options.platform === "iOS") {
+    issues.push({
+      field: "databasePath",
+      message: "Choose the iPhone backup folder that contains the messages you want to save.",
+    });
+  }
+
   if (sourcePath && options.platform === "macOS" && !isChatDatabasePath(sourcePath)) {
     issues.push({
       field: "databasePath",

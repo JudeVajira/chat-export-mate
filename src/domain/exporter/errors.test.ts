@@ -15,4 +15,11 @@ describe("translateExporterError", () => {
     expect(error.title).toBe("The exporter stopped unexpectedly");
     expect(error.rawDetails).toBe("totally new upstream failure");
   });
+
+  it("keeps encrypted iPhone backup advice inside the alpha app's supported path", () => {
+    const error = translateExporterError("encrypted backup requires password");
+
+    expect(error.title).toBe("Encrypted backup needs a password");
+    expect(error.suggestedFix).toContain("unencrypted local backup");
+  });
 });

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
-  ArrowRight,
   BadgeCheck,
   CheckCircle2,
   CircleAlert,
@@ -31,11 +30,7 @@ import {
   validateExportOptions,
 } from "./domain/exporter/commandBuilder";
 import { buildDiagnostics } from "./domain/exporter/diagnostics";
-import {
-  getInstallActionLabel,
-  getReleaseStatusLabel,
-  getUpdateStatusLabel,
-} from "./domain/exporter/manager";
+import { getInstallActionLabel } from "./domain/exporter/manager";
 import {
   alignSourcePlatformToHost,
   shouldShowMacSourceChoice,
@@ -117,19 +112,19 @@ type AppPage = "setup" | "export" | "diagnostics" | "history" | "about";
 
 const pageLabels: Record<AppPage, { title: string; kicker: string; description: string }> = {
   setup: {
-    title: "Get ready to export",
+    title: "Save your message history",
     kicker: "Setup",
-    description: "Set up the exporter, choose what to export, and confirm the local destination.",
+    description: "Follow the steps in order to prepare a local backup and choose where the export files go.",
   },
   export: {
-    title: "Configure export",
+    title: "Choose what to save",
     kicker: "Export",
-    description: "Choose what to export, where to save it, and start the local export when setup is ready.",
+    description: "Pick the file type and start the export after setup is complete.",
   },
   diagnostics: {
     title: "Diagnostics",
     kicker: "Health",
-    description: "Check exporter discovery, release updates, permissions, and saved managed versions.",
+    description: "Check helper setup, updates, permissions, and saved troubleshooting details.",
   },
   history: {
     title: "Troubleshooting",
@@ -221,13 +216,6 @@ function App() {
   );
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
-  const releaseStatusLabel = getReleaseStatusLabel(checkingRelease, release?.version);
-  const updateStatusLabel = getUpdateStatusLabel(
-    checkingRelease,
-    Boolean(release),
-    updateAvailable,
-    probe.found,
-  );
   const preflight = useMemo(
     () => buildExportPreflightSummary(diagnostics, dryRun),
     [diagnostics, dryRun],
@@ -839,7 +827,7 @@ function App() {
             </div>
             <div>
               <strong>ChatExportMate</strong>
-              <span>local exporter</span>
+              <span>message archive</span>
             </div>
           </div>
 
@@ -866,37 +854,31 @@ function App() {
             </div>
             <div className="topbar-status">
               <div className="status-cluster">
-                <BadgeCheck aria-hidden="true" />
-                <span>{probe.found ? probe.version ?? "exporter detected" : setupLabel}</span>
-              </div>
-              <div className="status-cluster">
-                <DownloadCloud aria-hidden="true" />
-                <span>{releaseStatusLabel}</span>
-              </div>
-              <div className="status-cluster">
                 <Lock aria-hidden="true" />
                 <span>Local only</span>
+              </div>
+              <div className="status-cluster">
+                <BadgeCheck aria-hidden="true" />
+                <span>{probe.found ? "Helper ready" : setupLabel}</span>
               </div>
             </div>
           </header>
 
           <section className="status-strip" aria-label="Workspace status">
             <div>
-              <span>Exporter</span>
-              <strong>{probe.found ? (probe.managed ? "Managed" : "Detected") : "Not installed"}</strong>
+              <span>Message reader</span>
+              <strong>{probe.found ? "Ready" : "Needs setup"}</strong>
             </div>
             <div>
-              <span>Platform</span>
-              <strong>
-                {snapshot.os} / {snapshot.arch}
-              </strong>
+              <span>Backup folder</span>
+              <strong>{options.databasePath ? "Selected" : "Not chosen"}</strong>
             </div>
             <div>
-              <span>Update</span>
-              <strong>{updateStatusLabel}</strong>
+              <span>Save folder</span>
+              <strong>{outputAccess.writable ? "Ready" : "Choose folder"}</strong>
             </div>
             <StatusPill
-              label={preflight.canRunExport ? "Ready" : "Review"}
+              label={preflight.canRunExport ? "Ready to export" : "Next step"}
               state={preflight.canRunExport ? "passed" : "warning"}
             />
           </section>
@@ -1071,10 +1053,10 @@ function QuickStartPanel({
   const steps = [
     {
       number: 1,
-      title: "Get the exporter",
+      title: "Set up message reader",
       detail: exporterFound
-        ? "The exporter tool is ready."
-        : "Let ChatExportMate download and prepare the exporter for you.",
+        ? "The local message reader is ready."
+        : "ChatExportMate installs the local message reader it uses to turn your backup into files.",
       state: exporterFound ? "passed" : "action",
       actionLabel: exporterFound ? "Ready" : installingExporter ? "Setting up" : installActionLabel,
       onAction: onInstallExporter,
@@ -1083,12 +1065,12 @@ function QuickStartPanel({
     },
     {
       number: 2,
-      title: "Prepare message source",
+      title: "Find your messages",
       detail: sourceSelected
         ? `${sourceLabel} selected.`
-        : "Only have an iPhone? Start here and ChatExportMate will walk you through creating a local backup first.",
+        : "Create or choose the local iPhone backup that contains the messages you want to save.",
       state: sourceSelected ? "passed" : "action",
-      actionLabel: sourceSelected ? "Selected" : "Guide me",
+      actionLabel: sourceSelected ? "Selected" : "Start guide",
       onAction: onPickSource,
       disabled: sourceSelected,
       icon: Archive,
@@ -1107,8 +1089,8 @@ function QuickStartPanel({
     },
     {
       number: 4,
-      title: "Start export",
-      detail: "When the first three steps are ready, open the Export page and start the local export.",
+      title: "Export messages",
+      detail: "When the first three steps are ready, choose a format and start the local export.",
       state: "warning",
       actionLabel: "Open export",
       onAction: onGoExport,
@@ -1123,25 +1105,23 @@ function QuickStartPanel({
       <div className="quick-start-hero">
         <div>
           <p className="section-kicker">Guided setup</p>
-          <h2 id="quick-start-title">Follow the next step</h2>
+          <h2 id="quick-start-title">Follow these steps in order</h2>
           <p>
-            ChatExportMate can set up the exporter, check local access, and run the export
-            without terminal commands. Your messages and exported files stay on this computer.
+            ChatExportMate guides you through creating or choosing a local backup, then saves
+            readable files on this computer.
           </p>
         </div>
-        <button className="button button--primary" onClick={onGoExport} type="button">
-          <ArrowRight aria-hidden="true" />
-          Configure export
-        </button>
       </div>
 
       <div className="quick-start-steps">
         {steps.map((step) => {
           const Icon = step.icon;
           const StateIcon = step.state === "passed" ? CheckCircle2 : CircleAlert;
+          const isCurrent = step.number === currentStep;
+          const isLocked = step.number > currentStep;
           return (
             <article
-              className={`quick-step quick-step--${step.state} ${step.number === currentStep ? "is-current" : ""}`}
+              className={`quick-step quick-step--${step.state} ${isCurrent ? "is-current" : ""} ${isLocked ? "is-locked" : ""}`}
               key={step.title}
             >
               <div className="quick-step-number" aria-hidden="true">
@@ -1158,7 +1138,7 @@ function QuickStartPanel({
                 <p>{step.detail}</p>
               </div>
               <button
-                className="button button--secondary button--compact"
+                className={`button ${isCurrent ? "button--primary" : "button--secondary"} button--compact`}
                 disabled={step.disabled}
                 onClick={step.onAction}
                 type="button"

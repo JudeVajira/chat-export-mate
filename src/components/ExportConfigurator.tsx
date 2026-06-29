@@ -36,15 +36,21 @@ interface ExportConfiguratorProps {
 }
 
 const formats: Array<{ label: string; value: ExportFormat; description: string }> = [
-  { label: "HTML", value: "html", description: "Readable conversation pages" },
-  { label: "Text", value: "txt", description: "Plain text transcripts" },
-  { label: "CSV", value: "csv", description: "Spreadsheet-friendly rows converted from text transcripts" },
+  { label: "Easy to read", value: "html", description: "HTML files you can open in a browser." },
+  { label: "Plain text archive", value: "txt", description: "Simple transcript files for long-term storage." },
+  { label: "Spreadsheet", value: "csv", description: "CSV rows for Excel, Sheets, searching, and filtering." },
 ];
 const platforms: Array<{ label: string; value: ExportPlatform }> = [
   { label: "Mac Messages", value: "macOS" },
   { label: "iPhone backup", value: "iOS" },
 ];
 const copyMethods: AttachmentCopyMethod[] = ["disabled", "clone", "basic", "full"];
+const copyMethodLabels: Record<AttachmentCopyMethod, string> = {
+  disabled: "Skip attachments",
+  clone: "Fast copy",
+  basic: "Basic copy",
+  full: "Full copy",
+};
 
 export function ExportConfigurator({
   options,
@@ -79,12 +85,12 @@ export function ExportConfigurator({
     });
   };
   const isIosSource = options.platform === "iOS";
-  const sourceLabel = "Message source";
+  const sourceLabel = isIosSource ? "iPhone backup folder" : "Mac Messages database";
   const sourcePlaceholder = isIosSource
     ? "Choose the local iPhone backup folder"
     : "~/Library/Messages/chat.db";
   const sourceHint = isIosSource
-    ? "If you only have an iPhone, use the folder button for step-by-step backup instructions."
+    ? "Use the folder button for a step-by-step guide to creating or finding a local iPhone backup."
     : "Use the folder button if you need help finding or choosing the Mac Messages database.";
   const PreflightIcon =
     preflight.state === "ready"
@@ -101,10 +107,10 @@ export function ExportConfigurator({
     preflight.recommendedAction?.id === "install-exporter" && Boolean(onPrepareExporter);
   const primaryActionLabel = canPrepareExporter
     ? isPreparingExporter
-      ? "Setting up exporter"
+      ? "Setting up reader"
       : preflight.recommendedAction?.label ?? preflight.actionLabel
     : isRunning
-      ? "Running export"
+      ? "Exporting messages"
       : preflight.actionLabel;
   const primaryActionDisabled =
     isRunning ||
@@ -117,7 +123,7 @@ export function ExportConfigurator({
       <div className="section-heading">
         <div>
           <p className="section-kicker">Export</p>
-          <h2 id="export-title">Choose export</h2>
+          <h2 id="export-title">Choose your export</h2>
         </div>
       </div>
 
@@ -157,11 +163,11 @@ export function ExportConfigurator({
             type="button"
           >
             <ShieldCheck aria-hidden="true" />
-            {checkingOutputAccess ? "Checking" : "Check access"}
+            {checkingOutputAccess ? "Checking" : "Check save folder"}
           </button>
           <button className="button button--secondary" onClick={onOpenOutput} type="button">
             <FolderOpen aria-hidden="true" />
-            Open folder
+            Open save folder
           </button>
         </div>
         <button
@@ -176,23 +182,37 @@ export function ExportConfigurator({
       </div>
 
       <div className="config-grid">
+        <div className="output-preview span-2" aria-label="What the export creates">
+          <div>
+            <span>What you will get</span>
+            <strong>{formatPreviewTitle(options.format)}</strong>
+            <p>{formatPreviewDescription(options.format)}</p>
+          </div>
+          <ul>
+            {formatPreviewFiles(options.format).map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+
         <fieldset>
           <legend>Format</legend>
-          <div className="segmented-control">
+          <div className="format-choice-list">
             {formats.map((format) => (
               <button
-                className={options.format === format.value ? "is-selected" : ""}
+                className={`format-choice ${options.format === format.value ? "is-selected" : ""}`}
                 key={format.value}
                 onClick={() => update("format", format.value)}
-                title={format.description}
                 type="button"
               >
-                {format.label}
+                <strong>{format.label}</strong>
+                <span>{format.value.toUpperCase()}</span>
+                <small>{format.description}</small>
               </button>
             ))}
           </div>
           <p className="field-hint">
-            CSV is created locally after a text export, so it is best for spreadsheet review.
+            Choose the format that matches how you want to use the saved messages.
           </p>
         </fieldset>
 
@@ -215,8 +235,8 @@ export function ExportConfigurator({
         ) : (
           <div className="source-summary">
             <span>Source</span>
-            <strong>iPhone backup</strong>
-            <p>Detected Windows, so ChatExportMate will guide you to a local iPhone backup folder.</p>
+            <strong>iPhone backup on this computer</strong>
+            <p>ChatExportMate reads a local backup folder. It does not upload your messages.</p>
           </div>
         )}
 
@@ -278,7 +298,7 @@ export function ExportConfigurator({
           >
             {copyMethods.map((method) => (
               <option key={method} value={method}>
-                {method}
+                {copyMethodLabels[method]}
               </option>
             ))}
           </select>
@@ -411,6 +431,42 @@ export function ExportConfigurator({
 
     </section>
   );
+}
+
+function formatPreviewTitle(format: ExportFormat): string {
+  if (format === "csv") {
+    return "Spreadsheet-friendly message rows";
+  }
+
+  if (format === "txt") {
+    return "Plain transcript files";
+  }
+
+  return "Readable conversation pages";
+}
+
+function formatPreviewDescription(format: ExportFormat): string {
+  if (format === "csv") {
+    return "Best when you want to filter, search, or review messages in Excel or Google Sheets.";
+  }
+
+  if (format === "txt") {
+    return "Best for a simple long-term archive that opens in any text editor.";
+  }
+
+  return "Best for browsing your saved conversations later in a normal web browser.";
+}
+
+function formatPreviewFiles(format: ExportFormat): string[] {
+  if (format === "csv") {
+    return ["ChatExportMate Export folder", "messages.csv", "attachments folder when selected"];
+  }
+
+  if (format === "txt") {
+    return ["ChatExportMate Export folder", "conversation text files", "attachments folder when selected"];
+  }
+
+  return ["ChatExportMate Export folder", "readable conversation HTML files", "attachments folder when selected"];
 }
 
 function FieldIssues({ fieldId, issues }: { fieldId: string; issues: string[] }) {

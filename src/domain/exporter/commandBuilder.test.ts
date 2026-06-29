@@ -81,6 +81,14 @@ describe("buildExporterCommand", () => {
     expect(
       validateExportOptions("imessage-exporter", {
         ...baseOptions,
+        platform: "iOS",
+        databasePath: "",
+      }).map((issue) => issue.message),
+    ).toContain("Choose the iPhone backup folder that contains the messages you want to save.");
+
+    expect(
+      validateExportOptions("imessage-exporter", {
+        ...baseOptions,
         platform: "macOS",
         databasePath: "/Users/me/Messages",
       }).map((issue) => issue.message),

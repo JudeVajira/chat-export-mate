@@ -20,7 +20,7 @@ export function RunResultPanel({
     <section className="panel result-panel" aria-labelledby="run-result-title">
       <div className="section-heading">
         <div>
-          <p className="section-kicker">Outcome</p>
+          <p className="section-kicker">Result</p>
           <h2 id="run-result-title">{summary?.title ?? "Waiting for export"}</h2>
         </div>
         <Icon

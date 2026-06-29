@@ -28,10 +28,10 @@ const rules: ErrorRule[] = [
     pattern: /encrypted.*backup|password/i,
     error: {
       title: "Encrypted backup needs a password",
-      explanation: "The selected iOS backup is encrypted and the exporter needs permission to read it.",
-      likelyCause: "Encrypted iPhone backups require a password prompt before export can continue.",
+      explanation: "The selected iPhone backup is encrypted, and this alpha app does not collect backup passwords yet.",
+      likelyCause: "Encrypted iPhone backups require a password. ChatExportMate currently runs the helper without an interactive password prompt.",
       suggestedFix:
-        "Run the export interactively and enter the backup password when prompted. Avoid storing it in command history.",
+        "Create a new unencrypted local backup in Apple Devices, then choose that backup folder in ChatExportMate.",
     },
   },
   {
@@ -72,4 +72,3 @@ export function translateExporterError(rawDetails: string): FriendlyError {
     rawDetails,
   };
 }
-

@@ -21,7 +21,7 @@ export function RunProgressPanel({
       <div className="section-heading section-heading--progress">
         <div>
           <p className="section-kicker">Progress</p>
-          <h2 id="run-progress-title">{progress?.title ?? "Run monitor"}</h2>
+          <h2 id="run-progress-title">{progress?.title ?? "Export progress"}</h2>
         </div>
         {progress ? (
           <span className={`progress-state progress-state--${progress.state}`}>
@@ -75,7 +75,7 @@ export function RunProgressPanel({
         </div>
       ) : (
         <p className="empty-state">
-          Start an export, diagnostics check, or managed exporter operation to see the current steps.
+          Start an export to see progress here.
         </p>
       )}
     </section>

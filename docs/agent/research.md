@@ -5,7 +5,7 @@ description: Reusable external references for ChatExportMate.
 scope: repo-wide
 status: active
 tags: [tauri, tailwind, imessage-exporter, github-releases]
-last_checked: 2026-06-27
+last_checked: 2026-06-29
 sources:
   - https://tauri.app/develop/calling-rust/
   - https://v2.tauri.app/reference/javascript/api/namespacepath/
@@ -66,8 +66,8 @@ related:
 - Title: imessage-exporter binary documentation
   URL: https://raw.githubusercontent.com/ReagentX/imessage-exporter/develop/imessage-exporter/README.md
   Why it matters: Source for supported CLI flags, formats, platform/source arguments, diagnostics, and examples used by command generation.
-  Last checked: 2026-06-27 14:12 +05:30
-  Notes: Rechecked advanced export flags plus macOS `chat.db` and iOS backup-folder source semantics.
+  Last checked: 2026-06-29 11:37 +05:30
+  Notes: Rechecked iOS backup handling. Upstream documents encrypted backup support through `--cleartext-password` or an interactive password prompt, but ChatExportMate alpha does not yet provide a safe password prompt or stdin flow, so beginner guidance should stay on unencrypted local backups.
 
 - Title: imessage-exporter releases
   URL: https://github.com/ReagentX/imessage-exporter/releases

@@ -26,13 +26,13 @@ const sourceGuideChoices: Array<{
   {
     id: "iphone-new",
     title: "I only have an iPhone",
-    detail: "Create a local backup first, then choose that backup folder.",
+    detail: "Create a backup on this computer, then choose it.",
     icon: Smartphone,
   },
   {
     id: "iphone-backup",
     title: "I already made a backup",
-    detail: "Choose the local iPhone backup folder on this computer.",
+    detail: "Choose the iPhone backup folder already saved here.",
     icon: FolderOpen,
   },
   {
@@ -55,9 +55,6 @@ export function SourceGuideDialog({
     (item) => showMacSourceChoice || item.id !== "mac-messages",
   );
   const safeChoice = visibleChoices.some((item) => item.id === choice) ? choice : "iphone-new";
-  const selectedChoice = visibleChoices.find((item) => item.id === safeChoice) ?? visibleChoices[0];
-  const SelectedIcon = selectedChoice.icon;
-
   return (
     <div
       className="modal-backdrop"
@@ -80,8 +77,8 @@ export function SourceGuideDialog({
             <h2 id="source-guide-title">Start with what you have</h2>
             <p id="source-guide-description">
               {showMacSourceChoice
-                ? "ChatExportMate needs a local Messages source before it can export."
-                : "This Windows build exports from a local iPhone backup. If you only have an iPhone, make a local computer backup first."}
+                ? "Choose the local Messages data you want ChatExportMate to export."
+                : "ChatExportMate exports from a local iPhone backup on this computer. Your messages are not uploaded."}
             </p>
           </div>
           <button
@@ -119,14 +116,6 @@ export function SourceGuideDialog({
         </div>
 
         <div className="source-guide-body">
-          <div className="source-guide-intro">
-            <SelectedIcon aria-hidden="true" />
-            <div>
-              <h3>{selectedChoice.title}</h3>
-              <p>{selectedChoice.detail}</p>
-            </div>
-          </div>
-
           {safeChoice === "iphone-new" ? <IphoneBackupWalkthrough /> : null}
           {safeChoice === "iphone-backup" ? <ExistingBackupHelp /> : null}
           {safeChoice === "mac-messages" ? <MacMessagesHelp /> : null}
@@ -148,7 +137,7 @@ export function SourceGuideDialog({
             type="button"
           >
             <FolderOpen aria-hidden="true" />
-            {safeChoice === "mac-messages" ? "Choose chat.db" : "Choose backup folder"}
+            {safeChoice === "mac-messages" ? "Choose Mac Messages database" : "Choose backup folder"}
           </button>
         </footer>
       </section>
@@ -161,7 +150,7 @@ function IphoneBackupWalkthrough() {
     <div className="source-guide-content">
       <ol className="source-guide-steps">
         <li>
-          <strong>Install Apple Devices on Windows.</strong>
+          <strong>Open Apple Devices on Windows.</strong>
           <span>
             Open Microsoft Store, search for Apple Devices by Apple, and install it. If you already
             use iTunes for device backups, you can use that instead.
@@ -172,32 +161,27 @@ function IphoneBackupWalkthrough() {
           <span>Unlock the iPhone and tap Trust This Computer if the phone asks.</span>
         </li>
         <li>
-          <strong>Open the iPhone in Apple Devices.</strong>
-          <span>Select the iPhone in the sidebar, then open the General page.</span>
-        </li>
-        <li>
-          <strong>Create a local backup.</strong>
+          <strong>On General, create a local computer backup.</strong>
           <span>
-            Choose the option to back up all iPhone data to this computer. Turn on encrypted backup
-            if you need Apple to include protected local data.
+            Choose the option to back up all iPhone data to this computer. For this alpha, keep
+            the backup unencrypted so ChatExportMate can export it without asking for a password.
           </span>
         </li>
         <li>
-          <strong>Click Back Up Now and wait for it to finish.</strong>
-          <span>Keep the iPhone connected until Apple Devices says the backup completed.</span>
+          <strong>If Apple asks about encryption, choose Don&apos;t Encrypt.</strong>
+          <span>
+            Encrypted backups need a password. ChatExportMate does not support backup password
+            prompts in the app yet. The backup stays on this computer.
+          </span>
         </li>
         <li>
-          <strong>Find the backup folder.</strong>
+          <strong>Back up, then reveal the folder.</strong>
           <span>
-            Use Manage Backups, choose the newest backup, and select Show in Explorer. Then come
-            back here and choose that folder.
+            Click Back Up Now and wait. Then use Manage Backups, choose the newest backup, select
+            Show in Explorer, and choose that folder here.
           </span>
         </li>
       </ol>
-      <div className="source-guide-note">
-        ChatExportMate does not copy anything from your iPhone directly. It reads the local backup
-        folder you choose and keeps exports on this computer.
-      </div>
     </div>
   );
 }
@@ -209,7 +193,8 @@ function ExistingBackupHelp() {
         Choose the folder for the local iPhone backup you want to export. It is usually a long
         folder name inside Apple&apos;s MobileSync Backup location. If you are not sure which folder
         is correct, open Apple Devices, use Manage Backups, pick the newest backup, and choose Show
-        in Explorer.
+        in Explorer. If the backup is encrypted, make a new unencrypted local backup for this alpha
+        version.
       </p>
     </div>
   );
