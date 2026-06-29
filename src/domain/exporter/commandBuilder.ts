@@ -8,8 +8,9 @@ export function validateExportOptions(
   runtimeSecrets: ExportRuntimeSecrets = {},
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  const structuredCsvExport = usesStructuredCsvExport(options);
 
-  if (!executablePath.trim()) {
+  if (!executablePath.trim() && !structuredCsvExport) {
     issues.push({
       field: "executablePath",
       message: "Set up or choose an exporter before running an export.",
@@ -90,6 +91,10 @@ export function validateExportOptions(
   return issues;
 }
 
+export function usesStructuredCsvExport(options: Pick<ExportOptions, "format" | "csvLayout">): boolean {
+  return options.format === "csv" && options.csvLayout !== "transcriptLines";
+}
+
 export function buildExporterCommand(
   executablePath: string,
   options: ExportOptions,
@@ -137,6 +142,7 @@ export function buildExporterCommand(
     displayCommand: formatDisplayCommand(executablePath, args),
     requestedFormat: options.format,
     exporterFormat,
+    csvLayout: options.csvLayout,
   };
 }
 

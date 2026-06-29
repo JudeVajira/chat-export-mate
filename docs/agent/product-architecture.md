@@ -14,7 +14,7 @@ related:
 
 # Product Boundary
 
-ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a replacement parser. The app owns discovery, download/update, configuration, command construction, execution, log presentation, diagnostics, and user-friendly error translation. The upstream exporter owns message parsing.
+ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a replacement general exporter. The app owns discovery, download/update, configuration, command construction, execution, log presentation, diagnostics, user-friendly error translation, and narrow app-owned CSV layouts. The upstream exporter owns HTML/Text export behavior and remains the default parsing/exporting authority.
 
 # Architecture
 
@@ -31,7 +31,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Beginner source selection is guide-first, not picker-first. Users who only have an iPhone must be guided through creating and locating a local Apple Devices/iTunes backup before the app asks them to choose a folder; raw `chat.db` and backup folder pickers belong behind "already have it" paths.
 - Source defaults should follow the detected host OS. On Windows, default and empty saved source settings should align to iPhone backup and hide Mac `chat.db` choices from the primary flow; on macOS, the Mac Messages path can be offered.
 - iPhone backup discovery should stay conservative: scan Apple's documented MobileSync backup roots for the current OS, require normal iOS backup marker files in child folders, and follow filesystem links at the default `Backup` folder so junction/symlink relocations still work. Do not scan arbitrary drives or parse message contents during discovery.
-- Encrypted iPhone backup support must use a volatile in-app password prompt and piped stdin to `imessage-exporter`. Never use upstream `--cleartext-password` in the normal app flow, and never persist, log, display, preview, or include backup passwords in preferences, support bundles, process args, command previews, or telemetry.
+- Encrypted iPhone backup support must use a volatile in-app password prompt. Never use upstream `--cleartext-password` in the normal app flow, and never persist, log, display, preview, or include backup passwords in preferences, support bundles, process args, command previews, or telemetry. For upstream executable modes, send the current-run password through process stdin. For app-owned finance CSV, unlock the backup in the Tauri backend and stream the decrypted Messages database into an in-memory SQLite connection; do not write a decrypted temp database file.
 - Keep Tauri `security.csp` enabled for packaged builds. If local development needs extra Vite/HMR allowances, use `devCsp` rather than setting the production CSP back to `null`.
 - Existing exporter binary selection also goes through `src/services/tauriBridge.ts`; the backend must verify the selected binary with `--version` before saving it.
 - Keep framework/runtime names such as Tauri out of normal user-facing app copy. Use plain phrases such as "desktop app"; keep implementation terminology in developer docs, diagnostics internals, or code.
@@ -74,7 +74,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - Latest export and diagnostic results should show a structured explanation, likely cause, suggested fix, saved log path when available, and optional raw details; keep the activity log concise.
 - Latest export results should expose desktop actions to open the exported output folder and saved log when those paths are available. Diagnostic results should expose the saved log action when available.
 - The development browser harness must not pretend to execute exports; it should return a clear desktop-runtime-only message.
-- CSV is an app-owned post-processing format. Do not send `-f csv` to upstream unless upstream explicitly supports it; run the exporter in text mode, then create `chatexportmate-export.csv` from generated text transcripts. The first CSV contract is line-based: `transcript_file`, `line_number`, `text`.
+- CSV is an app-owned format. Do not send `-f csv` to upstream unless upstream explicitly supports it. Spenlio finance CSV layouts should read local Messages database fields through upstream ReagentX libraries, preserve Apple `message.guid` where present, fall back to the SQLite message row ID when needed, and apply a conservative sender filter that skips phone-number conversations, email senders, non-SMS services, and the user's own sent messages. Those finance layouts do not require an external exporter executable in validation, preflight, or backend execution. For encrypted iPhone backups, keep the decrypted database in memory rather than a temp file. Keep the `sender`, `received_at`, `message_id`, `message` contract, the per-sender finance CSV layout, and the legacy transcript-line layout as text-export post-processing with `transcript_file`, `line_number`, `text`.
 
 # Diagnostics
 
@@ -110,6 +110,7 @@ Prioritize tests for:
 - error translation from known stderr patterns
 - diagnostics result aggregation
 - managed install/update UI state and action labels
+- optional real-backup smoke coverage through the ignored `local_iphone_backup_structured_csv_smoke_export` Rust test; run it only with explicit `CHAT_EXPORT_MATE_REAL_BACKUP_PATH` and `CHAT_EXPORT_MATE_REAL_OUTPUT_PATH`, and keep output outside the repo
 
 # UX Notes
 

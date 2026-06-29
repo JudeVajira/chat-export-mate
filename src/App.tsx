@@ -5,10 +5,12 @@ import {
   CheckCircle2,
   CircleAlert,
   DownloadCloud,
+  FolderOpen,
   History,
   Info,
   Lock,
   MessageSquareText,
+  Pencil,
   Play,
   Settings2,
   ShieldCheck,
@@ -27,6 +29,7 @@ import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "
 import {
   buildDiagnosticCommand,
   buildExporterCommand,
+  usesStructuredCsvExport,
   validateExportOptions,
 } from "./domain/exporter/commandBuilder";
 import { buildDiagnostics } from "./domain/exporter/diagnostics";
@@ -197,6 +200,7 @@ function App() {
 
   const executablePath = probe.path ?? defaultExecutablePath;
   const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
+  const structuredCsvExport = useMemo(() => usesStructuredCsvExport(options), [options]);
   const diagnosticCommand = useMemo(
     () => buildDiagnosticCommand(executablePath, options),
     [executablePath, options],
@@ -227,9 +231,13 @@ function App() {
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
   const preflight = useMemo(
-    () => buildExportPreflightSummary(diagnostics, dryRun),
-    [diagnostics, dryRun],
+    () => buildExportPreflightSummary(diagnostics, dryRun, !structuredCsvExport),
+    [diagnostics, dryRun, structuredCsvExport],
   );
+  const fileManagerLabel = useMemo(() => getFileManagerLabel(snapshot), [snapshot]);
+  const selectedSourcePath = options.databasePath?.trim() ?? "";
+  const selectedOutputPath =
+    outputAccess.path === options.outputPath ? outputAccess.resolvedPath || options.outputPath : options.outputPath;
   const permissionGuide = useMemo(
     () => buildPermissionGuide(snapshot, options, outputAccess),
     [options, outputAccess, snapshot],
@@ -242,6 +250,7 @@ function App() {
       ? "warning"
       : "passed";
   const setupLabel = setupState === "passed" ? "Setup ready" : setupState === "action" ? "Setup needed" : "Review";
+  const topbarReadinessLabel = preflight.canRunExport ? "Ready to export" : setupLabel;
   const showMacSourceChoice = shouldShowMacSourceChoice(snapshot);
 
   useEffect(() => {
@@ -618,6 +627,11 @@ function App() {
         ...command,
         eventId,
         outputPath: options.outputPath,
+        platform: options.platform,
+        sourcePath: options.databasePath,
+        startDate: options.startDate,
+        endDate: options.endDate,
+        conversationFilter: options.conversationFilter,
         backupPassword:
           options.platform === "iOS" && options.encryptedBackup ? backupPassword : undefined,
       });
@@ -660,6 +674,20 @@ function App() {
       addLog("info", `Opened ${options.outputPath}.`);
     } catch (error) {
       addLog("warn", error instanceof Error ? error.message : "Could not open the output folder.");
+    }
+  }
+
+  async function openSelectedSourceLocation() {
+    const sourcePath = sourceLocationPathForOpen(options);
+    if (!sourcePath) {
+      return;
+    }
+
+    try {
+      await openLocalPath(sourcePath);
+      addLog("info", "Opened the selected message source location.");
+    } catch (error) {
+      addLog("warn", error instanceof Error ? error.message : "Could not open the selected source location.");
     }
   }
 
@@ -938,7 +966,7 @@ function App() {
               </div>
               <div className="status-cluster">
                 <BadgeCheck aria-hidden="true" />
-                <span>{probe.found ? "Helper ready" : setupLabel}</span>
+                <span>{topbarReadinessLabel}</span>
               </div>
             </div>
           </header>
@@ -946,15 +974,19 @@ function App() {
           <section className="status-strip" aria-label="Workspace status">
             <div>
               <span>Export tool</span>
-              <strong>{probe.found ? "Ready" : "Needs setup"}</strong>
+              <strong>{probe.found ? "Ready" : structuredCsvExport ? "Optional for CSV" : "Needs setup"}</strong>
             </div>
             <div>
               <span>iPhone backup</span>
-              <strong>{options.databasePath ? "Selected" : "Not selected"}</strong>
+              <strong title={selectedSourcePath || undefined}>
+                {selectedSourcePath || "Not selected"}
+              </strong>
             </div>
             <div>
               <span>Export location</span>
-              <strong>{outputAccess.writable ? "Ready" : "Choose folder"}</strong>
+              <strong title={selectedOutputPath || undefined}>
+                {selectedOutputPath || "Choose folder"}
+              </strong>
             </div>
             <StatusPill
               label={preflight.canRunExport ? "Ready to export" : "Next step"}
@@ -979,15 +1011,21 @@ function App() {
                 <QuickStartPanel
                   canPrepareExporter={Boolean(selectedAsset)}
                   exporterFound={probe.found}
+                  exporterRequired={!structuredCsvExport}
                   installActionLabel={installActionLabel}
                   installingExporter={installingExporter}
                   onGoExport={() => setActivePage("export")}
                   onInstallExporter={installOrUpdateExporter}
+                  onOpenOutput={openExportFolder}
+                  onOpenSource={openSelectedSourceLocation}
                   onPickOutput={pickOutputFolder}
                   onPickSource={openSourceGuide}
                   outputReady={outputAccess.writable}
+                  outputPath={selectedOutputPath}
+                  fileManagerLabel={fileManagerLabel}
                   platform={options.platform}
-                  sourceSelected={Boolean(options.databasePath)}
+                  sourcePath={selectedSourcePath}
+                  sourceSelected={Boolean(selectedSourcePath)}
                 />
               </div>
             </div>
@@ -1095,6 +1133,40 @@ function shouldClearBackupPassword(previousOptions: ExportOptions, nextOptions: 
   );
 }
 
+function getFileManagerLabel(snapshot: Pick<SystemSnapshot, "os">): string {
+  const os = snapshot.os.toLowerCase();
+  if (os.includes("windows")) {
+    return "Open in Explorer";
+  }
+
+  if (os.includes("mac") || os.includes("darwin")) {
+    return "Open in Finder";
+  }
+
+  return "Open folder";
+}
+
+function sourceLocationPathForOpen(options: ExportOptions): string {
+  const sourcePath = options.databasePath?.trim() ?? "";
+  if (!sourcePath || options.platform === "iOS") {
+    return sourcePath;
+  }
+
+  return parentPath(sourcePath);
+}
+
+function parentPath(path: string): string {
+  const lastForwardSlash = path.lastIndexOf("/");
+  const lastBackSlash = path.lastIndexOf("\\");
+  const lastSeparator = Math.max(lastForwardSlash, lastBackSlash);
+
+  if (lastSeparator <= 0) {
+    return path;
+  }
+
+  return path.slice(0, lastSeparator);
+}
+
 function NavButton({
   active,
   icon: Icon,
@@ -1119,56 +1191,115 @@ function NavButton({
   );
 }
 
+type QuickStartStepState = "passed" | "action" | "warning";
+
+interface QuickStartAction {
+  label: string;
+  icon: typeof Settings2;
+  onAction: () => void;
+  disabled?: boolean;
+  variant?: "primary";
+}
+
+interface QuickStartLocation {
+  label: string;
+  value: string;
+}
+
+interface QuickStartStep {
+  number: number;
+  title: string;
+  detail: string;
+  state: QuickStartStepState;
+  icon: typeof Settings2;
+  location?: QuickStartLocation;
+  actions: QuickStartAction[];
+}
+
 function QuickStartPanel({
   canPrepareExporter,
   exporterFound,
+  exporterRequired,
+  fileManagerLabel,
   installActionLabel,
   installingExporter,
   onGoExport,
   onInstallExporter,
+  onOpenOutput,
+  onOpenSource,
   onPickOutput,
   onPickSource,
   outputReady,
+  outputPath,
   platform,
+  sourcePath,
   sourceSelected,
 }: {
   canPrepareExporter: boolean;
   exporterFound: boolean;
+  exporterRequired: boolean;
+  fileManagerLabel: string;
   installActionLabel: string;
   installingExporter: boolean;
   onGoExport: () => void;
   onInstallExporter: () => void;
+  onOpenOutput: () => void;
+  onOpenSource: () => void;
   onPickOutput: () => void;
   onPickSource: () => void;
   outputReady: boolean;
+  outputPath: string;
   platform: string;
+  sourcePath: string;
   sourceSelected: boolean;
 }) {
   const sourceLabel = platform === "iOS" ? "iPhone backup" : "Messages source";
-  const steps = [
+  const steps: QuickStartStep[] = [
     {
       number: 1,
-      title: "Install export tool",
+      title: exporterRequired ? "Install export tool" : "CSV reader ready",
       detail: exporterFound
         ? "The local export tool is ready."
-        : "ChatExportMate installs the local tool it uses to turn your backup into files.",
-      state: exporterFound ? "passed" : "action",
-      actionLabel: exporterFound ? "Ready" : installingExporter ? "Setting up" : installActionLabel,
-      onAction: onInstallExporter,
-      disabled: exporterFound || !canPrepareExporter || installingExporter,
+        : exporterRequired
+          ? "ChatExportMate installs the local tool it uses to turn your backup into files."
+          : "Finance CSV uses ChatExportMate's built-in local database reader. Install the export tool later for HTML, text, or transcript-line CSV.",
+      state: exporterFound || !exporterRequired ? "passed" : "action",
       icon: DownloadCloud,
+      actions:
+        exporterFound || !exporterRequired
+          ? [{ label: "Ready", icon: CheckCircle2, onAction: onInstallExporter, disabled: true }]
+          : [
+              {
+                label: installingExporter ? "Setting up" : installActionLabel,
+                icon: DownloadCloud,
+                onAction: onInstallExporter,
+                disabled: !canPrepareExporter || installingExporter,
+                variant: "primary",
+              },
+            ],
     },
     {
       number: 2,
       title: platform === "iOS" ? "Choose your iPhone backup" : "Choose message source",
       detail: sourceSelected
         ? `${sourceLabel} selected.`
-        : "Create or choose the local iPhone backup that contains the messages you want to save.",
+        : platform === "iOS"
+          ? "Create or choose the local iPhone backup that contains the messages you want to save."
+          : "Choose the local Messages database that contains the messages you want to save.",
       state: sourceSelected ? "passed" : "action",
-      actionLabel: sourceSelected ? "Selected" : "Start guide",
-      onAction: onPickSource,
-      disabled: sourceSelected,
       icon: Archive,
+      location: sourceSelected
+        ? {
+            label: platform === "iOS" ? "Current backup folder" : "Current source",
+            value: sourcePath,
+          }
+        : undefined,
+      actions: sourceSelected
+        ? [
+            { label: fileManagerLabel, icon: FolderOpen, onAction: onOpenSource },
+            { label: "Change", icon: Pencil, onAction: onPickSource },
+          ]
+        : [{ label: "Start guide", icon: Archive, onAction: onPickSource, variant: "primary" }],
     },
     {
       number: 3,
@@ -1177,22 +1308,36 @@ function QuickStartPanel({
         ? "The selected export folder can accept saved files."
         : "Pick where ChatExportMate should save the exported files.",
       state: outputReady ? "passed" : "action",
-      actionLabel: outputReady ? "Ready" : "Choose folder",
-      onAction: onPickOutput,
-      disabled: outputReady,
       icon: ShieldCheck,
+      location: outputPath
+        ? {
+            label: "Current export folder",
+            value: outputPath,
+          }
+        : undefined,
+      actions: outputReady
+        ? [
+            { label: fileManagerLabel, icon: FolderOpen, onAction: onOpenOutput },
+            { label: "Change", icon: Pencil, onAction: onPickOutput },
+          ]
+        : [
+            {
+              label: outputPath ? "Change" : "Choose folder",
+              icon: outputPath ? Pencil : FolderOpen,
+              onAction: onPickOutput,
+              variant: "primary",
+            },
+          ],
     },
     {
       number: 4,
       title: "Export messages",
       detail: "When the first three steps are ready, choose a format and start the local export.",
       state: "warning",
-      actionLabel: "Open export",
-      onAction: onGoExport,
-      disabled: false,
       icon: Play,
+      actions: [{ label: "Open export", icon: Play, onAction: onGoExport, variant: "primary" }],
     },
-  ] as const;
+  ];
   const currentStep = steps.find((step) => step.state !== "passed")?.number ?? 4;
   const currentStepTitle = steps.find((step) => step.number === currentStep)?.title ?? "current step";
 
@@ -1214,8 +1359,7 @@ function QuickStartPanel({
           const Icon = step.icon;
           const StateIcon = step.state === "passed" ? CheckCircle2 : CircleAlert;
           const isCurrent = step.number === currentStep;
-          const isLocked = step.number > currentStep;
-          const actionLabel = isLocked ? `${currentStepTitle} first` : step.actionLabel;
+          const isLocked = step.number === 4 && step.number > currentStep;
           return (
             <article
               className={`quick-step quick-step--${step.state} ${isCurrent ? "is-current" : ""} ${isLocked ? "is-locked" : ""}`}
@@ -1233,15 +1377,37 @@ function QuickStartPanel({
                   <h3>{step.title}</h3>
                 </div>
                 <p>{step.detail}</p>
+                {step.location ? (
+                  <div className="quick-step-location">
+                    <span>{step.location.label}</span>
+                    <code title={step.location.value}>{step.location.value}</code>
+                  </div>
+                ) : null}
               </div>
-              <button
-                className={`button ${isCurrent ? "button--primary" : "button--secondary"} button--compact`}
-                disabled={step.disabled || isLocked}
-                onClick={step.onAction}
-                type="button"
-              >
-                {actionLabel}
-              </button>
+              <div className="quick-step-actions">
+                {isLocked ? (
+                  <button className="button button--secondary button--compact" disabled type="button">
+                    {currentStepTitle} first
+                  </button>
+                ) : (
+                  step.actions.map((action) => {
+                    const ActionIcon = action.icon;
+                    const isPrimary = action.variant === "primary" || (isCurrent && step.actions.length === 1);
+                    return (
+                      <button
+                        className={`button ${isPrimary ? "button--primary" : "button--secondary"} button--compact`}
+                        disabled={action.disabled}
+                        key={action.label}
+                        onClick={action.onAction}
+                        type="button"
+                      >
+                        <ActionIcon aria-hidden="true" />
+                        {action.label}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </article>
           );
         })}

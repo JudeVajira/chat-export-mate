@@ -646,6 +646,40 @@ dd {
   line-height: 1.35;
 }
 
+.csv-layout-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.csv-layout-option {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  border: 1px solid #cdd8e5;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+  text-align: left;
+}
+
+.csv-layout-option.is-selected {
+  border-color: #8eb8ff;
+  background: #f1f6ff;
+  box-shadow: inset 0 0 0 1px #8eb8ff;
+}
+
+.csv-layout-option strong {
+  color: #172033;
+  font-size: 0.84rem;
+}
+
+.csv-layout-option small {
+  color: #526278;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
 .output-preview {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
@@ -1337,7 +1371,7 @@ select:focus {
 .backup-candidate-main code {
   color: #26415f;
   font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 0.76rem;
 }
 
@@ -1503,9 +1537,9 @@ select:focus {
 
 .quick-step {
   display: grid;
-  grid-template-columns: 34px 42px minmax(0, 1fr) auto;
+  grid-template-columns: 34px 42px minmax(0, 1fr) minmax(220px, auto);
   gap: 12px;
-  align-items: center;
+  align-items: start;
   min-width: 0;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
@@ -1600,6 +1634,43 @@ select:focus {
   color: #64748b;
   font-size: 0.8rem;
   line-height: 1.4;
+}
+
+.quick-step-location {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  margin-top: 6px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px 10px;
+}
+
+.quick-step-location span {
+  color: #66758a;
+  font-size: 0.7rem;
+  font-weight: 840;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.quick-step-location code {
+  min-width: 0;
+  color: #172033;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.quick-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-self: center;
 }
 
 .command-panel {
@@ -1797,7 +1868,7 @@ pre {
   min-width: 0;
   overflow-wrap: anywhere;
   color: #e5e7eb;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 0.76rem;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -1911,7 +1982,7 @@ pre {
 
 .result-meta-row code {
   overflow-wrap: anywhere;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
 .result-actions {
@@ -2387,10 +2458,21 @@ dd {
   .config-grid,
   .advanced-option-grid,
   .button-grid,
+  .csv-layout-list,
   .quick-start-hero,
   .quick-start-steps,
-  .quick-step {
+  .quick-step,
+  .quick-step-location {
     grid-template-columns: 1fr;
+  }
+
+  .quick-step-actions {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .quick-step-actions .button {
+    width: 100%;
   }
 
   .checkbox-stack {

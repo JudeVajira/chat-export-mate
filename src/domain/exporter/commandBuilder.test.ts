@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildDiagnosticCommand, buildExporterCommand, validateExportOptions } from "./commandBuilder";
+import {
+  buildDiagnosticCommand,
+  buildExporterCommand,
+  usesStructuredCsvExport,
+  validateExportOptions,
+} from "./commandBuilder";
 import type { ExportOptions } from "./types";
 
 const baseOptions: ExportOptions = {
@@ -14,6 +19,7 @@ const baseOptions: ExportOptions = {
   endDate: "2021-01-01",
   conversationFilter: "steve@apple.com,5558675309",
   customName: "",
+  csvLayout: "spenlioCombined",
   useCallerId: false,
   noLazyImages: true,
   ignoreDiskWarning: false,
@@ -138,7 +144,30 @@ describe("buildExporterCommand", () => {
 
     expect(command.requestedFormat).toBe("csv");
     expect(command.exporterFormat).toBe("txt");
+    expect(command.csvLayout).toBe("spenlioCombined");
     expect(command.args.slice(0, 2)).toEqual(["-f", "txt"]);
+  });
+
+  it("does not require an exporter binary for structured finance CSV layouts", () => {
+    const structuredCsvOptions: ExportOptions = {
+      ...baseOptions,
+      format: "csv",
+      platform: "iOS",
+      databasePath: "/Users/me/Library/Application Support/MobileSync/Backup/ABC",
+      csvLayout: "spenlioCombined",
+    };
+
+    expect(usesStructuredCsvExport(structuredCsvOptions)).toBe(true);
+    expect(validateExportOptions("", structuredCsvOptions)).toEqual([]);
+    expect(
+      validateExportOptions("", {
+        ...structuredCsvOptions,
+        csvLayout: "transcriptLines",
+      }),
+    ).toContainEqual({
+      field: "executablePath",
+      message: "Set up or choose an exporter before running an export.",
+    });
   });
 
   it("builds iOS backup commands without macOS attachment roots", () => {

@@ -1,9 +1,23 @@
+use chrono::Local;
+use crabapple::{
+    backup::models::manifest::manifest_plist::ManifestData, error::BackupError, Authentication,
+    Backup,
+};
 use flate2::read::GzDecoder;
+use imessage_database::{
+    tables::{
+        handle::Handle,
+        messages::{models::Service, Message},
+        table::{get_connection, Cacheable, Table, DEFAULT_PATH_IOS},
+    },
+    util::{dates::get_offset, dirs::default_db_path, query_context::QueryContext},
+};
+use rusqlite::{Connection, MAIN_DB};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     env, fs,
-    io::{BufRead, BufReader, Cursor, Read, Write},
+    io::{BufRead, BufReader, Cursor, ErrorKind, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
@@ -145,6 +159,12 @@ struct ExecuteExporterRequest {
     output_path: String,
     event_id: Option<String>,
     requested_format: Option<String>,
+    csv_layout: Option<String>,
+    platform: Option<String>,
+    source_path: Option<String>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    conversation_filter: Option<String>,
     backup_password: Option<String>,
 }
 
@@ -545,7 +565,8 @@ fn execute_exporter(
     app: AppHandle,
     request: ExecuteExporterRequest,
 ) -> Result<ExportRunResult, String> {
-    if request.executable_path.trim().is_empty() {
+    let structured_csv_export = should_run_structured_csv_export(&request);
+    if request.executable_path.trim().is_empty() && !structured_csv_export {
         return Err("Choose or install imessage-exporter before running an export.".to_string());
     }
 
@@ -561,32 +582,75 @@ fn execute_exporter(
     let redaction_values = backup_password
         .map(|password| vec![password.to_string()])
         .unwrap_or_default();
-    let mut output = run_process_with_output_events(
-        &app,
-        &event_id,
-        "export",
-        &request.executable_path,
-        &request.args,
-        backup_password,
-        &redaction_values,
-    );
-    let completed_at = timestamp_millis();
     let mut csv_path = None;
+    let command_for_log = if structured_csv_export {
+        structured_csv_command_label(&request)
+    } else {
+        request.display_command.clone()
+    };
+    let mut output = if structured_csv_export {
+        match run_structured_csv_export(&app, &event_id, &request, backup_password) {
+            Ok(result) => {
+                csv_path = Some(result.path.to_string_lossy().to_string());
+                ProcessRunOutput {
+                    stdout: format!(
+                        "ChatExportMate created structured CSV output: {} ({} row{}, {} file{})\n",
+                        result.path.to_string_lossy(),
+                        result.row_count,
+                        if result.row_count == 1 { "" } else { "s" },
+                        result.file_count,
+                        if result.file_count == 1 { "" } else { "s" },
+                    ),
+                    stderr: String::new(),
+                    exit_code: Some(0),
+                    success: true,
+                }
+            }
+            Err(error) => ProcessRunOutput {
+                stdout: String::new(),
+                stderr: format!("ChatExportMate could not create structured CSV output: {error}\n"),
+                exit_code: None,
+                success: false,
+            },
+        }
+    } else {
+        run_process_with_output_events(
+            &app,
+            &event_id,
+            "export",
+            &request.executable_path,
+            &request.args,
+            backup_password,
+            &redaction_values,
+        )
+    };
+    output.stdout = redact_sensitive_text(&output.stdout, &redaction_values);
+    output.stderr = redact_sensitive_text(&output.stderr, &redaction_values);
+    let completed_at = timestamp_millis();
 
     if output.success && request.requested_format.as_deref() == Some("csv") {
-        match convert_text_export_to_csv(&resolve_output_path(&request.output_path)) {
-            Ok(path) => {
-                output.stdout.push_str(&format!(
-                    "\nChatExportMate created CSV file: {}\n",
-                    path.to_string_lossy()
-                ));
-                csv_path = Some(path.to_string_lossy().to_string());
-            }
-            Err(error) => {
-                output.success = false;
-                output.stderr.push_str(&format!(
-                    "\nChatExportMate could not create CSV from the text export: {error}\n"
-                ));
+        if !structured_csv_export {
+            match convert_text_export_to_csv(
+                &resolve_output_path(&request.output_path),
+                request.csv_layout.as_deref(),
+            ) {
+                Ok(result) => {
+                    output.stdout.push_str(&format!(
+                        "\nChatExportMate created CSV output: {} ({} row{}, {} file{})\n",
+                        result.path.to_string_lossy(),
+                        result.row_count,
+                        if result.row_count == 1 { "" } else { "s" },
+                        result.file_count,
+                        if result.file_count == 1 { "" } else { "s" },
+                    ));
+                    csv_path = Some(result.path.to_string_lossy().to_string());
+                }
+                Err(error) => {
+                    output.success = false;
+                    output.stderr.push_str(&format!(
+                        "\nChatExportMate could not create CSV from the text export: {error}\n"
+                    ));
+                }
             }
         }
     }
@@ -601,10 +665,11 @@ fn execute_exporter(
         &started_at,
         &completed_at,
         csv_path.as_deref(),
+        &command_for_log,
     )?;
 
     Ok(ExportRunResult {
-        command: request.display_command,
+        command: command_for_log,
         stdout: output.stdout,
         stderr: output.stderr,
         exit_code: output.exit_code,
@@ -1211,7 +1276,345 @@ fn resolve_output_path(path: &str) -> PathBuf {
         .unwrap_or(expanded_path)
 }
 
-fn convert_text_export_to_csv(output_path: &Path) -> Result<PathBuf, String> {
+fn resolve_input_path(path: &str) -> PathBuf {
+    let expanded_path = expand_home_path(path);
+    if expanded_path.is_absolute() {
+        return expanded_path;
+    }
+
+    env::current_dir()
+        .map(|current_dir| current_dir.join(&expanded_path))
+        .unwrap_or(expanded_path)
+}
+
+struct CsvConversionResult {
+    path: PathBuf,
+    row_count: usize,
+    file_count: usize,
+}
+
+enum StructuredCsvSource {
+    File(PathBuf),
+    InMemory(Connection),
+}
+
+struct StructuredCsvOptions {
+    start_date: Option<String>,
+    end_date: Option<String>,
+    conversation_filter: Option<String>,
+}
+
+struct TextExportMessage {
+    sender: String,
+    received_at: String,
+    message: String,
+    source_index: usize,
+}
+
+#[derive(Clone)]
+struct SpenlioCsvRow {
+    sender: String,
+    received_at: String,
+    message_id: String,
+    message: String,
+    source_index: usize,
+}
+
+fn should_run_structured_csv_export(request: &ExecuteExporterRequest) -> bool {
+    request.requested_format.as_deref() == Some("csv")
+        && request.csv_layout.as_deref() != Some("transcriptLines")
+}
+
+fn structured_csv_command_label(request: &ExecuteExporterRequest) -> String {
+    let layout = match request.csv_layout.as_deref() {
+        Some("spenlioBySender") => "Spenlio CSV by sender",
+        _ => "Spenlio finance CSV",
+    };
+
+    format!("ChatExportMate structured export: {layout}")
+}
+
+fn run_structured_csv_export(
+    app: &AppHandle,
+    event_id: &str,
+    request: &ExecuteExporterRequest,
+    backup_password: Option<&str>,
+) -> Result<CsvConversionResult, String> {
+    emit_process_output(
+        app,
+        event_id,
+        "export",
+        "stdout",
+        "Reading the selected Messages source for structured CSV output.",
+    );
+
+    let source = open_structured_csv_source(request, backup_password)?;
+    let options = StructuredCsvOptions {
+        start_date: request.start_date.clone(),
+        end_date: request.end_date.clone(),
+        conversation_filter: request.conversation_filter.clone(),
+    };
+    let rows = collect_spenlio_csv_rows_from_source(&source, &options)?;
+    let result = write_spenlio_csv_layout(
+        &resolve_output_path(&request.output_path),
+        request.csv_layout.as_deref(),
+        rows,
+    )?;
+
+    emit_process_output(
+        app,
+        event_id,
+        "export",
+        "stdout",
+        &format!(
+            "Created structured CSV output with {} row{}.",
+            result.row_count,
+            if result.row_count == 1 { "" } else { "s" },
+        ),
+    );
+
+    Ok(result)
+}
+
+fn open_structured_csv_source(
+    request: &ExecuteExporterRequest,
+    backup_password: Option<&str>,
+) -> Result<StructuredCsvSource, String> {
+    match request.platform.as_deref().unwrap_or("iOS") {
+        "iOS" => open_iphone_backup_csv_source(request, backup_password),
+        "macOS" => {
+            let db_path = request
+                .source_path
+                .as_deref()
+                .filter(|path| !path.trim().is_empty())
+                .map(resolve_input_path)
+                .unwrap_or_else(default_db_path);
+
+            Ok(StructuredCsvSource::File(db_path))
+        }
+        _ => Err(
+            "Structured CSV export needs a macOS Messages database or iPhone backup.".to_string(),
+        ),
+    }
+}
+
+fn open_iphone_backup_csv_source(
+    request: &ExecuteExporterRequest,
+    backup_password: Option<&str>,
+) -> Result<StructuredCsvSource, String> {
+    let backup_path = request
+        .source_path
+        .as_deref()
+        .filter(|path| !path.trim().is_empty())
+        .ok_or_else(|| "Choose the iPhone backup folder before exporting CSV.".to_string())
+        .map(resolve_input_path)?;
+
+    let manifest_data = ManifestData::from_plist(backup_path.join("Manifest.plist"))
+        .map_err(describe_backup_access_error)?;
+
+    if !manifest_data.is_encrypted {
+        return Ok(StructuredCsvSource::File(
+            backup_path.join(DEFAULT_PATH_IOS),
+        ));
+    }
+
+    let password = backup_password.filter(|password| !password.is_empty()).ok_or_else(|| {
+        "Encrypted backups need the backup password. The password is used only for this export and is not saved."
+            .to_string()
+    })?;
+
+    let backup = Backup::open(backup_path, &Authentication::Password(password.to_string()))
+        .map_err(describe_backup_access_error)?;
+    let db = open_decrypted_iphone_messages_database(&backup)?;
+
+    Ok(StructuredCsvSource::InMemory(db))
+}
+
+fn open_decrypted_iphone_messages_database(backup: &Backup) -> Result<Connection, String> {
+    let (_, file_id) = DEFAULT_PATH_IOS.split_at(3);
+    let file = backup
+        .get_file(file_id)
+        .map_err(describe_backup_access_error)?;
+    let mut decrypted_database = backup
+        .decrypt_entry_stream(&file)
+        .map_err(describe_backup_access_error)?;
+    let database_size = usize::try_from(file.metadata.size)
+        .map_err(|_| "The decrypted Messages database is too large to load safely.".to_string())?;
+    let mut db = Connection::open_in_memory().map_err(to_string)?;
+    db.deserialize_read_exact(MAIN_DB, &mut decrypted_database, database_size, true)
+        .map_err(to_string)?;
+    let _ = db.pragma_update(None, "query_only", "ON");
+    let _ = db.pragma_update(None, "temp_store", "MEMORY");
+
+    Ok(db)
+}
+
+fn describe_backup_access_error(error: BackupError) -> String {
+    match error {
+        BackupError::PasswordOrKeyIncorrect
+        | BackupError::PasswordOrKeyRequired
+        | BackupError::ManifestDbNotFound
+        | BackupError::Crypto(_) => {
+            "The backup password did not work, or the backup could not be unlocked. Re-enter the password and try again."
+                .to_string()
+        }
+        other => other.to_string(),
+    }
+}
+
+fn collect_spenlio_csv_rows_from_database(
+    db_path: &Path,
+    options: &StructuredCsvOptions,
+) -> Result<Vec<SpenlioCsvRow>, String> {
+    let db = get_connection(db_path).map_err(to_string)?;
+    collect_spenlio_csv_rows_from_connection(&db, options)
+}
+
+fn collect_spenlio_csv_rows_from_source(
+    source: &StructuredCsvSource,
+    options: &StructuredCsvOptions,
+) -> Result<Vec<SpenlioCsvRow>, String> {
+    match source {
+        StructuredCsvSource::File(db_path) => {
+            collect_spenlio_csv_rows_from_database(db_path, options)
+        }
+        StructuredCsvSource::InMemory(db) => collect_spenlio_csv_rows_from_connection(db, options),
+    }
+}
+
+fn collect_spenlio_csv_rows_from_connection(
+    db: &Connection,
+    options: &StructuredCsvOptions,
+) -> Result<Vec<SpenlioCsvRow>, String> {
+    let handles = Handle::cache(db).map_err(to_string)?;
+    let query_context = build_message_query_context(options)?;
+    let mut statement = Message::stream_rows(db, &query_context).map_err(to_string)?;
+    let filter = options
+        .conversation_filter
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_ascii_lowercase());
+    let offset = get_offset();
+    let mut rows = Vec::new();
+
+    for message_result in Message::rows(&mut statement, []).map_err(to_string)? {
+        let mut message = message_result.map_err(to_string)?;
+        if message.is_from_me || !is_sms_like_message(&message) {
+            continue;
+        }
+
+        let sender = message
+            .handle_id
+            .and_then(|handle_id| handles.get(&handle_id).cloned())
+            .unwrap_or_else(|| "Unknown".to_string());
+        if !is_business_sms_sender(&sender) {
+            continue;
+        }
+
+        let message_body = structured_message_text(db, &mut message);
+        if message_body.is_empty() {
+            continue;
+        }
+
+        if let Some(filter) = &filter {
+            let sender_match = sender.to_ascii_lowercase().contains(filter);
+            let body_match = message_body.to_ascii_lowercase().contains(filter);
+            if !sender_match && !body_match {
+                continue;
+            }
+        }
+
+        let received_at = message
+            .date(offset)
+            .map(|date| date.format("%Y-%m-%dT%H:%M:%S%.3f%:z").to_string())
+            .map_err(to_string)?;
+        let source_index = rows.len();
+        rows.push(SpenlioCsvRow {
+            sender,
+            received_at,
+            message_id: structured_message_id(&message, source_index),
+            message: message_body,
+            source_index,
+        });
+    }
+
+    if rows.is_empty() {
+        return Err(
+            "No named business-sender SMS messages were found. Phone-number conversations, email senders, non-SMS messages, and your own sent messages are skipped for finance CSV output."
+                .to_string(),
+        );
+    }
+
+    Ok(rows)
+}
+
+fn build_message_query_context(options: &StructuredCsvOptions) -> Result<QueryContext, String> {
+    let mut context = QueryContext::default();
+    if let Some(start_date) = options
+        .start_date
+        .as_deref()
+        .filter(|date| !date.is_empty())
+    {
+        context.set_start(start_date).map_err(to_string)?;
+    }
+    if let Some(end_date) = options.end_date.as_deref().filter(|date| !date.is_empty()) {
+        context.set_end(end_date).map_err(to_string)?;
+    }
+
+    Ok(context)
+}
+
+fn is_sms_like_message(message: &Message) -> bool {
+    matches!(message.service(), Service::SMS | Service::RCS)
+}
+
+fn structured_message_text(db: &Connection, message: &mut Message) -> String {
+    if message
+        .text
+        .as_deref()
+        .is_none_or(|text| text.trim().is_empty())
+    {
+        if let Ok(body) = message.parse_body(db) {
+            message.apply_body(body);
+        }
+    }
+
+    message
+        .text
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn structured_message_id(message: &Message, fallback_index: usize) -> String {
+    let guid = message.guid.trim();
+    if !guid.is_empty() {
+        return guid.to_string();
+    }
+
+    if message.rowid > 0 {
+        return format!("rowid-{}", message.rowid);
+    }
+
+    format!("row-{:06}", fallback_index + 1)
+}
+
+fn convert_text_export_to_csv(
+    output_path: &Path,
+    layout: Option<&str>,
+) -> Result<CsvConversionResult, String> {
+    match layout.unwrap_or("spenlioCombined") {
+        "transcriptLines" => convert_text_export_to_transcript_line_csv(output_path),
+        "spenlioBySender" => convert_text_export_to_spenlio_sender_csvs(output_path),
+        _ => convert_text_export_to_spenlio_combined_csv(output_path),
+    }
+}
+
+fn convert_text_export_to_transcript_line_csv(
+    output_path: &Path,
+) -> Result<CsvConversionResult, String> {
     if !output_path.exists() {
         return Err("The export folder was not created.".to_string());
     }
@@ -1224,8 +1627,9 @@ fn convert_text_export_to_csv(output_path: &Path) -> Result<PathBuf, String> {
         return Err("No text transcript files were found in the export folder.".to_string());
     }
 
-    let csv_path = output_path.join("chatexportmate-export.csv");
-    let mut csv = String::from("transcript_file,line_number,text\n");
+    let csv_path = output_path.join("chatexportmate-transcript-lines.csv");
+    let mut csv = String::from("transcript_file,line_number,text\r\n");
+    let mut row_count = 0;
 
     for text_path in text_files {
         if text_path == csv_path {
@@ -1250,12 +1654,438 @@ fn convert_text_export_to_csv(output_path: &Path) -> Result<PathBuf, String> {
             csv.push_str(&(index + 1).to_string());
             csv.push(',');
             csv.push_str(&csv_escape(trimmed));
-            csv.push('\n');
+            csv.push_str("\r\n");
+            row_count += 1;
         }
     }
 
     fs::write(&csv_path, csv).map_err(to_string)?;
-    Ok(csv_path)
+    Ok(CsvConversionResult {
+        path: csv_path,
+        row_count,
+        file_count: 1,
+    })
+}
+
+fn convert_text_export_to_spenlio_combined_csv(
+    output_path: &Path,
+) -> Result<CsvConversionResult, String> {
+    let mut rows = collect_spenlio_csv_rows(output_path)?;
+    rows.sort_by(|left, right| {
+        left.received_at
+            .cmp(&right.received_at)
+            .then(left.source_index.cmp(&right.source_index))
+    });
+    ensure_spenlio_message_ids(&mut rows);
+
+    let csv_path = output_path.join("spenlio-sms-export.csv");
+    write_spenlio_csv(&csv_path, &rows)?;
+
+    Ok(CsvConversionResult {
+        path: csv_path,
+        row_count: rows.len(),
+        file_count: 1,
+    })
+}
+
+fn convert_text_export_to_spenlio_sender_csvs(
+    output_path: &Path,
+) -> Result<CsvConversionResult, String> {
+    let rows = collect_spenlio_csv_rows(output_path)?;
+    let folder_path = output_path.join("spenlio-sms-export-by-sender");
+    prepare_clean_output_directory(&folder_path)?;
+
+    let mut grouped: BTreeMap<String, Vec<SpenlioCsvRow>> = BTreeMap::new();
+    for row in rows {
+        grouped.entry(row.sender.clone()).or_default().push(row);
+    }
+
+    let mut used_file_names = HashSet::new();
+    let mut row_count = 0;
+    let mut file_count = 0;
+
+    for (sender, mut sender_rows) in grouped {
+        sender_rows.sort_by(|left, right| {
+            left.received_at
+                .cmp(&right.received_at)
+                .then(left.source_index.cmp(&right.source_index))
+        });
+        ensure_spenlio_message_ids(&mut sender_rows);
+        row_count += sender_rows.len();
+        file_count += 1;
+        let file_name = unique_sender_csv_file_name(&sender, &mut used_file_names, file_count);
+        write_spenlio_csv(&folder_path.join(file_name), &sender_rows)?;
+    }
+
+    Ok(CsvConversionResult {
+        path: folder_path,
+        row_count,
+        file_count,
+    })
+}
+
+fn collect_spenlio_csv_rows(output_path: &Path) -> Result<Vec<SpenlioCsvRow>, String> {
+    if !output_path.exists() {
+        return Err("The export folder was not created.".to_string());
+    }
+
+    let mut text_files = Vec::new();
+    collect_text_files(output_path, &mut text_files)?;
+    text_files.sort();
+
+    if text_files.is_empty() {
+        return Err("No text transcript files were found in the export folder.".to_string());
+    }
+
+    let mut messages = Vec::new();
+    for text_path in text_files {
+        let content = fs::read_to_string(&text_path).map_err(to_string)?;
+        parse_text_export_messages(&content, &mut messages);
+    }
+
+    let mut rows = Vec::new();
+    for message in messages {
+        if !is_business_sms_sender(&message.sender) {
+            continue;
+        }
+
+        rows.push(SpenlioCsvRow {
+            sender: message.sender,
+            received_at: message.received_at,
+            message_id: String::new(),
+            message: message.message,
+            source_index: message.source_index,
+        });
+    }
+
+    if rows.is_empty() {
+        return Err(
+            "No named business-sender messages were found in the text export. Phone-number conversations, email senders, and your own sent messages are skipped for finance CSV output."
+                .to_string(),
+        );
+    }
+
+    Ok(rows)
+}
+
+fn write_spenlio_csv_layout(
+    output_path: &Path,
+    layout: Option<&str>,
+    mut rows: Vec<SpenlioCsvRow>,
+) -> Result<CsvConversionResult, String> {
+    if rows.is_empty() {
+        return Err("No messages were available for CSV output.".to_string());
+    }
+
+    fs::create_dir_all(output_path).map_err(to_string)?;
+
+    match layout.unwrap_or("spenlioCombined") {
+        "spenlioBySender" => {
+            let folder_path = output_path.join("spenlio-sms-export-by-sender");
+            prepare_clean_output_directory(&folder_path)?;
+
+            let mut grouped: BTreeMap<String, Vec<SpenlioCsvRow>> = BTreeMap::new();
+            for row in rows {
+                grouped.entry(row.sender.clone()).or_default().push(row);
+            }
+
+            let mut used_file_names = HashSet::new();
+            let mut row_count = 0;
+            let mut file_count = 0;
+            for (sender, mut sender_rows) in grouped {
+                sender_rows.sort_by(|left, right| {
+                    left.received_at
+                        .cmp(&right.received_at)
+                        .then(left.source_index.cmp(&right.source_index))
+                });
+                ensure_spenlio_message_ids(&mut sender_rows);
+                row_count += sender_rows.len();
+                file_count += 1;
+                let file_name =
+                    unique_sender_csv_file_name(&sender, &mut used_file_names, file_count);
+                write_spenlio_csv(&folder_path.join(file_name), &sender_rows)?;
+            }
+
+            Ok(CsvConversionResult {
+                path: folder_path,
+                row_count,
+                file_count,
+            })
+        }
+        _ => {
+            rows.sort_by(|left, right| {
+                left.received_at
+                    .cmp(&right.received_at)
+                    .then(left.source_index.cmp(&right.source_index))
+            });
+            ensure_spenlio_message_ids(&mut rows);
+
+            let csv_path = output_path.join("spenlio-sms-export.csv");
+            write_spenlio_csv(&csv_path, &rows)?;
+
+            Ok(CsvConversionResult {
+                path: csv_path,
+                row_count: rows.len(),
+                file_count: 1,
+            })
+        }
+    }
+}
+
+fn parse_text_export_messages(content: &str, messages: &mut Vec<TextExportMessage>) {
+    let mut block = Vec::new();
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            flush_text_export_block(&mut block, messages);
+            continue;
+        }
+
+        block.push(line.to_string());
+    }
+
+    flush_text_export_block(&mut block, messages);
+}
+
+fn flush_text_export_block(block: &mut Vec<String>, messages: &mut Vec<TextExportMessage>) {
+    if block.len() < 3 {
+        block.clear();
+        return;
+    }
+
+    let raw_timestamp = block[0].trim();
+    let Some(received_at) = parse_exporter_display_timestamp(raw_timestamp) else {
+        block.clear();
+        return;
+    };
+    let sender = clean_text_export_sender(&block[1]);
+    let message = block[2..].join("\n").trim().to_string();
+
+    if !sender.is_empty() && !message.is_empty() {
+        messages.push(TextExportMessage {
+            sender,
+            received_at,
+            message,
+            source_index: messages.len(),
+        });
+    }
+
+    block.clear();
+}
+
+fn parse_exporter_display_timestamp(value: &str) -> Option<String> {
+    let parts: Vec<&str> = value.split_whitespace().collect();
+    if parts.len() < 5 {
+        return None;
+    }
+
+    let month = month_name_to_number(parts[0])?;
+    let day = parts[1].trim_end_matches(',').parse::<u32>().ok()?;
+    let year = parts[2].parse::<i32>().ok()?;
+    let time_parts: Vec<&str> = parts[3].split(':').collect();
+    if time_parts.len() < 2 {
+        return None;
+    }
+
+    let mut hour = time_parts[0].parse::<u32>().ok()?;
+    let minute = time_parts[1].parse::<u32>().ok()?;
+    let second = time_parts
+        .get(2)
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(0);
+    let meridiem = parts[4].to_ascii_uppercase();
+
+    if meridiem == "PM" && hour < 12 {
+        hour += 12;
+    } else if meridiem == "AM" && hour == 12 {
+        hour = 0;
+    }
+
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
+        return None;
+    }
+
+    Some(format!(
+        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.000{}",
+        local_utc_offset()
+    ))
+}
+
+fn month_name_to_number(value: &str) -> Option<u32> {
+    let lower = value.to_ascii_lowercase();
+    [
+        "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+    ]
+    .iter()
+    .position(|month| lower.starts_with(month))
+    .map(|index| index as u32 + 1)
+}
+
+fn local_utc_offset() -> String {
+    let offset_seconds = Local::now().offset().local_minus_utc();
+    let sign = if offset_seconds >= 0 { '+' } else { '-' };
+    let absolute_seconds = offset_seconds.abs();
+    let hours = absolute_seconds / 3600;
+    let minutes = (absolute_seconds % 3600) / 60;
+
+    format!("{sign}{hours:02}:{minutes:02}")
+}
+
+fn clean_text_export_sender(value: &str) -> String {
+    value.trim().trim_matches('"').trim().to_string()
+}
+
+fn is_business_sms_sender(sender: &str) -> bool {
+    let trimmed = sender.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    if lower == "me" || lower == "you" {
+        return false;
+    }
+
+    if trimmed.starts_with('+') || trimmed.contains('@') {
+        return false;
+    }
+
+    let has_ascii_letter = trimmed
+        .chars()
+        .any(|character| character.is_ascii_alphabetic());
+    let digit_count = trimmed
+        .chars()
+        .filter(|character| character.is_ascii_digit())
+        .count();
+
+    has_ascii_letter || (digit_count > 0 && digit_count < 7)
+}
+
+fn write_spenlio_csv(path: &Path, rows: &[SpenlioCsvRow]) -> Result<(), String> {
+    let mut csv = String::from("sender,received_at,message_id,message\r\n");
+    for row in rows {
+        csv.push_str(&csv_escape(&row.sender));
+        csv.push(',');
+        csv.push_str(&csv_escape(&row.received_at));
+        csv.push(',');
+        csv.push_str(&csv_escape(&row.message_id));
+        csv.push(',');
+        csv.push_str(&csv_escape(&row.message));
+        csv.push_str("\r\n");
+    }
+
+    fs::write(path, csv).map_err(to_string)
+}
+
+fn ensure_spenlio_message_ids(rows: &mut [SpenlioCsvRow]) {
+    for (index, row) in rows.iter_mut().enumerate() {
+        if row.message_id.trim().is_empty() {
+            row.message_id = format!("row-{:06}", index + 1);
+        }
+    }
+}
+
+fn unique_sender_csv_file_name(
+    sender: &str,
+    used_file_names: &mut HashSet<String>,
+    fallback_index: usize,
+) -> String {
+    let base = safe_sender_file_stem(sender, fallback_index);
+    let mut candidate = format!("{base}.csv");
+    let mut candidate_key = sender_csv_file_key(&candidate);
+    let mut suffix = 2;
+
+    while used_file_names.contains(&candidate_key) {
+        candidate = format!("{base}-{suffix}.csv");
+        candidate_key = sender_csv_file_key(&candidate);
+        suffix += 1;
+    }
+
+    used_file_names.insert(candidate_key);
+    candidate
+}
+
+fn safe_sender_file_stem(sender: &str, fallback_index: usize) -> String {
+    let mut stem = String::new();
+    let mut last_was_separator = false;
+
+    for character in sender.chars() {
+        if character.is_ascii_alphanumeric() {
+            stem.push(character);
+            last_was_separator = false;
+        } else if !last_was_separator {
+            stem.push('-');
+            last_was_separator = true;
+        }
+
+        if stem.len() >= 80 {
+            break;
+        }
+    }
+
+    let stem = if stem.trim_matches('-').is_empty() {
+        format!("sender-{fallback_index:03}")
+    } else {
+        stem.trim_matches('-').to_string()
+    };
+
+    if is_windows_reserved_file_stem(&stem) {
+        format!("sender-{stem}")
+    } else {
+        stem
+    }
+}
+
+fn sender_csv_file_key(file_name: &str) -> String {
+    file_name.to_ascii_lowercase()
+}
+
+fn is_windows_reserved_file_stem(stem: &str) -> bool {
+    let base = stem
+        .split_once('.')
+        .map(|(base, _)| base)
+        .unwrap_or(stem)
+        .trim_end_matches([' ', '.'])
+        .to_ascii_uppercase();
+
+    matches!(
+        base.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || (base.len() == 4
+        && (base.starts_with("COM") || base.starts_with("LPT"))
+        && base
+            .as_bytes()
+            .get(3)
+            .is_some_and(|digit| (b'1'..=b'9').contains(digit)))
+}
+
+fn prepare_clean_output_directory(path: &Path) -> Result<(), String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => remove_existing_output_path(path, &metadata)?,
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => return Err(error.to_string()),
+    }
+
+    fs::create_dir_all(path).map_err(to_string)
+}
+
+fn remove_existing_output_path(path: &Path, metadata: &fs::Metadata) -> Result<(), String> {
+    let file_type = metadata.file_type();
+    if metadata.is_dir() && !file_type.is_symlink() {
+        return fs::remove_dir_all(path).map_err(to_string);
+    }
+
+    if file_type.is_symlink() && path.is_dir() {
+        return fs::remove_dir(path)
+            .or_else(|_| fs::remove_file(path))
+            .map_err(to_string);
+    }
+
+    fs::remove_file(path).map_err(to_string)
 }
 
 fn collect_text_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -1440,6 +2270,7 @@ fn write_run_log(
     started_at: &str,
     completed_at: &str,
     csv_path: Option<&str>,
+    command: &str,
 ) -> Result<PathBuf, String> {
     let root = run_log_root(app)?;
     fs::create_dir_all(&root).map_err(to_string)?;
@@ -1451,7 +2282,7 @@ fn write_run_log(
             .unwrap_or_else(|| "none".to_string()),
         request.output_path,
         csv_path.unwrap_or("none"),
-        request.display_command,
+        command,
         stdout,
         stderr
     );
@@ -2193,15 +3024,418 @@ mod tests {
         )
         .unwrap();
 
-        let csv_path = convert_text_export_to_csv(&root).unwrap();
-        let csv = fs::read_to_string(csv_path).unwrap();
+        let result = convert_text_export_to_csv(&root, Some("transcriptLines")).unwrap();
+        let csv = fs::read_to_string(result.path).unwrap();
 
         assert!(csv.contains("transcript_file,line_number,text"));
         assert!(csv.contains("conversation/thread.txt,1,hello"));
         assert!(csv.contains("conversation/thread.txt,3,\"comma, value\""));
         assert!(csv.contains("conversation/thread.txt,4,\"quote \"\"value\"\"\""));
+        assert_eq!(result.row_count, 3);
+        assert_eq!(result.file_count, 1);
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_text_export_to_csv_writes_spenlio_combined_rows() {
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-spenlio-csv-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("thread.txt"),
+            [
+                "May 21, 2026  1:02:03 PM",
+                "BANKSMS",
+                "Debit card purchase, with comma",
+                "",
+                "May 21, 2026  1:04:03 PM",
+                "+94771234567",
+                "Personal message should be skipped",
+                "",
+                "May 21, 2026  1:05:03 PM",
+                "Me",
+                "Own reply should be skipped",
+                "",
+                "May 21, 2026  1:03:03 PM",
+                "SHOP-ALERT",
+                "Second business message",
+                "",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        let result = convert_text_export_to_csv(&root, Some("spenlioCombined")).unwrap();
+        let csv = fs::read_to_string(result.path).unwrap();
+
+        assert_eq!(result.row_count, 2);
+        assert_eq!(result.file_count, 1);
+        assert!(csv.starts_with("sender,received_at,message_id,message\r\n"));
+        assert!(csv.contains("SHOP-ALERT,2026-05-21T13:03:03.000"));
+        assert!(csv.contains("BANKSMS,2026-05-21T13:02:03.000"));
+        assert!(csv.contains("row-000001,\"Debit card purchase, with comma\""));
+        assert!(!csv.contains("+94771234567"));
+        assert!(!csv.contains("Own reply should be skipped"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_text_export_to_csv_writes_one_spenlio_csv_per_sender() {
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-sender-csv-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("thread.txt"),
+            [
+                "Jun 01, 2026  9:00:00 AM",
+                "BANKSMS",
+                "First bank message",
+                "",
+                "Jun 01, 2026  9:01:00 AM",
+                "SHOP ALERT",
+                "Shop message",
+                "",
+                "Jun 01, 2026  9:02:00 AM",
+                "BANKSMS",
+                "Second bank message",
+                "",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        let stale_folder = root.join("spenlio-sms-export-by-sender");
+        fs::create_dir_all(&stale_folder).unwrap();
+        fs::write(stale_folder.join("STALE.csv"), "stale").unwrap();
+
+        let result = convert_text_export_to_csv(&root, Some("spenlioBySender")).unwrap();
+        let bank_csv = fs::read_to_string(result.path.join("BANKSMS.csv")).unwrap();
+        let shop_csv = fs::read_to_string(result.path.join("SHOP-ALERT.csv")).unwrap();
+
+        assert_eq!(result.row_count, 3);
+        assert_eq!(result.file_count, 2);
+        assert!(!result.path.join("STALE.csv").exists());
+        assert!(bank_csv.contains("row-000001,First bank message"));
+        assert!(bank_csv.contains("row-000002,Second bank message"));
+        assert!(shop_csv.contains("row-000001,Shop message"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn structured_spenlio_csv_uses_apple_message_ids() {
+        let db = spenlio_messages_test_db();
+        let rows = collect_spenlio_csv_rows_from_connection(
+            &db,
+            &StructuredCsvOptions {
+                start_date: None,
+                end_date: None,
+                conversation_filter: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].sender, "BANKSMS");
+        assert_eq!(rows[0].message_id, "SMS-GUID-10");
+        assert_eq!(rows[1].sender, "ALERT99");
+        assert_eq!(rows[1].message_id, "rowid-12");
+        assert!(rows[0].received_at.starts_with("2026-05-21T"));
+    }
+
+    #[test]
+    fn structured_spenlio_csv_writes_combined_and_sender_layouts_with_real_ids() {
+        let rows = collect_spenlio_csv_rows_from_connection(
+            &spenlio_messages_test_db(),
+            &StructuredCsvOptions {
+                start_date: None,
+                end_date: None,
+                conversation_filter: None,
+            },
+        )
+        .unwrap();
+        let root = env::temp_dir().join(format!(
+            "chatexportmate-structured-csv-test-{}-{}",
+            std::process::id(),
+            timestamp_millis()
+        ));
+
+        let combined =
+            write_spenlio_csv_layout(&root, Some("spenlioCombined"), rows.clone()).unwrap();
+        let csv = fs::read_to_string(combined.path).unwrap();
+        assert!(csv.starts_with("sender,received_at,message_id,message\r\n"));
+        assert!(csv.contains("BANKSMS,"));
+        assert!(csv.contains(",SMS-GUID-10,"));
+        assert!(csv.contains("ALERT99,"));
+        assert!(csv.contains(",rowid-12,"));
+        assert!(!csv.contains("+94771234567"));
+        assert!(!csv.contains("normal@example.com"));
+
+        let stale_folder = root.join("spenlio-sms-export-by-sender");
+        fs::create_dir_all(&stale_folder).unwrap();
+        fs::write(stale_folder.join("STALE.csv"), "stale").unwrap();
+
+        let by_sender = write_spenlio_csv_layout(&root, Some("spenlioBySender"), rows).unwrap();
+        let bank_csv = fs::read_to_string(by_sender.path.join("BANKSMS.csv")).unwrap();
+        let alert_csv = fs::read_to_string(by_sender.path.join("ALERT99.csv")).unwrap();
+        assert!(!by_sender.path.join("STALE.csv").exists());
+        assert!(bank_csv.contains(",SMS-GUID-10,"));
+        assert!(alert_csv.contains(",rowid-12,"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn sender_csv_file_names_are_windows_safe() {
+        let mut used_file_names = HashSet::new();
+
+        assert_eq!(
+            unique_sender_csv_file_name("BANK", &mut used_file_names, 1),
+            "BANK.csv",
+        );
+        assert_eq!(
+            unique_sender_csv_file_name("bank", &mut used_file_names, 2),
+            "bank-2.csv",
+        );
+        assert_eq!(
+            unique_sender_csv_file_name("CON", &mut used_file_names, 3),
+            "sender-CON.csv",
+        );
+        assert_eq!(
+            unique_sender_csv_file_name("lpt1", &mut used_file_names, 4),
+            "sender-lpt1.csv",
+        );
+    }
+
+    #[test]
+    fn structured_spenlio_csv_reads_in_memory_database_image() {
+        let source = spenlio_messages_test_db();
+        let database_image = source.serialize(MAIN_DB).unwrap();
+        let mut db = Connection::open_in_memory().unwrap();
+        db.deserialize_read_exact(MAIN_DB, &database_image[..], database_image.len(), true)
+            .unwrap();
+
+        let rows = collect_spenlio_csv_rows_from_connection(
+            &db,
+            &StructuredCsvOptions {
+                start_date: None,
+                end_date: None,
+                conversation_filter: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].message_id, "SMS-GUID-10");
+        assert_eq!(rows[1].message_id, "rowid-12");
+    }
+
+    #[test]
+    #[ignore = "requires a local iPhone backup and writes sensitive CSV output outside the repo"]
+    fn local_iphone_backup_structured_csv_smoke_export() -> Result<(), String> {
+        let backup_path = env::var("CHAT_EXPORT_MATE_REAL_BACKUP_PATH")
+            .map_err(|_| "Set CHAT_EXPORT_MATE_REAL_BACKUP_PATH to a local backup folder.")?;
+        let output_path = env::var("CHAT_EXPORT_MATE_REAL_OUTPUT_PATH")
+            .map_err(|_| "Set CHAT_EXPORT_MATE_REAL_OUTPUT_PATH to an external output folder.")?;
+        let output_path = PathBuf::from(output_path);
+        ensure_smoke_output_outside_repo(&output_path)?;
+        fs::create_dir_all(&output_path)
+            .map_err(|_| "Could not create the external smoke output folder.".to_string())?;
+
+        let request = ExecuteExporterRequest {
+            executable_path: String::new(),
+            args: Vec::new(),
+            display_command: "ChatExportMate structured export: Spenlio finance CSV".to_string(),
+            output_path: output_path.to_string_lossy().to_string(),
+            event_id: None,
+            requested_format: Some("csv".to_string()),
+            csv_layout: Some("spenlioCombined".to_string()),
+            platform: Some("iOS".to_string()),
+            source_path: Some(backup_path),
+            start_date: None,
+            end_date: None,
+            conversation_filter: None,
+            backup_password: None,
+        };
+        let source = open_structured_csv_source(&request, None)
+            .map_err(|_| "Could not open the local backup Messages source.".to_string())?;
+        let rows = collect_spenlio_csv_rows_from_source(
+            &source,
+            &StructuredCsvOptions {
+                start_date: None,
+                end_date: None,
+                conversation_filter: None,
+            },
+        )
+        .map_err(|_| {
+            "Could not extract named business SMS rows from the local backup.".to_string()
+        })?;
+        let result = write_spenlio_csv_layout(&output_path, Some("spenlioCombined"), rows)
+            .map_err(|_| "Could not write the external smoke CSV output.".to_string())?;
+
+        if result.row_count == 0 || result.file_count != 1 {
+            return Err("The smoke export did not produce the expected combined CSV.".to_string());
+        }
+
+        let metadata = fs::metadata(&result.path)
+            .map_err(|_| "The smoke CSV output file was not created.".to_string())?;
+        if metadata.len() == 0 {
+            return Err("The smoke CSV output file is empty.".to_string());
+        }
+
+        Ok(())
+    }
+
+    fn ensure_smoke_output_outside_repo(output_path: &Path) -> Result<(), String> {
+        let repo_root = env::current_dir()
+            .map_err(|_| "Could not identify the repository root.".to_string())?;
+        if output_path.starts_with(&repo_root) {
+            return Err("Choose an output folder outside the repository.".to_string());
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn backup_unlock_errors_use_safe_password_retry_copy() {
+        let message = describe_backup_access_error(BackupError::PasswordOrKeyIncorrect);
+
+        assert_eq!(
+            message,
+            "The backup password did not work, or the backup could not be unlocked. Re-enter the password and try again."
+        );
+    }
+
+    fn spenlio_messages_test_db() -> Connection {
+        use chrono::{TimeZone, Utc};
+
+        let db = Connection::open_in_memory().unwrap();
+        db.execute_batch(
+            "
+            CREATE TABLE handle (
+                ROWID INTEGER PRIMARY KEY,
+                id TEXT NOT NULL,
+                person_centric_id TEXT
+            );
+            CREATE TABLE chat_message_join (
+                chat_id INTEGER,
+                message_id INTEGER
+            );
+            CREATE TABLE message_attachment_join (
+                message_id INTEGER
+            );
+            CREATE TABLE message (
+                rowid INTEGER PRIMARY KEY,
+                guid TEXT NOT NULL,
+                text TEXT,
+                service TEXT,
+                handle_id INTEGER,
+                destination_caller_id TEXT,
+                subject TEXT,
+                date INTEGER NOT NULL,
+                date_read INTEGER DEFAULT 0,
+                date_delivered INTEGER DEFAULT 0,
+                is_from_me INTEGER NOT NULL DEFAULT 0,
+                is_read INTEGER DEFAULT 0,
+                item_type INTEGER DEFAULT 0,
+                other_handle INTEGER,
+                share_status INTEGER DEFAULT 0,
+                share_direction INTEGER,
+                group_title TEXT,
+                group_action_type INTEGER DEFAULT 0,
+                associated_message_guid TEXT,
+                associated_message_type INTEGER,
+                balloon_bundle_id TEXT,
+                expressive_send_style_id TEXT,
+                thread_originator_guid TEXT,
+                thread_originator_part TEXT,
+                date_edited INTEGER DEFAULT 0,
+                associated_message_emoji TEXT
+            );
+            INSERT INTO handle (ROWID, id) VALUES
+                (1, 'BANKSMS'),
+                (2, '+94771234567'),
+                (3, 'ALERT99'),
+                (4, 'normal@example.com');
+            ",
+        )
+        .unwrap();
+
+        let base_timestamp = Utc
+            .with_ymd_and_hms(2026, 5, 21, 13, 2, 3)
+            .unwrap()
+            .timestamp()
+            - get_offset();
+        let rows = [
+            (
+                10,
+                "SMS-GUID-10",
+                "Card purchase",
+                "SMS",
+                1,
+                base_timestamp,
+                0,
+            ),
+            (
+                11,
+                "PHONE-GUID-11",
+                "Personal sender",
+                "SMS",
+                2,
+                base_timestamp + 1,
+                0,
+            ),
+            (12, "", "Fallback id", "SMS", 3, base_timestamp + 2, 0),
+            (
+                13,
+                "IM-GUID-13",
+                "Not SMS",
+                "iMessage",
+                1,
+                base_timestamp + 3,
+                0,
+            ),
+            (
+                14,
+                "ME-GUID-14",
+                "Own sent SMS",
+                "SMS",
+                1,
+                base_timestamp + 4,
+                1,
+            ),
+            (
+                15,
+                "MAIL-GUID-15",
+                "Email sender",
+                "SMS",
+                4,
+                base_timestamp + 5,
+                0,
+            ),
+        ];
+
+        for (rowid, guid, text, service, handle_id, date, is_from_me) in rows {
+            db.execute(
+                "
+                INSERT INTO message (
+                    rowid, guid, text, service, handle_id, date, is_from_me
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                ",
+                (rowid, guid, text, service, handle_id, date, is_from_me),
+            )
+            .unwrap();
+        }
+
+        db
     }
 
     #[test]

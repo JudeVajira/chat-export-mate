@@ -19,28 +19,32 @@ export interface ExportPreflightAction {
   detail: string;
 }
 
-const exportBlockingCheckIds = new Set(["exporter", "configuration", "output-access"]);
+const baseBlockingCheckIds = new Set(["configuration", "output-access"]);
 
 export function buildExportPreflightSummary(
   diagnostics: DiagnosticItem[],
   dryRun: boolean,
+  exporterRequired = true,
 ): ExportPreflightSummary {
   const exporterReady = diagnostics.some((item) => item.id === "exporter" && item.state === "passed");
+  const blockingCheckIds = exporterRequired
+    ? new Set([...baseBlockingCheckIds, "exporter"])
+    : baseBlockingCheckIds;
   const blockingReasons = diagnostics
-    .filter((item) => exportBlockingCheckIds.has(item.id) && item.state !== "passed")
+    .filter((item) => blockingCheckIds.has(item.id) && item.state !== "passed")
     .map(formatDiagnosticReason);
 
   const nonBlockingNotes = diagnostics
     .filter(
       (item) =>
         item.state === "warning" &&
-        !exportBlockingCheckIds.has(item.id) &&
+        !blockingCheckIds.has(item.id) &&
         (item.id !== "executable-access" || exporterReady),
     )
     .map(formatDiagnosticReason);
 
   const canRunExport = blockingReasons.length === 0;
-  const recommendedAction = findRecommendedAction(diagnostics);
+  const recommendedAction = exporterRequired ? findRecommendedAction(diagnostics) : null;
 
   if (canRunExport) {
     return {
@@ -48,7 +52,9 @@ export function buildExportPreflightSummary(
       title: dryRun ? "Ready to check command" : "Ready to export messages",
       detail: dryRun
         ? "Developer command checks build exporter arguments without writing export files."
-        : "The export tool, iPhone backup, and export location are ready.",
+        : exporterRequired
+          ? "The export tool, message source, and export location are ready."
+          : "The message source and export location are ready.",
       actionLabel: dryRun ? "Check command" : "Start export",
       canRunExport,
       blockingReasons,

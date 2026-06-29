@@ -28,6 +28,7 @@ const macOptions: ExportOptions = {
   endDate: "",
   conversationFilter: "",
   customName: "",
+  csvLayout: "spenlioCombined",
   useCallerId: false,
   noLazyImages: false,
   ignoreDiskWarning: false,

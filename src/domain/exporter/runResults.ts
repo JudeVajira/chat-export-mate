@@ -38,7 +38,7 @@ export function summarizeExportRunResult(result: ExportRunResult): RunSummary {
       outputPath: result.outputPath,
       logPath: result.logPath,
       exitCode: result.exitCode ?? 0,
-      ...(result.csvPath ? { meta: [{ label: "CSV file", value: result.csvPath, code: true }] } : {}),
+      ...(result.csvPath ? { meta: [{ label: "CSV output", value: result.csvPath, code: true }] } : {}),
     };
   }
 
