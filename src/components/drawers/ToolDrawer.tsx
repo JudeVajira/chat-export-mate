@@ -22,6 +22,7 @@ import type {
 } from "../../domain/exporter/types";
 import { ProgressSteps } from "../ProgressSteps";
 import { StatusPill } from "../StatusPill";
+import { useEscapeClose } from "../useEscapeClose";
 
 export function ToolDrawer({
   activatingManagedVersion,
@@ -71,6 +72,7 @@ export function ToolDrawer({
   const activatableVersions = getActivatableManagedVersions(managedState);
   const defaultVersion = activatableVersions[0] ?? managedState.activeVersion ?? "";
   const [selectedVersion, setSelectedVersion] = useState(defaultVersion);
+  useEscapeClose(onClose);
 
   useEffect(() => {
     setSelectedVersion(defaultVersion);

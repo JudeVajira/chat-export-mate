@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { IphoneBackupCandidate } from "../domain/exporter/types";
 import { compactPath, formatBackupTimestamp } from "./flow/flowFormat";
+import { useEscapeClose } from "./useEscapeClose";
 
 type SourceTab = "existing" | "create" | "mac";
 
@@ -34,6 +35,7 @@ export function SourcePickerDialog({
   showMacSourceChoice: boolean;
 }) {
   const [tab, setTab] = useState<SourceTab>(backupCandidates.length > 0 ? "existing" : "create");
+  useEscapeClose(onClose);
 
   const tabs: Array<{ id: SourceTab; icon: typeof Smartphone; label: string }> = [
     { id: "existing", icon: FolderOpen, label: "I have a backup" },

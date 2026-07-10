@@ -116,14 +116,18 @@ export function ArchivePreviewCard({
             <h2>{progress.title}</h2>
           </div>
           <ProgressSteps outputEvents={outputEvents} progress={progress} />
+          <p className="archive-reassurance">
+            Large backups can take a few minutes. You can keep using your computer — just leave
+            this window open.
+          </p>
         </>
       ) : null}
 
       {stage === "success" && summary ? (
         <div className="archive-result archive-result--success">
           <CheckCircle2 aria-hidden="true" className="archive-result-icon" />
-          <h2>{summary.title}</h2>
-          <p>{summary.detail}</p>
+          <h2>Your messages are saved</h2>
+          <p>{successHint(options)}</p>
           <div className="archive-result-actions">
             {summary.outputPath ? (
               <button
@@ -165,6 +169,12 @@ export function ArchivePreviewCard({
           ) : (
             <p>{summary.detail}</p>
           )}
+          {options.platform === "iOS" && !options.encryptedBackup ? (
+            <p className="archive-encrypted-hint">
+              If this backup has a password, turn on <strong>This backup is encrypted</strong> in
+              step 1 and try again.
+            </p>
+          ) : null}
           <div className="archive-result-actions">
             <button className="button button--primary" onClick={onReset} type="button">
               <RotateCcw aria-hidden="true" />
@@ -191,6 +201,22 @@ export function ArchivePreviewCard({
       ) : null}
     </aside>
   );
+}
+
+function successHint(options: ExportOptions): string {
+  if (options.format === "csv" && options.csvLayout !== "transcriptLines") {
+    return "Open the folder to find your CSV — it is ready to import into Spenlio.";
+  }
+
+  if (options.format === "csv") {
+    return "Open the folder and double-click the CSV to see your messages in Excel or any spreadsheet app.";
+  }
+
+  if (options.format === "txt") {
+    return "Open the folder and double-click any transcript to read it in Notepad or any text editor.";
+  }
+
+  return "Open the folder and double-click any conversation page to read it in your browser.";
 }
 
 function previewTitle(options: ExportOptions): string {

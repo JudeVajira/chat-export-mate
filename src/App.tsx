@@ -967,6 +967,7 @@ function App() {
                 encryptedBackup={options.encryptedBackup}
                 fileManagerLabel={fileManagerLabel}
                 issues={validationMessagesFor(issueMap, "databasePath")}
+                loadingCandidates={loadingBackupCandidates || !preferencesLoaded}
                 onBackupPasswordChange={setBackupPassword}
                 onEncryptedBackupChange={handleEncryptedBackupChange}
                 onOpenPicker={openSourcePicker}

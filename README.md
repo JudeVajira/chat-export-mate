@@ -115,11 +115,11 @@ The managed exporter flow is:
 7. Activate the verified managed version.
 8. Prefer the managed binary during future exporter detection, then fall back to a verified selected binary and finally `PATH`.
 
-Previously stored managed versions remain available in the Release channel panel and can be reactivated for rollback after the app verifies the stored binary.
+Previously stored managed versions remain available in the **Export tool** drawer and can be reactivated for rollback after the app verifies the stored binary.
 
-Managed install, update, reinstall, and rollback attempts report their outcome in the Latest result panel. Successful installs show the release, selected asset, cache source, binary path, and cache path; failures include a plain-English next step and raw details for troubleshooting.
+Managed install, update, reinstall, and rollback attempts report their outcome as toast notifications, with step progress shown in the Export tool drawer and full details kept in local logs.
 
-If you already have `imessage-exporter`, use **Use existing** in Diagnostics. ChatExportMate verifies the selected binary with `--version`, remembers the path locally, and uses it when no managed exporter is active.
+If you already have `imessage-exporter`, use **Use a tool you already have** in the Export tool drawer. ChatExportMate verifies the selected binary with `--version`, remembers the path locally, and uses it when no managed exporter is active.
 
 ## Local Export Preferences
 
@@ -127,14 +127,23 @@ ChatExportMate restores the last export options on startup. In the desktop app, 
 
 ## Guided Export Flow
 
-The app is being shaped around a beginner-friendly wizard:
+The app opens with a one-screen onboarding on first run, then a single home screen with three
+decisions and one action:
 
-1. Set up the exporter tool automatically.
-2. Prepare the message source.
-3. Choose the output folder.
-4. Pick HTML, Text, or CSV and start the export.
+1. **Messages** — choose the local iPhone backup (or Mac Messages database on macOS). Detected
+   backups can be selected with one click; a "Find your messages" dialog covers creating a new
+   backup, choosing one manually, and macOS Full Disk Access.
+2. **Format** — web pages (HTML), plain text, or a spreadsheet (CSV).
+3. **Save to** — the output folder, checked for write access automatically.
 
-The source guide starts with task-based choices:
+A live "You will get" preview card shows exactly which files the export creates, then becomes the
+progress view while the export runs and the success or error view afterwards. When the chosen
+format needs the external `imessage-exporter` tool and it is not installed yet, the app installs
+it automatically as the first step of the export run. Everything else (tool management, version
+rollback, diagnostics, saved logs, support bundles) lives in the **Activity** and **Export tool**
+drawers in the toolbar, and privacy/license details live in the **About** dialog.
+
+The "Find your messages" dialog starts with task-based choices:
 
 - **I need to create a backup**: install or open Apple Devices on Windows, connect the iPhone by USB, trust the computer, choose a local backup to this computer, then use **Back Up Now** and **Manage Backups > Show in Explorer** to find the backup folder. Leaving encryption off is the simplest beginner path, but encrypted backups are supported when you know the backup password.
 - **I already created a backup**: let ChatExportMate scan Apple's standard local backup folders, or choose the local iPhone backup folder directly. If that backup needs a password, turn on **My backup is encrypted** before exporting.
@@ -148,21 +157,21 @@ For iPhone backups, ChatExportMate checks the standard Apple backup folders for 
 - Older desktop iTunes on Windows: `%AppData%\Apple Computer\MobileSync\Backup`
 - Finder or Apple Devices on macOS: `~/Library/Application Support/MobileSync/Backup`
 
-If a user relocated backups by moving the default `Backup` folder and replacing it with a junction or symlink, ChatExportMate follows the filesystem link and marks the found backup as relocated. If backups were moved without leaving a link at Apple's default location, use **Choose manually** in the source guide.
+If a user relocated backups by moving the default `Backup` folder and replacing it with a junction or symlink, ChatExportMate follows the filesystem link and marks the found backup as relocated. If backups were moved without leaving a link at Apple's default location, use **Choose folder manually** in the "Find your messages" dialog.
 
 When choosing manually, select the device-specific folder inside the `Backup` directory, not the parent `Backup` directory itself. The right folder normally contains `Manifest.db`, `Manifest.plist`, `Info.plist`, `Status.plist`, and many numbered subfolders. Treat backup folders as sensitive local data: do not upload them or share their contents when asking for support.
 
-Apple's backup guide is linked from the source guide: <https://support.apple.com/en-us/108967>.
+Apple's backup guide is linked from the "Find your messages" dialog: <https://support.apple.com/en-us/108967>.
 
 Encrypted iPhone backups are supported through an in-app password prompt. The backup password is used only for the current export, is not saved to preferences, is not written to logs or support bundles, and is not passed as a command-line argument. Finance CSV unlocks the backup inside the desktop backend and loads the decrypted Messages database into an in-memory SQLite connection. HTML, Text, diagnostics, and legacy transcript-line CSV still use `imessage-exporter`; when those modes need the password, ChatExportMate sends it through the helper process stdin prompt instead of using `--cleartext-password`.
 
-In all cases, use **Check access** to verify the export destination before starting.
+The export destination is checked for write access automatically whenever it changes, and again right before each export starts.
 
 The Windows development harness cannot verify Apple privacy permissions; it keeps those checks as review guidance until the app is run on the Mac that contains the Messages database or backup.
 
 Configuration problems are shown both in preflight summaries and next to the form fields that need correction, so users do not need to inspect the generated command to understand what to fix.
 
-For export modes that need the external export tool, when an export is blocked only because that tool is missing, the Export panel offers **Install export tool** as the primary preflight action. That action uses the managed installer, verifies the downloaded `imessage-exporter` binary, activates it, and returns users to the same guided export flow.
+For export modes that need the external export tool, the tool is installed automatically as the first step of the export run: the app downloads the latest release, verifies the `imessage-exporter` binary, activates it, and continues with the export. A one-time setup note appears under the export button beforehand.
 
 HTML and Text are passed through to the upstream exporter. CSV is owned by ChatExportMate:
 
@@ -189,17 +198,17 @@ When the user starts an export, the desktop app either runs the selected `imessa
 
 Run details are written under the app data directory in `run-logs/export-run-<timestamp>.log`. The Vite development harness cannot execute exports and will show a desktop-app-required message instead.
 
-The export result panel summarizes exports, diagnostics, setup actions, and preflight failures in plain English, with suggested fixes. After a desktop export, it can open the exported folder directly. Log files are kept for the Support page and error troubleshooting instead of being front-and-center in the happy path.
+The preview card's result state summarizes each export in plain English, with suggested fixes on failure, and can open the exported folder directly. Log files are kept for the Activity drawer and error troubleshooting instead of being front-and-center in the happy path.
 
-The Progress panel shows the current operation steps while ChatExportMate runs an export, runs diagnostics, sets up an exporter, or activates a stored managed version. Exports show setup review, destination access, exporter execution, local log capture, and completion/error state. During desktop export and diagnostics runs, the panel also streams recent stdout/stderr lines from the exporter while preserving the complete output in the saved local log.
+While an export runs, the preview card shows the operation steps in plain language (tool check, folder check, saving messages, keeping a record) plus a collapsible live view of recent stdout/stderr lines; the complete output is preserved in the saved local log. Tool operations started from the Export tool drawer show the same step progress there.
 
-The Support page lists saved local export and diagnostic logs when running inside the desktop app. Logs stay on the machine and can be searched by file, path, command, output folder, status, or exit code, then previewed or opened from the app for troubleshooting. Large log previews are capped in the UI; open the log file or create a support bundle when you need the complete file.
+The Activity drawer lists saved local export and diagnostic logs when running inside the desktop app. Logs stay on the machine and can be searched by file, path, command, output folder, status, or exit code, then previewed or opened from the app for troubleshooting. Large log previews are capped in the UI; open the log file or create a support bundle when you need the complete file.
 
-The Support page can also create a local support bundle under the app data directory in `support-bundles/support-bundle-<timestamp>/`. A bundle copies saved run and diagnostic logs and adds a manifest with system/exporter context plus a reminder to review logs before sharing.
+The Activity drawer can also create a local support bundle under the app data directory in `support-bundles/support-bundle-<timestamp>/`. A bundle copies saved run and diagnostic logs and adds a manifest with system/exporter context plus a reminder to review logs before sharing.
 
 ## Diagnostics
 
-The Diagnostics page combines app-level checks with upstream exporter diagnostics. App-level checks cover platform, exporter detection, executable launch access, managed binary state, release metadata, command configuration, output-folder write access, and privacy expectations. When the desktop app and exporter binary are available, **Run diagnostics** executes `imessage-exporter -d`, streams recent process output into the Progress panel, and writes complete local troubleshooting details under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
+The Export tool drawer combines app-level health checks with upstream exporter diagnostics. Health checks cover exporter detection, executable launch access, managed binary state, command configuration, and output-folder write access. When the desktop app and exporter binary are available, **Run a full check-up** executes `imessage-exporter -d`, streams recent process output into the drawer, and writes complete local troubleshooting details under `diagnostic-logs/diagnostic-run-<timestamp>.log`.
 
 Desktop health checks probe the selected output folder, or its existing parent folder when the export folder has not been created yet, by writing and removing a small temporary file. The Vite development harness reports this as a desktop-runtime-only check.
 
@@ -261,7 +270,7 @@ cargo test --manifest-path src-tauri\Cargo.toml local_iphone_backup_structured_c
 
 ChatExportMate wraps and attributes [`ReagentX/imessage-exporter`](https://github.com/ReagentX/imessage-exporter), which is licensed under GPL-3.0. The Spenlio-compatible CSV path also uses ReagentX's GPL-3.0-or-later Rust libraries for Messages database access and encrypted backup handling. This project is intended to remain GPL-3.0 compatible.
 
-The app includes an **About / Privacy and license** section that summarizes
+The app includes an **About** dialog that summarizes
 the local-first privacy model, upstream attribution, and GPL status for users.
 Repository-level attribution lives in [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md),
 and the full ChatExportMate license text lives in [LICENSE](LICENSE).

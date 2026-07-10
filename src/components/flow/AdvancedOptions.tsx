@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { FolderOpen, SlidersHorizontal } from "lucide-react";
 import type {
   AttachmentCopyMethod,
@@ -50,6 +51,8 @@ export function AdvancedOptions({
   spenlioEdition: boolean;
   startDateIssues: string[];
 }) {
+  // Spenlio users pick a date range every month, so their options start open.
+  const [open, setOpen] = useState(spenlioEdition);
   const update = <Key extends keyof ExportOptions>(key: Key, value: ExportOptions[Key]) => {
     onChange({ ...options, [key]: value });
   };
@@ -61,7 +64,11 @@ export function AdvancedOptions({
     : csvLayouts;
 
   return (
-    <details className="advanced-options">
+    <details
+      className="advanced-options"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      open={open}
+    >
       <summary>
         <SlidersHorizontal aria-hidden="true" />
         {spenlioEdition ? "Date range and file layout" : "More options"}

@@ -1,4 +1,4 @@
-import { CheckCircle2, FolderOpen, Pencil, Smartphone } from "lucide-react";
+import { CheckCircle2, FolderOpen, Loader2, Pencil, Smartphone } from "lucide-react";
 import type { ExportPlatform, IphoneBackupCandidate } from "../../domain/exporter/types";
 import { FieldIssues } from "./FieldIssues";
 import { compactPath, formatBackupTimestamp } from "./flowFormat";
@@ -9,6 +9,7 @@ export function SourceCard({
   encryptedBackup,
   fileManagerLabel,
   issues,
+  loadingCandidates,
   onBackupPasswordChange,
   onEncryptedBackupChange,
   onOpenPicker,
@@ -24,6 +25,7 @@ export function SourceCard({
   encryptedBackup: boolean;
   fileManagerLabel: string;
   issues: string[];
+  loadingCandidates: boolean;
   onBackupPasswordChange: (password: string) => void;
   onEncryptedBackupChange: (encrypted: boolean) => void;
   onOpenPicker: () => void;
@@ -112,6 +114,11 @@ export function SourceCard({
                 </button>
               </div>
             </div>
+          ) : loadingCandidates && isIos ? (
+            <p className="source-scanning">
+              <Loader2 aria-hidden="true" className="spin" />
+              Looking for an iPhone backup on this computer…
+            </p>
           ) : (
             <div className="empty-source">
               <p>

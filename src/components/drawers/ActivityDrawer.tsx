@@ -8,6 +8,7 @@ import {
 } from "../../domain/exporter/logs";
 import type { StoredLogDetail, StoredLogEntry } from "../../domain/exporter/types";
 import { StatusPill } from "../StatusPill";
+import { useEscapeClose } from "../useEscapeClose";
 
 export function ActivityDrawer({
   creatingSupportBundle,
@@ -33,6 +34,7 @@ export function ActivityDrawer({
   storedLogs: StoredLogEntry[];
 }) {
   const [query, setQuery] = useState("");
+  useEscapeClose(onClose);
   const sortedLogs = useMemo(() => sortStoredLogs(storedLogs), [storedLogs]);
   const filteredLogs = useMemo(() => filterStoredLogs(sortedLogs, query), [sortedLogs, query]);
 

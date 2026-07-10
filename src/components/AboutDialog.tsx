@@ -1,4 +1,5 @@
 import { ExternalLink, Scale, ShieldCheck, TerminalSquare, X } from "lucide-react";
+import { useEscapeClose } from "./useEscapeClose";
 
 export function AboutDialog({
   appName,
@@ -9,6 +10,8 @@ export function AboutDialog({
   onClose: () => void;
   spenlioEdition: boolean;
 }) {
+  useEscapeClose(onClose);
+
   return (
     <div
       className="modal-backdrop"
