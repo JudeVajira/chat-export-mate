@@ -20,6 +20,7 @@ No local subtree `AGENTS.md` files exist yet.
 - ChatExportMate is a Tauri, React, TypeScript, and Rust desktop companion for `ReagentX/imessage-exporter`.
 - ChatExportMate is desktop-only. Do not build, position, or optimize it as a web app or mobile app.
 - `pnpm dev` / browser rendering is a development harness for the Tauri frontend only; it is not a supported product surface.
+- The Spenlio SMS Exporter edition is a build flavor in the same codebase, not a fork. Keep it focused on local iPhone backup to Spenlio-compatible finance CSV export, with HTML/Text, transcript-line CSV, upstream diagnostics, and exporter setup hidden from the normal flow.
 - Do not reimplement general iMessage exporting. The upstream `imessage-exporter` CLI remains the source of truth for HTML/Text exports, diagnostics, and normal exporter behavior.
 - CSV output is app-owned. The Spenlio finance layouts should read local Messages database fields through upstream ReagentX libraries so `message_id` can use Apple `message.guid` when available and SQLite message row IDs as a fallback. These finance layouts do not need an external exporter executable; HTML/Text, diagnostics, and legacy transcript-lines CSV still do. For encrypted iPhone backup finance CSV, do not write the decrypted Messages database to a temp file; stream it into an in-memory SQLite connection for the current run only. Keep the `sender`, `received_at`, `message_id`, `message` contract and conservative business-sender filtering.
 - Keep message data local. Do not add accounts, cloud sync, default analytics, or any network path for conversations.
@@ -40,4 +41,5 @@ No local subtree `AGENTS.md` files exist yet.
 - Prefer calm, dense, readable product UI: clear status hierarchy, restrained color, stable panels, and native controls.
 - Avoid nested cards, decorative orbs, marketing hero sections, telemetry-heavy UX, and raw CLI terminology unless it helps troubleshooting.
 - Setup flows must show the currently selected message source or iPhone backup folder and export folder inline, with obvious change and OS file-manager open actions. Do not collapse real local locations into vague labels like `Ready` or `Selected`.
+- Normalize Windows extended-length path prefixes such as `\\?\` and `\??\` before showing, storing, or logging local paths in the UI. Keep implementation-specific filesystem syntax out of beginner-facing controls.
 - For visual UI changes, capture Playwright screenshots at practical desktop window widths and check for overflow, clipped controls, and text collisions before wrapping up. Do not add mobile-specific layouts beyond ordinary responsive resilience for narrow desktop windows.

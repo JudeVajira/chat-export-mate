@@ -1,0 +1,34 @@
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - dependabot
+      - dependabot[bot]
+  categories:
+    - title: User-facing changes
+      labels:
+        - feature
+        - enhancement
+        - ux
+    - title: Fixes
+      labels:
+        - bug
+        - fix
+    - title: Distribution and builds
+      labels:
+        - build
+        - ci
+        - release
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+    - title: Maintenance
+      labels:
+        - chore
+        - refactor
+        - tests
+    - title: Other changes
+      labels:
+        - "*"

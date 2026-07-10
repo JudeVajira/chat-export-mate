@@ -6,6 +6,10 @@ import {
   coerceExportPreferences,
   createExportPreferences,
 } from "../domain/exporter/preferences";
+import {
+  normalizeLocalPathForDisplay,
+  normalizeLocalPathTextForDisplay,
+} from "../domain/exporter/paths";
 import { fetchLatestExporterRelease } from "../domain/exporter/release";
 import type {
   DiagnosticRunRequest,
@@ -175,7 +179,11 @@ export async function executeExporter(request: ExportRunRequest): Promise<Export
   }
 
   try {
-    return await invoke<ExportRunResult>("execute_exporter", { request });
+    return normalizeExportRunResult(
+      await invoke<ExportRunResult>("execute_exporter", {
+        request: normalizeExportRunRequest(request),
+      }),
+    );
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
@@ -189,15 +197,20 @@ export async function subscribeToProcessOutput(
   }
 
   return listen<ProcessOutputEvent>(PROCESS_OUTPUT_EVENT, (event) => {
-    onOutput(event.payload);
+    onOutput({
+      ...event.payload,
+      line: normalizeLocalPathTextForDisplay(event.payload.line),
+    });
   });
 }
 
 export async function checkOutputAccess(outputPath: string): Promise<OutputAccessCheck> {
+  const normalizedOutputPath = normalizeLocalPathForDisplay(outputPath);
+
   if (!isTauriRuntime()) {
     return {
-      path: outputPath,
-      resolvedPath: outputPath,
+      path: normalizedOutputPath,
+      resolvedPath: normalizedOutputPath,
       writable: false,
       checkedAt: "",
       detail: "Desktop write access checks are available in the desktop app.",
@@ -206,9 +219,11 @@ export async function checkOutputAccess(outputPath: string): Promise<OutputAcces
   }
 
   try {
-    return await invoke<OutputAccessCheck>("check_output_access", {
-      request: { outputPath },
-    });
+    return normalizeOutputAccessCheck(
+      await invoke<OutputAccessCheck>("check_output_access", {
+        request: { outputPath: normalizedOutputPath },
+      }),
+    );
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
@@ -222,7 +237,11 @@ export async function runExporterDiagnostics(
   }
 
   try {
-    return await invoke<DiagnosticRunResult>("run_exporter_diagnostics", { request });
+    return normalizeDiagnosticRunResult(
+      await invoke<DiagnosticRunResult>("run_exporter_diagnostics", {
+        request: normalizeDiagnosticRunRequest(request),
+      }),
+    );
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
@@ -234,7 +253,7 @@ export async function listExporterLogs(): Promise<StoredLogEntry[]> {
   }
 
   try {
-    return await invoke<StoredLogEntry[]>("list_exporter_logs");
+    return (await invoke<StoredLogEntry[]>("list_exporter_logs")).map(normalizeStoredLogEntry);
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
@@ -246,12 +265,14 @@ export async function getStoredLogDetail(log: StoredLogEntry): Promise<StoredLog
   }
 
   try {
-    return await invoke<StoredLogDetail>("get_stored_log_detail", {
-      request: {
-        kind: log.kind,
-        fileName: log.fileName,
-      },
-    });
+    return normalizeStoredLogDetail(
+      await invoke<StoredLogDetail>("get_stored_log_detail", {
+        request: {
+          kind: log.kind,
+          fileName: log.fileName,
+        },
+      }),
+    );
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
@@ -270,7 +291,9 @@ export async function createSupportBundle(): Promise<SupportBundleResult> {
 }
 
 export async function listIphoneBackups(): Promise<IphoneBackupCandidate[]> {
-  return invokeWithFallback<IphoneBackupCandidate[]>("list_iphone_backups", []);
+  return (await invokeWithFallback<IphoneBackupCandidate[]>("list_iphone_backups", [])).map(
+    normalizeIphoneBackupCandidate,
+  );
 }
 
 export async function openOutputFolder(path: string): Promise<void> {
@@ -353,5 +376,84 @@ async function selectSinglePath(options: {
     title: options.title,
   });
 
-  return Array.isArray(selected) ? selected[0] ?? null : selected;
+  const selectedPath = Array.isArray(selected) ? selected[0] ?? null : selected;
+  return selectedPath ? normalizeLocalPathForDisplay(selectedPath) : selectedPath;
+}
+
+function normalizeOutputAccessCheck(check: OutputAccessCheck): OutputAccessCheck {
+  return {
+    ...check,
+    path: normalizeLocalPathForDisplay(check.path),
+    resolvedPath: normalizeLocalPathForDisplay(check.resolvedPath),
+  };
+}
+
+function normalizeExportRunRequest(request: ExportRunRequest): ExportRunRequest {
+  return {
+    ...request,
+    outputPath: normalizeLocalPathForDisplay(request.outputPath),
+    sourcePath: request.sourcePath
+      ? normalizeLocalPathForDisplay(request.sourcePath)
+      : request.sourcePath,
+    args: request.args.map(normalizeLocalPathTextForDisplay),
+    displayCommand: normalizeLocalPathTextForDisplay(request.displayCommand),
+  };
+}
+
+function normalizeDiagnosticRunRequest(request: DiagnosticRunRequest): DiagnosticRunRequest {
+  return {
+    ...request,
+    args: request.args.map(normalizeLocalPathTextForDisplay),
+    displayCommand: normalizeLocalPathTextForDisplay(request.displayCommand),
+  };
+}
+
+function normalizeExportRunResult(result: ExportRunResult): ExportRunResult {
+  return {
+    ...result,
+    command: normalizeLocalPathTextForDisplay(result.command),
+    stdout: normalizeLocalPathTextForDisplay(result.stdout),
+    stderr: normalizeLocalPathTextForDisplay(result.stderr),
+    logPath: normalizeLocalPathForDisplay(result.logPath),
+    outputPath: normalizeLocalPathForDisplay(result.outputPath),
+    csvPath: result.csvPath ? normalizeLocalPathForDisplay(result.csvPath) : result.csvPath,
+  };
+}
+
+function normalizeDiagnosticRunResult(result: DiagnosticRunResult): DiagnosticRunResult {
+  return {
+    ...result,
+    command: normalizeLocalPathTextForDisplay(result.command),
+    stdout: normalizeLocalPathTextForDisplay(result.stdout),
+    stderr: normalizeLocalPathTextForDisplay(result.stderr),
+    logPath: normalizeLocalPathForDisplay(result.logPath),
+  };
+}
+
+function normalizeStoredLogEntry(log: StoredLogEntry): StoredLogEntry {
+  return {
+    ...log,
+    path: normalizeLocalPathForDisplay(log.path),
+    command: log.command ? normalizeLocalPathTextForDisplay(log.command) : log.command,
+    outputPath: log.outputPath ? normalizeLocalPathForDisplay(log.outputPath) : log.outputPath,
+  };
+}
+
+function normalizeStoredLogDetail(detail: StoredLogDetail): StoredLogDetail {
+  return {
+    ...detail,
+    entry: normalizeStoredLogEntry(detail.entry),
+    content: normalizeLocalPathTextForDisplay(detail.content),
+  };
+}
+
+function normalizeIphoneBackupCandidate(candidate: IphoneBackupCandidate): IphoneBackupCandidate {
+  return {
+    ...candidate,
+    path: normalizeLocalPathForDisplay(candidate.path),
+    resolvedPath: candidate.resolvedPath
+      ? normalizeLocalPathForDisplay(candidate.resolvedPath)
+      : candidate.resolvedPath,
+    rootPath: normalizeLocalPathForDisplay(candidate.rootPath),
+  };
 }

@@ -1,4 +1,5 @@
 import type { BuiltCommand, ExportOptions, ExportRuntimeSecrets, ValidationIssue } from "./types";
+import { normalizeLocalPathForDisplay } from "./paths";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -104,16 +105,16 @@ export function buildExporterCommand(
     "-f",
     exporterFormat,
     "-o",
-    options.outputPath,
+    normalizeLocalPathForDisplay(options.outputPath),
     "-c",
     options.copyMethod,
     "-a",
     options.platform,
   ];
 
-  pushValue(args, "-p", options.databasePath);
+  pushPathValue(args, "-p", options.databasePath);
   if (options.platform === "macOS") {
-    pushValue(args, "-r", options.attachmentRoot);
+    pushPathValue(args, "-r", options.attachmentRoot);
   }
   pushValue(args, "-s", options.startDate);
   pushValue(args, "-e", options.endDate);
@@ -152,9 +153,9 @@ export function buildDiagnosticCommand(
 ): BuiltCommand {
   const args = ["-d", "-a", options.platform];
 
-  pushValue(args, "-p", options.databasePath);
+  pushPathValue(args, "-p", options.databasePath);
   if (options.platform === "macOS") {
-    pushValue(args, "-r", options.attachmentRoot);
+    pushPathValue(args, "-r", options.attachmentRoot);
   }
 
   return {
@@ -175,6 +176,10 @@ function pushValue(args: string[], flag: string, value?: string): void {
   if (trimmed) {
     args.push(flag, trimmed);
   }
+}
+
+function pushPathValue(args: string[], flag: string, value?: string): void {
+  pushValue(args, flag, value ? normalizeLocalPathForDisplay(value) : value);
 }
 
 function isChatDatabasePath(value: string): boolean {

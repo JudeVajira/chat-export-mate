@@ -2135,7 +2135,7 @@ fn portable_launch_warning(executable_path: &Path) -> Option<String> {
     }
 
     Some(
-        "It looks like ChatExportMate is running from a temporary compressed folder. Extract the portable ZIP first, then run ChatExportMate.exe from the extracted folder so setup files and helper tools stay in a stable location."
+        "It looks like this portable app is running from a temporary compressed folder. Extract the portable ZIP first, then run the app from the extracted folder so setup files and helper tools stay in a stable location."
             .to_string(),
     )
 }

@@ -3,6 +3,7 @@ import {
   CircleCheck,
   DownloadCloud,
   FolderOpen,
+  Loader2,
   Play,
   ShieldCheck,
   TriangleAlert,
@@ -33,8 +34,11 @@ interface ExportConfiguratorProps {
   onPickOutput: () => void;
   onPickSource: () => void;
   onOpenOutput: () => void;
+  onOpenSource: () => void;
   onRun: () => void;
   preflight: ExportPreflightSummary;
+  appName?: string;
+  spenlioEdition?: boolean;
   showMacSourceChoice: boolean;
 }
 
@@ -87,8 +91,11 @@ export function ExportConfigurator({
   onPickOutput,
   onPickSource,
   onOpenOutput,
+  onOpenSource,
   onRun,
   preflight,
+  appName = "ChatExportMate",
+  spenlioEdition = false,
   showMacSourceChoice,
 }: ExportConfiguratorProps) {
   const update = <Key extends keyof ExportOptions>(key: Key, value: ExportOptions[Key]) => {
@@ -126,11 +133,16 @@ export function ExportConfigurator({
   const backupPasswordIssues = validationMessagesFor(issueMap, "backupPassword");
   const startDateIssues = validationMessagesFor(issueMap, "startDate");
   const endDateIssues = validationMessagesFor(issueMap, "endDate");
+  const startDateBoundary = validDateInputBoundary(options.startDate);
+  const endDateBoundary = validDateInputBoundary(options.endDate);
   const customNameIssues = validationMessagesFor(issueMap, "customName");
   const csvLayoutHint =
     options.csvLayout === "transcriptLines"
       ? "Transcript lines creates one row per generated transcript line for general review."
       : "Finance CSV layouts skip phone-number conversations, email senders, non-SMS messages, and your own sent messages.";
+  const availableCsvLayouts = spenlioEdition
+    ? csvLayouts.filter((layout) => layout.value !== "transcriptLines")
+    : csvLayouts;
   const canPrepareExporter =
     preflight.recommendedAction?.id === "install-exporter" && Boolean(onPrepareExporter);
   const primaryActionLabel = canPrepareExporter
@@ -144,389 +156,453 @@ export function ExportConfigurator({
     isRunning ||
     isPreparingExporter ||
     (!preflight.canRunExport && !canPrepareExporter);
-  const PrimaryActionIcon = canPrepareExporter ? DownloadCloud : Play;
+  const isLoading = canPrepareExporter ? isPreparingExporter : isRunning;
+  const PrimaryActionIcon = isLoading ? Loader2 : canPrepareExporter ? DownloadCloud : Play;
+  const outputValue = options.outputPath.trim();
+  const sourceValue = (options.databasePath ?? "").trim();
 
   return (
     <section className="panel export-panel" aria-labelledby="export-title">
-      <div className="section-heading">
+      <div className="section-heading export-heading">
         <div>
           <p className="section-kicker">Export</p>
-          <h2 id="export-title">Choose your export</h2>
-        </div>
-      </div>
-
-      <div className={`preflight-summary preflight-summary--${preflight.state}`}>
-        <div className="preflight-main">
-          <PreflightIcon aria-hidden="true" />
-          <div>
-            <h3>{preflight.title}</h3>
-            <p>{preflight.detail}</p>
-          </div>
-        </div>
-        {preflight.blockingReasons.length > 0 ? (
-          <ul className="preflight-list">
-            {preflight.blockingReasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-        ) : null}
-        {preflight.nonBlockingNotes.length > 0 ? (
-          <div className="preflight-notes">
-            {preflight.nonBlockingNotes.map((note) => (
-              <span key={note}>{note}</span>
-            ))}
-          </div>
-        ) : null}
-        {preflight.recommendedAction ? (
-          <p className="preflight-action-detail">{preflight.recommendedAction.detail}</p>
-        ) : null}
-      </div>
-
-      <div className="action-row">
-        <div className="action-row-group">
-          <button
-            className="button button--secondary"
-            disabled={checkingOutputAccess}
-            onClick={onCheckOutputAccess}
-            type="button"
-          >
-            <ShieldCheck aria-hidden="true" />
-            {checkingOutputAccess ? "Checking" : "Check save folder"}
-          </button>
-          <button className="button button--secondary" onClick={onOpenOutput} type="button">
-            <FolderOpen aria-hidden="true" />
-            Open save folder
-          </button>
-        </div>
-        <button
-          className="button button--primary"
-          disabled={primaryActionDisabled}
-          onClick={canPrepareExporter ? onPrepareExporter : onRun}
-          type="button"
-        >
-          <PrimaryActionIcon aria-hidden="true" />
-          {primaryActionLabel}
-        </button>
-      </div>
-
-      <div className="config-grid">
-        <div className="output-preview span-2" aria-label="What the export creates">
-          <div>
-            <span>What you will get</span>
-            <strong>{formatPreviewTitle(options)}</strong>
-            <p>{formatPreviewDescription(options)}</p>
-          </div>
-          <ul>
-            {formatPreviewFiles(options).map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-
-        <fieldset>
-          <legend>Format</legend>
-          <div className="format-choice-list">
-            {formats.map((format) => (
-              <button
-                className={`format-choice ${options.format === format.value ? "is-selected" : ""}`}
-                key={format.value}
-                onClick={() => update("format", format.value)}
-                type="button"
-              >
-                <strong>{format.label}</strong>
-                <span>{format.value.toUpperCase()}</span>
-                <small>{format.description}</small>
-              </button>
-            ))}
-          </div>
-          <p className="field-hint">
-            Choose the format that matches how you want to use the saved messages.
+          <h2 id="export-title">{spenlioEdition ? "Create Spenlio CSV" : "Choose your export"}</h2>
+          <p>
+            {spenlioEdition
+              ? "Check the local backup and save folder, then create the finance CSV."
+              : "Check the source, save folder, and export format before starting."}
           </p>
-        </fieldset>
-
-        {options.format === "csv" ? (
-          <fieldset className="span-2">
-            <legend>CSV layout</legend>
-            <div className="csv-layout-list">
-              {csvLayouts.map((layout) => (
-                <button
-                  className={`csv-layout-option ${
-                    options.csvLayout === layout.value ? "is-selected" : ""
-                  }`}
-                  key={layout.value}
-                  onClick={() => update("csvLayout", layout.value)}
-                  type="button"
-                >
-                  <strong>{layout.label}</strong>
-                  <small>{layout.description}</small>
-                </button>
-              ))}
-            </div>
-            <p className="field-hint">
-              {csvLayoutHint}
-            </p>
-          </fieldset>
-        ) : null}
-
-        {showMacSourceChoice ? (
-          <fieldset>
-            <legend>Source</legend>
-            <div className="segmented-control">
-              {platforms.map((platform) => (
-                <button
-                  className={options.platform === platform.value ? "is-selected" : ""}
-                  key={platform.value}
-                  onClick={() => selectPlatform(platform.value)}
-                  type="button"
-                >
-                  {platform.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-        ) : (
-          <div className="source-summary">
-            <span>Source</span>
-            <strong>iPhone backup on this computer</strong>
-            <p>ChatExportMate reads a local backup folder. It does not upload your messages.</p>
-          </div>
-        )}
-
-        <div className={`field span-2 ${outputIssues.length > 0 ? "field--error" : ""}`}>
-          <label className="field-label" htmlFor="output-folder">
-            Output folder
-          </label>
-          <div className="input-with-action">
-            <input
-              aria-describedby={outputIssues.length > 0 ? "output-folder-errors" : undefined}
-              aria-invalid={outputIssues.length > 0}
-              id="output-folder"
-              onChange={(event) => update("outputPath", event.currentTarget.value)}
-              value={options.outputPath}
-            />
-            <button
-              className="field-action"
-              onClick={onPickOutput}
-              title="Choose output folder"
-              type="button"
-            >
-              <FolderOpen aria-hidden="true" />
-            </button>
-          </div>
-          <FieldIssues fieldId="output-folder" issues={outputIssues} />
         </div>
+      </div>
 
-        <div className={`field span-2 ${sourceIssues.length > 0 ? "field--error" : ""}`}>
-          <label className="field-label" htmlFor="custom-source">
-            {sourceLabel}
-          </label>
-          <div className="input-with-action">
-            <input
-              aria-describedby={sourceIssues.length > 0 ? "custom-source-errors" : undefined}
-              aria-invalid={sourceIssues.length > 0}
-              id="custom-source"
-              onChange={(event) => update("databasePath", event.currentTarget.value)}
-              placeholder={sourcePlaceholder}
-              value={options.databasePath}
+      <div className="export-workspace">
+        <div className="export-form-column">
+          <div className="location-review-list" aria-label="Selected folders">
+            <LocationReviewRow
+              chooseLabel={sourceValue ? "Change" : "Start guide"}
+              emptyValue={sourcePlaceholder}
+              fieldId="custom-source"
+              hint={sourceHint}
+              issues={sourceIssues}
+              label={sourceLabel}
+              onChoose={onPickSource}
+              onOpen={onOpenSource}
+              openLabel="Open"
+              value={sourceValue}
             />
-            <button
-              className="field-action"
-              onClick={onPickSource}
-              title="Open source guide"
-              type="button"
-            >
-              <FolderOpen aria-hidden="true" />
-            </button>
-          </div>
-          <p className="field-hint">{sourceHint}</p>
-          <FieldIssues fieldId="custom-source" issues={sourceIssues} />
-        </div>
 
-        {isIosSource ? (
-          <div
-            className={`encrypted-backup-option span-2 ${
-              options.encryptedBackup ? "is-selected" : ""
-            } ${backupPasswordIssues.length > 0 ? "field--error" : ""}`}
-          >
-            <label className="checkbox-option encrypted-backup-toggle">
-              <input
-                checked={options.encryptedBackup}
-                onChange={(event) => update("encryptedBackup", event.currentTarget.checked)}
-                type="checkbox"
-              />
-              <span>
-                <strong>My backup is encrypted</strong>
-                <small>
-                  Encrypted backups need the backup password. The password is used only for this
-                  export and is not saved.
-                </small>
-              </span>
-            </label>
-            {options.encryptedBackup ? (
-              <div className="field backup-password-field">
-                <label className="field-label" htmlFor="backup-password">
-                  Backup password
-                </label>
+            <LocationReviewRow
+              chooseLabel={outputValue ? "Change" : "Choose folder"}
+              emptyValue="Choose where the CSV should be saved"
+              fieldId="output-folder"
+              hint="This folder stays on your computer. The CSV is saved here after export."
+              issues={outputIssues}
+              label="Save folder"
+              onChoose={onPickOutput}
+              onOpen={onOpenOutput}
+              openLabel="Open"
+              value={outputValue}
+            />
+          </div>
+
+          {isIosSource ? (
+            <div
+              className={`encrypted-backup-option ${
+                options.encryptedBackup ? "is-selected" : ""
+              } ${backupPasswordIssues.length > 0 ? "field--error" : ""}`}
+            >
+              <label className="checkbox-option encrypted-backup-toggle">
                 <input
-                  aria-describedby={
-                    backupPasswordIssues.length > 0 ? "backup-password-errors" : "backup-password-hint"
-                  }
-                  aria-invalid={backupPasswordIssues.length > 0}
-                  autoComplete="off"
-                  id="backup-password"
-                  onChange={(event) => onBackupPasswordChange(event.currentTarget.value)}
-                  type="password"
-                  value={backupPassword}
+                  checked={options.encryptedBackup}
+                  onChange={(event) => update("encryptedBackup", event.currentTarget.checked)}
+                  type="checkbox"
                 />
-                <p className="field-hint" id="backup-password-hint">
-                  ChatExportMate sends this once to the export tool through a private input pipe.
-                </p>
-                <FieldIssues fieldId="backup-password" issues={backupPasswordIssues} />
+                <span>
+                  <strong>My backup is encrypted</strong>
+                  <small>
+                    Encrypted backups need the backup password. The password is used only for this
+                    export and is not saved.
+                  </small>
+                </span>
+              </label>
+              {options.encryptedBackup ? (
+                <div className="field backup-password-field">
+                  <label className="field-label" htmlFor="backup-password">
+                    Backup password
+                  </label>
+                  <input
+                    aria-describedby={
+                      backupPasswordIssues.length > 0 ? "backup-password-errors" : "backup-password-hint"
+                    }
+                    aria-invalid={backupPasswordIssues.length > 0}
+                    autoComplete="off"
+                    id="backup-password"
+                    onChange={(event) => onBackupPasswordChange(event.currentTarget.value)}
+                    type="password"
+                    value={backupPassword}
+                  />
+                  <FieldIssues fieldId="backup-password" issues={backupPasswordIssues} />
+                  <p className="field-hint" id="backup-password-hint">
+                    {spenlioEdition
+                      ? `${appName} uses this once to unlock the backup locally. The password is not saved.`
+                      : `${appName} sends this once to the export tool through a private input pipe.`}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showMacSourceChoice ? (
+            <fieldset>
+              <legend>Message source type</legend>
+              <div className="segmented-control">
+                {platforms.map((platform) => (
+                  <button
+                    className={options.platform === platform.value ? "is-selected" : ""}
+                    key={platform.value}
+                    onClick={() => selectPlatform(platform.value)}
+                    type="button"
+                  >
+                    {platform.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ) : (
+            <div className="source-summary">
+              <span>Source</span>
+              <strong>iPhone backup on this computer</strong>
+              <p>{appName} reads a local backup folder. It does not upload your messages.</p>
+            </div>
+          )}
+
+          {spenlioEdition ? (
+            <div className="source-summary source-summary--csv">
+              <span>CSV format</span>
+              <strong>Spenlio finance CSV</strong>
+              <p>Includes named business SMS senders only and skips phone-number conversations.</p>
+            </div>
+          ) : (
+            <fieldset>
+              <legend>Format</legend>
+              <div className="format-choice-list">
+                {formats.map((format) => (
+                  <button
+                    className={`format-choice ${options.format === format.value ? "is-selected" : ""}`}
+                    key={format.value}
+                    onClick={() => update("format", format.value)}
+                    type="button"
+                  >
+                    <strong>{format.label}</strong>
+                    <span>{format.value.toUpperCase()}</span>
+                    <small>{format.description}</small>
+                  </button>
+                ))}
+              </div>
+              <p className="field-hint">
+                Choose the format that matches how you want to use the saved messages.
+              </p>
+            </fieldset>
+          )}
+
+          <details className="advanced-options export-advanced">
+            <summary>{spenlioEdition ? "Optional filters and file layout" : "Advanced options"}</summary>
+            <div className="advanced-option-grid advanced-option-grid--dates">
+              <label className={`field ${startDateIssues.length > 0 ? "field--error" : ""}`} htmlFor="start-date">
+                <span>Start date</span>
+                <input
+                  aria-describedby={startDateIssues.length > 0 ? "start-date-errors" : undefined}
+                  aria-invalid={startDateIssues.length > 0}
+                  id="start-date"
+                  max={endDateBoundary}
+                  onInput={(event) => update("startDate", event.currentTarget.value)}
+                  type="date"
+                  value={options.startDate}
+                />
+                <FieldIssues fieldId="start-date" issues={startDateIssues} />
+              </label>
+
+              <label className={`field ${endDateIssues.length > 0 ? "field--error" : ""}`} htmlFor="end-date">
+                <span>End date</span>
+                <input
+                  aria-describedby={endDateIssues.length > 0 ? "end-date-errors" : undefined}
+                  aria-invalid={endDateIssues.length > 0}
+                  id="end-date"
+                  min={startDateBoundary}
+                  onInput={(event) => update("endDate", event.currentTarget.value)}
+                  type="date"
+                  value={options.endDate}
+                />
+                <FieldIssues fieldId="end-date" issues={endDateIssues} />
+              </label>
+            </div>
+
+            {options.format === "csv" ? (
+              <fieldset>
+                <legend>{spenlioEdition ? "Need separate files?" : "CSV layout"}</legend>
+                <div className="csv-layout-list">
+                  {availableCsvLayouts.map((layout) => (
+                    <button
+                      className={`csv-layout-option ${
+                        options.csvLayout === layout.value ? "is-selected" : ""
+                      }`}
+                      key={layout.value}
+                      onClick={() => update("csvLayout", layout.value)}
+                      type="button"
+                    >
+                      <strong>{layout.label}</strong>
+                      <small>{layout.description}</small>
+                    </button>
+                  ))}
+                </div>
+                <p className="field-hint">{csvLayoutHint}</p>
+              </fieldset>
+            ) : null}
+
+            {!spenlioEdition ? (
+              <div className="advanced-option-grid">
+                <label
+                  className={`field ${customNameIssues.length > 0 ? "field--error" : ""}`}
+                  htmlFor="custom-export-name"
+                >
+                  <span>Custom export name</span>
+                  <input
+                    aria-describedby={customNameIssues.length > 0 ? "custom-export-name-errors" : undefined}
+                    aria-invalid={customNameIssues.length > 0}
+                    id="custom-export-name"
+                    onChange={(event) => update("customName", event.currentTarget.value)}
+                    placeholder="Optional display name"
+                    value={options.customName}
+                  />
+                  <FieldIssues fieldId="custom-export-name" issues={customNameIssues} />
+                </label>
+
+                <div className="checkbox-stack">
+                  <label className="checkbox-option">
+                    <input
+                      checked={options.useCallerId}
+                      onChange={(event) => update("useCallerId", event.currentTarget.checked)}
+                      type="checkbox"
+                    />
+                    <span>Use caller ID</span>
+                  </label>
+                  <label className="checkbox-option">
+                    <input
+                      checked={options.noLazyImages}
+                      onChange={(event) => update("noLazyImages", event.currentTarget.checked)}
+                      type="checkbox"
+                    />
+                    <span>Printer-ready images</span>
+                  </label>
+                  <label className="checkbox-option">
+                    <input
+                      checked={options.ignoreDiskWarning}
+                      onChange={(event) => update("ignoreDiskWarning", event.currentTarget.checked)}
+                      type="checkbox"
+                    />
+                    <span>Bypass disk check</span>
+                  </label>
+                  <label className="checkbox-option">
+                    <input
+                      checked={options.noProgress}
+                      onChange={(event) => update("noProgress", event.currentTarget.checked)}
+                      type="checkbox"
+                    />
+                    <span>Quiet progress output</span>
+                  </label>
+                </div>
+
+                <div className="field">
+                  <label className="field-label" htmlFor="attachment-root">
+                    Attachments folder
+                  </label>
+                  <div className="input-with-action">
+                    <input
+                      disabled={isIosSource}
+                      id="attachment-root"
+                      onChange={(event) => update("attachmentRoot", event.currentTarget.value)}
+                      placeholder={
+                        isIosSource
+                          ? "Read from the selected backup"
+                          : "Optional folder for Messages attachments"
+                      }
+                      value={isIosSource ? "" : options.attachmentRoot}
+                    />
+                    <button
+                      className="field-action"
+                      disabled={isIosSource}
+                      onClick={onPickAttachmentRoot}
+                      title="Choose attachments folder"
+                      type="button"
+                    >
+                      <FolderOpen aria-hidden="true" />
+                    </button>
+                  </div>
+                  <p className="field-hint">
+                    {isIosSource
+                      ? "Custom attachment roots are only used for macOS exports."
+                      : "Use this only when attachments are stored outside the default Messages folder."}
+                  </p>
+                </div>
+
+                <label className="field">
+                  <span>Attachments</span>
+                  <select
+                    onChange={(event) => update("copyMethod", event.currentTarget.value as AttachmentCopyMethod)}
+                    value={options.copyMethod}
+                  >
+                    {copyMethods.map((method) => (
+                      <option key={method} value={method}>
+                        {copyMethodLabels[method]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Contact filter</span>
+                  <input
+                    onChange={(event) => update("conversationFilter", event.currentTarget.value)}
+                    placeholder="name, phone, or email"
+                    value={options.conversationFilter}
+                  />
+                </label>
               </div>
             ) : null}
+          </details>
+        </div>
+
+        <aside className="export-summary-card" aria-label="Export summary">
+          <div className={`preflight-summary preflight-summary--${preflight.state}`}>
+            <div className="preflight-main">
+              <PreflightIcon aria-hidden="true" />
+              <div>
+                <h3>{preflight.title}</h3>
+                <p>{preflight.detail}</p>
+              </div>
+            </div>
+            {preflight.blockingReasons.length > 0 ? (
+              <ul className="preflight-list">
+                {preflight.blockingReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            ) : null}
+            {!spenlioEdition && preflight.nonBlockingNotes.length > 0 ? (
+              <div className="preflight-notes">
+                {preflight.nonBlockingNotes.map((note) => (
+                  <span key={note}>{note}</span>
+                ))}
+              </div>
+            ) : null}
+            {preflight.recommendedAction ? (
+              <p className="preflight-action-detail">{preflight.recommendedAction.detail}</p>
+            ) : null}
           </div>
-        ) : null}
 
-        <label className="field">
-          <span>Attachments</span>
-          <select
-            onChange={(event) => update("copyMethod", event.currentTarget.value as AttachmentCopyMethod)}
-            value={options.copyMethod}
-          >
-            {copyMethods.map((method) => (
-              <option key={method} value={method}>
-                {copyMethodLabels[method]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Contact filter</span>
-          <input
-            onChange={(event) => update("conversationFilter", event.currentTarget.value)}
-            placeholder="name, phone, or email"
-            value={options.conversationFilter}
-          />
-        </label>
-
-        <div className="field span-2">
-          <label className="field-label" htmlFor="attachment-root">
-            Attachments folder
-          </label>
-          <div className="input-with-action">
-            <input
-              disabled={isIosSource}
-              id="attachment-root"
-              onChange={(event) => update("attachmentRoot", event.currentTarget.value)}
-              placeholder={
-                isIosSource
-                  ? "Read from the selected backup"
-                  : "Optional folder for Messages attachments"
-              }
-              value={isIosSource ? "" : options.attachmentRoot}
-            />
+          <div className="export-summary-actions">
             <button
-              className="field-action"
-              disabled={isIosSource}
-              onClick={onPickAttachmentRoot}
-              title="Choose attachments folder"
+              className="button button--primary"
+              disabled={primaryActionDisabled}
+              onClick={canPrepareExporter ? onPrepareExporter : onRun}
+              type="button"
+            >
+              <PrimaryActionIcon aria-hidden="true" className={isLoading ? "spin" : undefined} />
+              {primaryActionLabel}
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={checkingOutputAccess}
+              onClick={onCheckOutputAccess}
+              type="button"
+            >
+              <ShieldCheck aria-hidden="true" />
+              {checkingOutputAccess ? "Checking" : "Check save folder"}
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={!outputValue}
+              onClick={onOpenOutput}
               type="button"
             >
               <FolderOpen aria-hidden="true" />
+              Open save folder
             </button>
           </div>
-          <p className="field-hint">
-            {isIosSource
-              ? "Custom attachment roots are only used for macOS exports."
-              : "Use this only when attachments are stored outside the default Messages folder."}
-          </p>
-        </div>
 
-        <label className={`field ${startDateIssues.length > 0 ? "field--error" : ""}`} htmlFor="start-date">
-          <span>Start date</span>
-          <input
-            aria-describedby={startDateIssues.length > 0 ? "start-date-errors" : undefined}
-            aria-invalid={startDateIssues.length > 0}
-            id="start-date"
-            onChange={(event) => update("startDate", event.currentTarget.value)}
-            placeholder="YYYY-MM-DD"
-            value={options.startDate}
-          />
-          <FieldIssues fieldId="start-date" issues={startDateIssues} />
-        </label>
-
-        <label className={`field ${endDateIssues.length > 0 ? "field--error" : ""}`} htmlFor="end-date">
-          <span>End date</span>
-          <input
-            aria-describedby={endDateIssues.length > 0 ? "end-date-errors" : undefined}
-            aria-invalid={endDateIssues.length > 0}
-            id="end-date"
-            onChange={(event) => update("endDate", event.currentTarget.value)}
-            placeholder="YYYY-MM-DD"
-            value={options.endDate}
-          />
-          <FieldIssues fieldId="end-date" issues={endDateIssues} />
-        </label>
-
-        <details className="advanced-options span-2">
-          <summary>Advanced options</summary>
-          <div className="advanced-option-grid">
-            <label
-              className={`field ${customNameIssues.length > 0 ? "field--error" : ""}`}
-              htmlFor="custom-export-name"
-            >
-              <span>Custom export name</span>
-              <input
-                aria-describedby={customNameIssues.length > 0 ? "custom-export-name-errors" : undefined}
-                aria-invalid={customNameIssues.length > 0}
-                id="custom-export-name"
-                onChange={(event) => update("customName", event.currentTarget.value)}
-                placeholder="Optional display name"
-                value={options.customName}
-              />
-              <FieldIssues fieldId="custom-export-name" issues={customNameIssues} />
-            </label>
-
-            <div className="checkbox-stack">
-              <label className="checkbox-option">
-                <input
-                  checked={options.useCallerId}
-                  onChange={(event) => update("useCallerId", event.currentTarget.checked)}
-                  type="checkbox"
-                />
-                <span>Use caller ID</span>
-              </label>
-              <label className="checkbox-option">
-                <input
-                  checked={options.noLazyImages}
-                  onChange={(event) => update("noLazyImages", event.currentTarget.checked)}
-                  type="checkbox"
-                />
-                <span>Printer-ready images</span>
-              </label>
-              <label className="checkbox-option">
-                <input
-                  checked={options.ignoreDiskWarning}
-                  onChange={(event) => update("ignoreDiskWarning", event.currentTarget.checked)}
-                  type="checkbox"
-                />
-                <span>Bypass disk check</span>
-              </label>
-              <label className="checkbox-option">
-                <input
-                  checked={options.noProgress}
-                  onChange={(event) => update("noProgress", event.currentTarget.checked)}
-                  type="checkbox"
-                />
-                <span>Quiet progress output</span>
-              </label>
+          <div className="output-preview" aria-label="What the export creates">
+            <div>
+              <span>What you will get</span>
+              <strong>{formatPreviewTitle(options)}</strong>
+              <p>{formatPreviewDescription(options)}</p>
             </div>
+            <ul>
+              {formatPreviewFiles(options, appName).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
-        </details>
+        </aside>
       </div>
 
     </section>
+  );
+}
+
+function validDateInputBoundary(value: string | undefined): string | undefined {
+  return value && /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : undefined;
+}
+
+function LocationReviewRow({
+  chooseLabel,
+  emptyValue,
+  fieldId,
+  hint,
+  issues,
+  label,
+  onChoose,
+  onOpen,
+  openLabel,
+  value,
+}: {
+  chooseLabel: string;
+  emptyValue: string;
+  fieldId: string;
+  hint: string;
+  issues: string[];
+  label: string;
+  onChoose: () => void;
+  onOpen: () => void;
+  openLabel: string;
+  value: string;
+}) {
+  const hasValue = value.length > 0;
+  return (
+    <div className={`location-review-row ${issues.length > 0 ? "field--error" : ""}`}>
+      <div className="location-review-main">
+        <span className="field-label">{label}</span>
+        <code className={`location-review-path ${hasValue ? "" : "is-empty"}`} title={hasValue ? value : undefined}>
+          {hasValue ? value : emptyValue}
+        </code>
+        <p className="field-hint">{hint}</p>
+        <FieldIssues fieldId={fieldId} issues={issues} />
+      </div>
+      <div className="location-review-actions">
+        <button className="button button--secondary button--compact" onClick={onChoose} type="button">
+          <FolderOpen aria-hidden="true" />
+          {chooseLabel}
+        </button>
+        <button
+          className="button button--secondary button--compact"
+          disabled={!hasValue}
+          onClick={onOpen}
+          type="button"
+        >
+          <FolderOpen aria-hidden="true" />
+          {openLabel}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -570,24 +646,26 @@ function formatPreviewDescription(options: ExportOptions): string {
   return "Best for browsing your saved conversations later in a normal web browser.";
 }
 
-function formatPreviewFiles(options: ExportOptions): string[] {
+function formatPreviewFiles(options: ExportOptions, appName: string): string[] {
+  const exportFolder = `${appName} export folder`;
+
   if (options.format === "csv" && options.csvLayout === "spenlioCombined") {
-    return ["ChatExportMate Export folder", "spenlio-sms-export.csv", "Apple message IDs when available"];
+    return [exportFolder, "spenlio-sms-export.csv", "Apple message IDs when available"];
   }
 
   if (options.format === "csv" && options.csvLayout === "spenlioBySender") {
-    return ["ChatExportMate Export folder", "spenlio-sms-export-by-sender folder", "Apple message IDs when available"];
+    return [exportFolder, "spenlio-sms-export-by-sender folder", "Apple message IDs when available"];
   }
 
   if (options.format === "csv") {
-    return ["ChatExportMate Export folder", "chatexportmate-transcript-lines.csv", "text transcripts used for conversion"];
+    return [exportFolder, "chatexportmate-transcript-lines.csv", "text transcripts used for conversion"];
   }
 
   if (options.format === "txt") {
-    return ["ChatExportMate Export folder", "conversation text files", "attachments folder when selected"];
+    return [exportFolder, "conversation text files", "attachments folder when selected"];
   }
 
-  return ["ChatExportMate Export folder", "readable conversation HTML files", "attachments folder when selected"];
+  return [exportFolder, "readable conversation HTML files", "attachments folder when selected"];
 }
 
 function FieldIssues({ fieldId, issues }: { fieldId: string; issues: string[] }) {

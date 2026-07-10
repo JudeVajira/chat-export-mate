@@ -1,6 +1,12 @@
 import { ExternalLink, Scale, ShieldCheck, TerminalSquare } from "lucide-react";
 
-export function AboutPanel() {
+export function AboutPanel({
+  appName = "ChatExportMate",
+  spenlioEdition = false,
+}: {
+  appName?: string;
+  spenlioEdition?: boolean;
+}) {
   return (
     <section className="panel about-panel" aria-labelledby="about-title">
       <div className="section-heading">
@@ -23,11 +29,11 @@ export function AboutPanel() {
 
           <article className="about-item">
             <TerminalSquare aria-hidden="true" />
-            <h3>Exporter companion</h3>
+            <h3>{spenlioEdition ? "Finance CSV exporter" : "Exporter companion"}</h3>
             <p>
-              ChatExportMate wraps ReagentX/imessage-exporter for discovery, setup, execution,
-              diagnostics, logs, and updates. Finance CSV support uses ReagentX libraries for local
-              database fields.
+              {spenlioEdition
+                ? `${appName} creates Spenlio-compatible finance SMS CSV files from local Messages data. It uses ReagentX libraries for local database fields and encrypted backup handling.`
+                : `${appName} wraps ReagentX/imessage-exporter for discovery, setup, execution, diagnostics, logs, and updates. Finance CSV support uses ReagentX libraries for local database fields.`}
             </p>
           </article>
 
@@ -35,7 +41,7 @@ export function AboutPanel() {
             <Scale aria-hidden="true" />
             <h3>Free software</h3>
             <p>
-              ChatExportMate is GPL-3.0-or-later software and comes without warranty. Upstream
+              {appName} is GPL-3.0-or-later software and comes without warranty. Upstream
               attribution is kept in the repository acknowledgements.
             </p>
           </article>

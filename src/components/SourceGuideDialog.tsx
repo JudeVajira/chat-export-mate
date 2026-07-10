@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ExternalLink,
@@ -9,10 +9,12 @@ import {
   X,
 } from "lucide-react";
 import type { IphoneBackupCandidate } from "../domain/exporter/types";
+import { normalizeLocalPathForDisplay } from "../domain/exporter/paths";
 
 type SourceGuideChoice = "iphone-new" | "iphone-backup" | "mac-messages";
 
 interface SourceGuideDialogProps {
+  appName?: string;
   backupCandidates: IphoneBackupCandidate[];
   encryptedBackup: boolean;
   loadingBackupCandidates: boolean;
@@ -22,6 +24,7 @@ interface SourceGuideDialogProps {
   onClose: () => void;
   onEncryptedBackupChange: (encryptedBackup: boolean) => void;
   onRefreshBackups: () => void;
+  sourceSelected: boolean;
   showMacSourceChoice: boolean;
 }
 
@@ -52,6 +55,7 @@ const sourceGuideChoices: Array<{
 ];
 
 export function SourceGuideDialog({
+  appName = "ChatExportMate",
   backupCandidates,
   encryptedBackup,
   loadingBackupCandidates,
@@ -61,18 +65,27 @@ export function SourceGuideDialog({
   onClose,
   onEncryptedBackupChange,
   onRefreshBackups,
+  sourceSelected,
   showMacSourceChoice,
 }: SourceGuideDialogProps) {
   const initialChoice = showMacSourceChoice
     ? "mac-messages"
-    : backupCandidates.length > 0
+    : sourceSelected || backupCandidates.length > 0
       ? "iphone-backup"
       : "iphone-new";
   const [choice, setChoice] = useState<SourceGuideChoice>(initialChoice);
+  const userSelectedChoice = useRef(false);
   const visibleChoices = sourceGuideChoices.filter(
     (item) => showMacSourceChoice || item.id !== "mac-messages",
   );
   const safeChoice = visibleChoices.some((item) => item.id === choice) ? choice : "iphone-new";
+
+  useEffect(() => {
+    if (!showMacSourceChoice && (sourceSelected || backupCandidates.length > 0) && !userSelectedChoice.current) {
+      setChoice("iphone-backup");
+    }
+  }, [backupCandidates.length, showMacSourceChoice, sourceSelected]);
+
   return (
     <div
       className="modal-backdrop"
@@ -99,7 +112,7 @@ export function SourceGuideDialog({
             </h2>
             <p id="source-guide-description">
               {showMacSourceChoice
-                ? "Choose the local Messages data you want ChatExportMate to export."
+                ? `Choose the local Messages data you want ${appName} to export.`
                 : "Your messages are read from a backup on this computer and are not uploaded."}
             </p>
           </div>
@@ -113,17 +126,20 @@ export function SourceGuideDialog({
           </button>
         </header>
 
-        <div className="source-choice-list" role="tablist" aria-label="Choose your source path">
+        <div className="source-choice-list" role="radiogroup" aria-label="Choose your source path">
           {visibleChoices.map((item) => {
             const Icon = item.icon;
             const isSelected = item.id === safeChoice;
             return (
               <button
-                aria-selected={isSelected}
+                aria-checked={isSelected}
                 className={`source-choice ${isSelected ? "is-selected" : ""}`}
                 key={item.id}
-                onClick={() => setChoice(item.id)}
-                role="tab"
+                onClick={() => {
+                  userSelectedChoice.current = true;
+                  setChoice(item.id);
+                }}
+                role="radio"
                 type="button"
               >
                 <Icon aria-hidden="true" />
@@ -138,16 +154,17 @@ export function SourceGuideDialog({
         </div>
 
         <div className="source-guide-body">
-          {safeChoice === "iphone-new" ? <IphoneBackupWalkthrough /> : null}
+          {safeChoice === "iphone-new" ? <IphoneBackupWalkthrough appName={appName} /> : null}
           {safeChoice === "iphone-backup" ? (
             <ExistingBackupHelp
+              appName={appName}
               backupCandidates={backupCandidates}
               loadingBackupCandidates={loadingBackupCandidates}
               onChooseDetectedIphoneBackup={onChooseDetectedIphoneBackup}
               onRefreshBackups={onRefreshBackups}
             />
           ) : null}
-          {safeChoice === "mac-messages" ? <MacMessagesHelp /> : null}
+          {safeChoice === "mac-messages" ? <MacMessagesHelp appName={appName} /> : null}
         </div>
 
         {safeChoice !== "mac-messages" ? (
@@ -195,7 +212,7 @@ export function SourceGuideDialog({
   );
 }
 
-function IphoneBackupWalkthrough() {
+function IphoneBackupWalkthrough({ appName }: { appName: string }) {
   return (
     <div className="source-guide-content">
       <ol className="source-guide-steps">
@@ -220,7 +237,7 @@ function IphoneBackupWalkthrough() {
         <li>
           <strong>If the backup is encrypted, keep the password ready.</strong>
           <span>
-            Turn on My backup is encrypted in ChatExportMate before exporting. The password is used
+            Turn on My backup is encrypted in {appName} before exporting. The password is used
             only for that export and is not saved.
           </span>
         </li>
@@ -237,11 +254,13 @@ function IphoneBackupWalkthrough() {
 }
 
 function ExistingBackupHelp({
+  appName,
   backupCandidates,
   loadingBackupCandidates,
   onChooseDetectedIphoneBackup,
   onRefreshBackups,
 }: {
+  appName: string;
   backupCandidates: IphoneBackupCandidate[];
   loadingBackupCandidates: boolean;
   onChooseDetectedIphoneBackup: (candidate: IphoneBackupCandidate) => void;
@@ -252,10 +271,15 @@ function ExistingBackupHelp({
       <section className="detected-backups" aria-label="Detected iPhone backups">
         <div className="detected-backups-header">
           <div>
-            <h3>Backups found on this computer</h3>
+            <h3>
+              {backupCandidates.length > 0
+                ? "Backups found on this computer"
+                : "No standard backup folder found yet"}
+            </h3>
             <p>
-              ChatExportMate checks the standard places Apple uses on this computer. If a backup is
-              found, choose it here instead of browsing for a folder.
+              {backupCandidates.length > 0
+                ? `${appName} checks the standard places Apple uses on this computer. Choose one here instead of browsing for a folder.`
+                : `${appName} checked the standard places Apple uses on this computer. If your backup is somewhere else, choose it manually.`}
             </p>
           </div>
           <button
@@ -264,7 +288,7 @@ function ExistingBackupHelp({
             onClick={onRefreshBackups}
             type="button"
           >
-            <RefreshCw aria-hidden="true" />
+            <RefreshCw aria-hidden="true" className={loadingBackupCandidates ? "spin" : undefined} />
             {loadingBackupCandidates ? "Scanning" : "Scan again"}
           </button>
         </div>
@@ -296,12 +320,15 @@ function ExistingBackupHelp({
           </div>
         ) : (
           <div className="no-backup-guide">
-            <strong>ChatExportMate could not find a completed iPhone backup on this computer.</strong>
-            <p>Finish a local backup first, then come back and click Scan again.</p>
+            <strong>{appName} could not find a completed iPhone backup on this computer.</strong>
+            <p>
+              We checked Apple&apos;s standard backup folders on this computer. Finish a local backup
+              first, then come back and click Scan again.
+            </p>
             <ol>
               <li>Open Apple Devices or iTunes.</li>
               <li>Create a local backup to this computer.</li>
-              <li>Return to ChatExportMate and click Scan again.</li>
+              <li>Return to {appName} and click Scan again.</li>
             </ol>
           </div>
         )}
@@ -315,7 +342,7 @@ function ExistingBackupHelp({
       <details className="source-guide-advanced">
         <summary>Moved your backup folder?</summary>
         <p>
-          If the original Apple backup folder was replaced with a junction or symlink, ChatExportMate
+          If the original Apple backup folder was replaced with a junction or symlink, {appName}
           should still find it. If the folder was moved without a link at Apple&apos;s normal location,
           choose the backup folder manually.
         </p>
@@ -324,7 +351,7 @@ function ExistingBackupHelp({
   );
 }
 
-function MacMessagesHelp() {
+function MacMessagesHelp({ appName }: { appName: string }) {
   return (
     <div className="source-guide-content">
       <ol className="source-guide-steps">
@@ -339,11 +366,11 @@ function MacMessagesHelp() {
           <strong>Allow local message access.</strong>
           <span>
             Open System Settings, go to Privacy &amp; Security, then Full Disk Access. Add
-            ChatExportMate and turn it on.
+            {appName} and turn it on.
           </span>
         </li>
         <li>
-          <strong>Quit and reopen ChatExportMate.</strong>
+          <strong>Quit and reopen {appName}.</strong>
           <span>
             Then choose chat.db if you want to use a custom source instead of the default Mac
             Messages location.
@@ -387,10 +414,11 @@ function formatBackupDate(value: number): string {
 }
 
 function compactPath(path: string): string {
-  const normalizedPath = path.replace(/\\/gu, "/");
+  const displayPath = normalizeLocalPathForDisplay(path);
+  const normalizedPath = displayPath.replace(/\\/gu, "/");
   const parts = normalizedPath.split("/").filter(Boolean);
   if (parts.length <= 4) {
-    return path;
+    return displayPath;
   }
 
   return `${parts.slice(0, 2).join("/")}/.../${parts.slice(-2).join("/")}`;

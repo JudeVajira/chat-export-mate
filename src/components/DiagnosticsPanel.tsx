@@ -104,7 +104,7 @@ export function DiagnosticsPanel({
             onClick={onRunDiagnostics}
             type="button"
           >
-            <RefreshCw aria-hidden="true" />
+            <RefreshCw aria-hidden="true" className={runningDiagnostics ? "spin" : undefined} />
             {runningDiagnostics ? "Running" : "Run diagnostics"}
           </button>
           <button
@@ -213,7 +213,7 @@ export function DiagnosticsPanel({
                 onClick={() => onActivateManagedVersion(selectedVersion)}
                 type="button"
               >
-                <RotateCcw aria-hidden="true" />
+                <RotateCcw aria-hidden="true" className={isActivatingSelectedVersion ? "spin" : undefined} />
                 {isActivatingSelectedVersion
                   ? "Activating"
                   : selectedVersion === managedState.activeVersion

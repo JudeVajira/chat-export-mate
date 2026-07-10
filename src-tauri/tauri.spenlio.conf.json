@@ -1,0 +1,18 @@
+{
+  "productName": "Spenlio SMS Exporter",
+  "identifier": "com.spenlio.smsexporter",
+  "build": {
+    "beforeBuildCommand": "pnpm build:spenlio"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Spenlio SMS Exporter",
+        "width": 1320,
+        "height": 860,
+        "minWidth": 1040,
+        "minHeight": 720
+      }
+    ]
+  }
+}

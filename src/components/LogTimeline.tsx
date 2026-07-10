@@ -70,7 +70,7 @@ export function LogTimeline({
             onClick={onRefreshStoredLogs}
             type="button"
           >
-            <RefreshCw aria-hidden="true" />
+            <RefreshCw aria-hidden="true" className={loadingStoredLogs ? "spin" : undefined} />
             {loadingStoredLogs ? "Loading" : "Refresh"}
           </button>
         </div>
