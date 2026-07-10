@@ -1,4 +1,4 @@
-import { FileSpreadsheet, FileText, Globe } from "lucide-react";
+import { CheckCircle2, FileSpreadsheet, FileText, Globe } from "lucide-react";
 import type { ExportFormat } from "../../domain/exporter/types";
 
 const formats: Array<{
@@ -23,24 +23,22 @@ const formats: Array<{
     value: "csv",
     icon: FileSpreadsheet,
     label: "Spreadsheet",
-    detail: "Rows for Excel, Sheets, or finance tools.",
+    detail: "Every message as a row you can search and filter.",
   },
 ];
 
 export function FormatCard({
   format,
   onFormatChange,
-  step,
 }: {
   format: ExportFormat;
   onFormatChange: (format: ExportFormat) => void;
-  step: number;
 }) {
   return (
     <section aria-labelledby="format-card-title" className="decision-card is-done">
       <header className="decision-card-header">
         <span aria-hidden="true" className="decision-card-step">
-          {step}
+          <CheckCircle2 />
         </span>
         <div>
           <h2 id="format-card-title">Format</h2>

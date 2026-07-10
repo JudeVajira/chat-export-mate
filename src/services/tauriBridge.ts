@@ -49,7 +49,7 @@ const browserProbe: ExporterProbe = {
   path: null,
   version: null,
   raw_version_output: null,
-  error: "Desktop exporter detection is available in the desktop app.",
+  error: "The export tool cannot be detected in this browser preview build.",
   managed: false,
   source: "browser-preview",
 };
@@ -60,7 +60,7 @@ const browserManagedState: ManagedExporterState = {
   activeVersion: null,
   installedVersions: [],
   cachedAssets: [],
-  error: "Managed installs are available in the desktop app.",
+  error: "Tool installs cannot run in this browser preview build.",
 };
 
 export async function getSystemSnapshot(): Promise<SystemSnapshot> {
@@ -213,7 +213,7 @@ export async function checkOutputAccess(outputPath: string): Promise<OutputAcces
       resolvedPath: normalizedOutputPath,
       writable: false,
       checkedAt: "",
-      detail: "Desktop write access checks are available in the desktop app.",
+      detail: "Folder access cannot be checked in this browser preview build.",
       error: null,
     };
   }

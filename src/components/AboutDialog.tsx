@@ -22,7 +22,7 @@ export function AboutDialog({
         <header className="dialog-header">
           <div>
             <h2 id="about-title">About {appName}</h2>
-            <p>Privacy, attribution, and license.</p>
+            <p>Version {__APP_VERSION__} · privacy, attribution, and license.</p>
           </div>
           <button aria-label="Close about" className="button button--ghost button--icon" onClick={onClose} type="button">
             <X aria-hidden="true" />
@@ -57,11 +57,22 @@ export function AboutDialog({
             <Scale aria-hidden="true" />
             <div>
               <strong>Free software</strong>
-              <p>{appName} is GPL-3.0-or-later software and comes without warranty.</p>
+              <p>
+                {appName} is free, open-source software released under the GPL-3.0 license, which
+                also describes its warranty terms.
+              </p>
             </div>
           </div>
 
           <div className="about-links">
+            <a
+              href="https://github.com/JudeVajira/chat-export-mate/issues"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Get help / report a problem
+              <ExternalLink aria-hidden="true" />
+            </a>
             <a href="https://github.com/ReagentX/imessage-exporter" rel="noreferrer" target="_blank">
               Upstream exporter
               <ExternalLink aria-hidden="true" />

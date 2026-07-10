@@ -121,7 +121,7 @@ export function SourceCard({
               </p>
               <button className="button button--primary" onClick={onOpenPicker} type="button">
                 <Smartphone aria-hidden="true" />
-                {isIos ? "Find my messages" : "Choose Messages database"}
+                {isIos ? "Find your messages" : "Choose Messages database"}
               </button>
             </div>
           )}

@@ -10,6 +10,7 @@ export function DestinationCard({
   onOpen,
   onPick,
   outputPath,
+  showAccessStatus,
   step,
   writable,
 }: {
@@ -20,6 +21,7 @@ export function DestinationCard({
   onOpen: () => void;
   onPick: () => void;
   outputPath: string;
+  showAccessStatus: boolean;
   step: number;
   writable: boolean;
 }) {
@@ -50,22 +52,25 @@ export function DestinationCard({
 
       <div className="decision-card-body">
         {hasPath ? (
-          <button
-            className="path-chip"
-            onClick={onOpen}
-            title={`${fileManagerLabel}: ${outputPath}`}
-            type="button"
-          >
-            <FolderOpen aria-hidden="true" />
-            <code>{compactPath(outputPath)}</code>
-          </button>
+          <>
+            <button
+              className="path-chip"
+              onClick={onOpen}
+              title={`${fileManagerLabel}: ${outputPath}`}
+              type="button"
+            >
+              <FolderOpen aria-hidden="true" />
+              <code>{compactPath(outputPath)}</code>
+            </button>
+            <p className="field-hint">A folder on this computer — click the path to open it.</p>
+          </>
         ) : (
           <button className="button button--primary" onClick={onPick} type="button">
             <FolderOpen aria-hidden="true" />
             Choose a folder
           </button>
         )}
-        {hasPath && !writable ? (
+        {showAccessStatus && hasPath && !writable ? (
           <p className="destination-status">
             <CircleAlert aria-hidden="true" />
             {checking ? "Checking this folder…" : detail}

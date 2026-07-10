@@ -49,9 +49,7 @@ export function OnboardingScreen({
     <div className="onboarding">
       <div className="onboarding-card">
         <div className="onboarding-mark" aria-hidden="true">
-          <span />
-          <span />
-          <span />
+          <span className="onboarding-mark-bubble" />
         </div>
         <h1>{spenlioEdition ? "Your SMS, ready for Spenlio." : "Your messages, saved for good."}</h1>
         <p className="onboarding-lede">

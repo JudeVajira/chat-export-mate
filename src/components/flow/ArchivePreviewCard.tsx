@@ -26,8 +26,8 @@ interface PreviewFile {
 }
 
 export function ArchivePreviewCard({
-  blockers,
   canStart,
+  nextAction,
   onOpenLog,
   onOpenOutput,
   onReset,
@@ -38,9 +38,10 @@ export function ArchivePreviewCard({
   stage,
   startLabel,
   summary,
+  willInstallTool,
 }: {
-  blockers: string[];
   canStart: boolean;
+  nextAction: string | null;
   onOpenLog: (path: string) => void;
   onOpenOutput: (path: string) => void;
   onReset: () => void;
@@ -51,6 +52,7 @@ export function ArchivePreviewCard({
   stage: ExportStage;
   startLabel: string;
   summary: RunSummary | null;
+  willInstallTool: boolean;
 }) {
   return (
     <aside aria-label="Your archive" className={`archive-card archive-card--${stage}`}>
@@ -82,14 +84,6 @@ export function ArchivePreviewCard({
             })}
           </div>
 
-          {blockers.length > 0 ? (
-            <ul className="archive-blockers" aria-label="Before you can export">
-              {blockers.map((blocker) => (
-                <li key={blocker}>{blocker}</li>
-              ))}
-            </ul>
-          ) : null}
-
           <button
             className="button button--primary button--large archive-start"
             disabled={!canStart}
@@ -99,6 +93,13 @@ export function ArchivePreviewCard({
             <Play aria-hidden="true" />
             {startLabel}
           </button>
+          {nextAction ? (
+            <p className="archive-next">{nextAction}</p>
+          ) : willInstallTool ? (
+            <p className="archive-next archive-next--info">
+              The app will first set up its small export tool. This happens once.
+            </p>
+          ) : null}
           <p className="archive-reassurance">
             Everything runs on this computer. Your messages are never uploaded.
           </p>
@@ -202,7 +203,7 @@ function previewTitle(options: ExportOptions): string {
   }
 
   if (options.format === "csv") {
-    return "One message spreadsheet";
+    return "All messages as a spreadsheet";
   }
 
   if (options.format === "txt") {
@@ -218,7 +219,7 @@ function previewFiles(options: ExportOptions): PreviewFile[] {
       {
         icon: FileSpreadsheet,
         name: "spenlio-sms-export.csv",
-        note: "Business SMS senders · sender, date, ID, message",
+        note: "Spenlio-ready · business SMS senders only · sender, received_at, message_id, message",
       },
     ];
   }
@@ -228,7 +229,7 @@ function previewFiles(options: ExportOptions): PreviewFile[] {
       {
         icon: FileSpreadsheet,
         name: "spenlio-sms-export-by-sender/",
-        note: "One CSV file for each business sender",
+        note: "Spenlio-ready · one CSV file for each business sender",
       },
     ];
   }
@@ -238,7 +239,7 @@ function previewFiles(options: ExportOptions): PreviewFile[] {
       {
         icon: FileSpreadsheet,
         name: "chatexportmate-transcript-lines.csv",
-        note: "One row per transcript line",
+        note: "Every conversation, one row per message line. Text only — photos are not included.",
       },
     ];
   }

@@ -14,7 +14,7 @@ export const defaultExportOptions: ExportOptions = {
   endDate: "",
   conversationFilter: "",
   customName: "",
-  csvLayout: "spenlioCombined",
+  csvLayout: "transcriptLines",
   useCallerId: false,
   noLazyImages: false,
   ignoreDiskWarning: false,

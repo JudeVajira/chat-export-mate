@@ -132,8 +132,14 @@ button {
 }
 
 .button:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
+}
+
+.button--primary:disabled {
+  background: var(--line-strong);
+  color: #6d7a80;
+  opacity: 1;
 }
 
 .button--primary {
@@ -178,7 +184,7 @@ button {
 }
 
 .button--icon {
-  padding: 7px;
+  padding: 9px;
 }
 
 .spin {
@@ -807,6 +813,44 @@ button {
   gap: 10px 24px;
 }
 
+.date-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.command-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.command-preview > span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.command-preview code {
+  display: block;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--terminal);
+  color: var(--terminal-ink);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+.command-preview p {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
 /* ------------------------------------------------------------------ */
 /* Signature: the archive preview card                                 */
 /* ------------------------------------------------------------------ */
@@ -839,7 +883,7 @@ button {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-faint);
+  color: var(--ink-soft);
 }
 
 .archive-card-heading h2 {
@@ -906,43 +950,31 @@ button {
   display: block;
   font-size: 12.5px;
   color: var(--ink);
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .archive-listing-file small {
   display: block;
-  font-size: 11.5px;
-  color: var(--ink-faint);
+  font-size: 12px;
+  color: var(--ink-soft);
   line-height: 1.35;
-}
-
-.archive-blockers {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--warn-soft);
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.archive-blockers li {
-  font-size: 12.5px;
-  color: #6b4a05;
-  padding-left: 16px;
-  position: relative;
-}
-
-.archive-blockers li::before {
-  content: "→";
-  position: absolute;
-  left: 0;
-  color: var(--warn);
 }
 
 .archive-start {
   width: 100%;
+}
+
+.archive-next {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warn);
+  text-align: center;
+  margin-top: -6px;
+}
+
+.archive-next--info {
+  color: var(--ink-soft);
+  font-weight: 500;
 }
 
 .archive-reassurance {
@@ -1166,24 +1198,15 @@ button {
 }
 
 .onboarding-mark {
-  display: flex;
-  gap: 6px;
   margin-bottom: 4px;
 }
 
-.onboarding-mark span {
-  width: 14px;
-  height: 14px;
-  border-radius: 50% 50% 50% 4px;
+.onboarding-mark-bubble {
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: 50% 50% 50% 8px;
   background: var(--signature);
-}
-
-.onboarding-mark span:nth-child(2) {
-  opacity: 0.65;
-}
-
-.onboarding-mark span:nth-child(3) {
-  opacity: 0.35;
 }
 
 .onboarding-card h1 {
@@ -1302,8 +1325,8 @@ button {
 }
 
 .dialog-tab.is-selected {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--accent);
+  border-color: var(--accent);
   color: #ffffff;
 }
 

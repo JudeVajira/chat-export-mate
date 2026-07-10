@@ -216,20 +216,25 @@ function App() {
   const canAutoInstallTool = Boolean(selectedAsset);
   const canStartExport =
     preflightSansTool.canRunExport && (!toolInstallNeeded || canAutoInstallTool);
-  const flowBlockers = useMemo(() => {
-    const blockers = [...preflightSansTool.blockingReasons];
-    if (toolInstallNeeded && !canAutoInstallTool) {
-      blockers.push(
-        "The export tool download is not available for this computer yet. Open Export tool for details.",
-      );
-    }
-    return blockers;
-  }, [canAutoInstallTool, preflightSansTool.blockingReasons, toolInstallNeeded]);
-  const startLabel = toolInstallNeeded
-    ? "Set up and export"
-    : isSpenlioEdition
-      ? "Create CSV"
-      : "Export messages";
+  const isPreviewHarness = snapshot.family === "browser-preview";
+  const startLabel = isSpenlioEdition ? "Create CSV" : "Export messages";
+  const commandPreview = useMemo(
+    () =>
+      structuredCsvExport ? null : buildExporterCommand(executablePath, options).displayCommand,
+    [executablePath, options, structuredCsvExport],
+  );
+  const nextAction = getNextAction({
+    canStartExport,
+    hasConfigIssues: issues.some(
+      (issue) => !["executablePath", "databasePath", "backupPassword"].includes(issue.field),
+    ),
+    isPreviewHarness,
+    needsBackupPassword: validationMessagesFor(issueMap, "backupPassword").length > 0,
+    outputPathChosen: Boolean(selectedOutputPath),
+    outputWritable: outputAccess.writable,
+    sourceChosen: Boolean(selectedSourcePath),
+    toolUnavailable: toolInstallNeeded && !canAutoInstallTool,
+  });
 
   useEffect(() => {
     document.title = appName;
@@ -977,7 +982,6 @@ function App() {
                 <FormatCard
                   format={options.format}
                   onFormatChange={(format) => handleOptionsChange({ ...options, format })}
-                  step={2}
                 />
               ) : null}
 
@@ -989,11 +993,13 @@ function App() {
                 onOpen={openExportFolder}
                 onPick={pickOutputFolder}
                 outputPath={selectedOutputPath}
+                showAccessStatus={!isPreviewHarness}
                 step={isSpenlioEdition ? 2 : 3}
                 writable={outputAccess.writable}
               />
 
               <AdvancedOptions
+                commandPreview={commandPreview}
                 customNameIssues={validationMessagesFor(issueMap, "customName")}
                 endDateIssues={validationMessagesFor(issueMap, "endDate")}
                 onChange={handleOptionsChange}
@@ -1005,8 +1011,8 @@ function App() {
             </div>
 
             <ArchivePreviewCard
-              blockers={flowBlockers}
               canStart={canStartExport}
+              nextAction={nextAction}
               onOpenLog={openLatestRunLog}
               onOpenOutput={openLatestRunOutput}
               onReset={resetExportStage}
@@ -1017,6 +1023,7 @@ function App() {
               stage={exportStage}
               startLabel={startLabel}
               summary={exportSummary}
+              willInstallTool={toolInstallNeeded && canAutoInstallTool}
             />
           </div>
         </main>
@@ -1088,6 +1095,58 @@ function App() {
       <ToastStack onDismiss={dismissToast} toasts={toasts} />
     </>
   );
+}
+
+function getNextAction({
+  canStartExport,
+  hasConfigIssues,
+  isPreviewHarness,
+  needsBackupPassword,
+  outputPathChosen,
+  outputWritable,
+  sourceChosen,
+  toolUnavailable,
+}: {
+  canStartExport: boolean;
+  hasConfigIssues: boolean;
+  isPreviewHarness: boolean;
+  needsBackupPassword: boolean;
+  outputPathChosen: boolean;
+  outputWritable: boolean;
+  sourceChosen: boolean;
+  toolUnavailable: boolean;
+}): string | null {
+  if (canStartExport) {
+    return null;
+  }
+
+  if (!sourceChosen) {
+    return "Next: choose your messages in step 1.";
+  }
+
+  if (needsBackupPassword) {
+    return "Next: enter your backup password in step 1.";
+  }
+
+  if (hasConfigIssues) {
+    return "Next: fix the highlighted options above.";
+  }
+
+  if (!outputWritable) {
+    if (isPreviewHarness) {
+      return "Exports run in the desktop app — this preview only shows the flow.";
+    }
+
+    return outputPathChosen
+      ? "Next: that folder can't be written to — choose a different save folder."
+      : "Next: choose a save folder.";
+  }
+
+  if (toolUnavailable) {
+    return "The export tool isn't available for this computer yet — open Export tool for details.";
+  }
+
+  return "Next: finish the steps above.";
 }
 
 function shouldClearBackupPassword(previousOptions: ExportOptions, nextOptions: ExportOptions): boolean {

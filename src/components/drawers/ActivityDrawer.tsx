@@ -53,32 +53,35 @@ export function ActivityDrawer({
           </button>
         </header>
 
-        <div className="drawer-toolbar">
-          <label className="drawer-search" htmlFor="activity-search">
-            <Search aria-hidden="true" />
-            <input
-              id="activity-search"
-              onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Search runs"
-              type="search"
-              value={query}
-            />
-          </label>
-          <button
-            className="button button--ghost button--compact"
-            disabled={loadingStoredLogs}
-            onClick={onRefreshStoredLogs}
-            type="button"
-          >
-            <RefreshCw aria-hidden="true" className={loadingStoredLogs ? "spin" : undefined} />
-            Refresh
-          </button>
-        </div>
+        {sortedLogs.length > 0 ? (
+          <div className="drawer-toolbar">
+            <label className="drawer-search" htmlFor="activity-search">
+              <Search aria-hidden="true" />
+              <input
+                id="activity-search"
+                onChange={(event) => setQuery(event.currentTarget.value)}
+                placeholder="Search runs"
+                type="search"
+                value={query}
+              />
+            </label>
+            <button
+              className="button button--ghost button--compact"
+              disabled={loadingStoredLogs}
+              onClick={onRefreshStoredLogs}
+              type="button"
+            >
+              <RefreshCw aria-hidden="true" className={loadingStoredLogs ? "spin" : undefined} />
+              Refresh
+            </button>
+          </div>
+        ) : null}
 
         <div className="drawer-body">
           {sortedLogs.length === 0 ? (
             <p className="empty-state">
-              Nothing here yet — your first export will show up in this list.
+              Nothing here yet. Each export keeps its date, result, exact command, and full log
+              here, so you can always check what ran.
             </p>
           ) : filteredLogs.length === 0 ? (
             <p className="empty-state">No runs match this search.</p>

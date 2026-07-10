@@ -80,6 +80,11 @@ export function ToolDrawer({
   const showProgress =
     busy && progress && ["diagnostics", "managed-install", "managed-activation"].includes(progress.kind);
   const canActivateVersion = Boolean(selectedVersion && selectedVersion !== managedState.activeVersion);
+  // Platform/privacy/release/asset rows never need user action; show only checks that can fail
+  // in a way the user can fix.
+  const visibleDiagnostics = diagnostics.filter(
+    (item) => !["platform", "privacy", "release", "asset"].includes(item.id),
+  );
 
   return (
     <div className="drawer-backdrop" onMouseDown={(event) => {
@@ -139,30 +144,6 @@ export function ToolDrawer({
               <ProgressSteps outputEvents={outputEvents} progress={progress} />
             </section>
           ) : null}
-
-          <section className="drawer-section">
-            <h3>Health checks</h3>
-            <div className="diagnostic-list">
-              {diagnostics.map((item) => (
-                <div className="diagnostic-row" key={item.id}>
-                  <div>
-                    <strong>{item.label}</strong>
-                    <p>{item.detail}</p>
-                  </div>
-                  <StatusPill state={item.state} />
-                </div>
-              ))}
-            </div>
-            <button
-              className="button button--secondary button--compact"
-              disabled={runningDiagnostics}
-              onClick={onRunDiagnostics}
-              type="button"
-            >
-              <Activity aria-hidden="true" className={runningDiagnostics ? "spin" : undefined} />
-              {runningDiagnostics ? "Running check-up…" : "Run a full check-up"}
-            </button>
-          </section>
 
           <section className="drawer-section">
             <h3>Advanced</h3>
@@ -251,6 +232,30 @@ export function ToolDrawer({
                 </div>
               ) : null}
             </div>
+          </section>
+
+          <section className="drawer-section">
+            <h3>Health checks</h3>
+            <div className="diagnostic-list">
+              {visibleDiagnostics.map((item) => (
+                <div className="diagnostic-row" key={item.id}>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <p>{item.detail}</p>
+                  </div>
+                  <StatusPill state={item.state} />
+                </div>
+              ))}
+            </div>
+            <button
+              className="button button--secondary button--compact"
+              disabled={runningDiagnostics}
+              onClick={onRunDiagnostics}
+              type="button"
+            >
+              <Activity aria-hidden="true" className={runningDiagnostics ? "spin" : undefined} />
+              {runningDiagnostics ? "Running check-up…" : "Run a full check-up"}
+            </button>
           </section>
         </div>
       </aside>

@@ -8,19 +8,19 @@ import { FieldIssues } from "./FieldIssues";
 
 const csvLayouts: Array<{ label: string; value: CsvExportLayout; description: string }> = [
   {
-    label: "One finance CSV",
-    value: "spenlioCombined",
-    description: "A single Spenlio-ready file with business SMS senders only.",
-  },
-  {
-    label: "One CSV per sender",
-    value: "spenlioBySender",
-    description: "A folder with a separate file for each business sender.",
-  },
-  {
-    label: "Transcript lines",
+    label: "All messages",
     value: "transcriptLines",
-    description: "One row per transcript line, for general review.",
+    description: "One row per transcript line from every conversation. Text only.",
+  },
+  {
+    label: "Spenlio finance CSV",
+    value: "spenlioCombined",
+    description: "Spenlio-ready columns (sender, received_at, message_id, message). Business SMS senders only.",
+  },
+  {
+    label: "Spenlio finance CSV, per sender",
+    value: "spenlioBySender",
+    description: "Same Spenlio columns, one file per business sender.",
   },
 ];
 
@@ -32,6 +32,7 @@ const copyMethods: Array<{ value: AttachmentCopyMethod; label: string }> = [
 ];
 
 export function AdvancedOptions({
+  commandPreview,
   customNameIssues,
   endDateIssues,
   onChange,
@@ -40,6 +41,7 @@ export function AdvancedOptions({
   spenlioEdition,
   startDateIssues,
 }: {
+  commandPreview: string | null;
   customNameIssues: string[];
   endDateIssues: string[];
   onChange: (options: ExportOptions) => void;
@@ -66,6 +68,31 @@ export function AdvancedOptions({
       </summary>
 
       <div className="advanced-body">
+        <div className="date-presets" role="group" aria-label="Date range shortcuts">
+          <button
+            className="button button--secondary button--compact"
+            onClick={() => onChange({ ...options, ...monthRange(0) })}
+            type="button"
+          >
+            This month
+          </button>
+          <button
+            className="button button--secondary button--compact"
+            onClick={() => onChange({ ...options, ...monthRange(-1) })}
+            type="button"
+          >
+            Last month
+          </button>
+          {options.startDate || options.endDate ? (
+            <button
+              className="button button--ghost button--compact"
+              onClick={() => onChange({ ...options, startDate: "", endDate: "" })}
+              type="button"
+            >
+              Clear dates
+            </button>
+          ) : null}
+        </div>
         <div className="advanced-grid advanced-grid--dates">
           <label className={`field ${startDateIssues.length > 0 ? "field--error" : ""}`} htmlFor="start-date">
             <span>From date</span>
@@ -93,7 +120,9 @@ export function AdvancedOptions({
             <FieldIssues fieldId="end-date" issues={endDateIssues} />
           </label>
         </div>
-        <p className="field-hint">Leave the dates empty to export everything.</p>
+        <p className="field-hint">
+          Leave the dates empty to export everything. Both dates are included in the export.
+        </p>
 
         {options.format === "csv" ? (
           <fieldset className="advanced-fieldset">
@@ -222,6 +251,17 @@ export function AdvancedOptions({
             </div>
           </>
         ) : null}
+
+        {!spenlioEdition ? (
+          <div className="command-preview">
+            <span>{commandPreview ? "Command this export will run" : "How this export runs"}</span>
+            {commandPreview ? (
+              <code>{commandPreview}</code>
+            ) : (
+              <p>The app reads the Messages database directly with its built-in local reader — no external command.</p>
+            )}
+          </div>
+        ) : null}
       </div>
     </details>
   );
@@ -229,4 +269,17 @@ export function AdvancedOptions({
 
 function validDateInputBoundary(value: string | undefined): string | undefined {
   return value && /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : undefined;
+}
+
+function monthRange(monthOffset: number): { startDate: string; endDate: string } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0);
+  return { startDate: toDateInput(start), endDate: toDateInput(end) };
+}
+
+function toDateInput(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }

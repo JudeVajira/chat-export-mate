@@ -61,7 +61,10 @@ export function SourcePickerDialog({
         <header className="dialog-header">
           <div>
             <h2 id="source-picker-title">Find your messages</h2>
-            <p>Your messages are read from this computer and never uploaded.</p>
+            <p>
+              Messages are read from a backup on this computer. Nothing on your phone is changed
+              or deleted.
+            </p>
           </div>
           <button
             aria-label="Close"
@@ -109,7 +112,7 @@ export function SourcePickerDialog({
                   type="button"
                 >
                   <RefreshCw aria-hidden="true" className={loadingBackupCandidates ? "spin" : undefined} />
-                  {loadingBackupCandidates ? "Scanning…" : "Scan again"}
+                  {loadingBackupCandidates ? "Checking…" : "Check again"}
                 </button>
               </div>
 
@@ -178,15 +181,17 @@ export function SourcePickerDialog({
                   <strong>Back up to this computer.</strong>
                   <span>
                     On the General tab, choose “Back up all of the data on your iPhone to this
-                    computer”, then click <em>Back Up Now</em>. Encryption off is simplest; encrypted
-                    backups work if you know the password.
+                    computer”, then click <em>Back Up Now</em>. An iCloud backup cannot be used —
+                    the backup must be saved on this computer. If it asks about encryption, leaving
+                    it off is simplest; an encrypted backup works too if you know its password.
                   </span>
                 </li>
                 <li>
-                  <strong>Come back and scan.</strong>
+                  <strong>Wait for it to finish, then come back.</strong>
                   <span>
-                    When the backup finishes, return to {appName} — it finds backups in Apple&apos;s
-                    usual folders automatically.
+                    The first backup can take a while — sometimes an hour for years of messages and
+                    photos. Nothing on your phone is changed. When it finishes, return to{" "}
+                    {appName} and it will find the backup automatically.
                   </span>
                 </li>
               </ol>
@@ -207,7 +212,7 @@ export function SourcePickerDialog({
                   type="button"
                 >
                   <RefreshCw aria-hidden="true" className={loadingBackupCandidates ? "spin" : undefined} />
-                  {loadingBackupCandidates ? "Scanning…" : "Scan for my backup"}
+                  {loadingBackupCandidates ? "Checking…" : "Check for my backup"}
                 </button>
               </div>
             </div>
