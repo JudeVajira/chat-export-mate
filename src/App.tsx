@@ -1,32 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Archive,
-  BadgeCheck,
-  CheckCircle2,
-  CircleAlert,
-  DownloadCloud,
-  FolderOpen,
-  History,
-  Info,
-  Loader2,
-  Lock,
-  MessageSquareText,
-  Pencil,
-  Play,
-  Settings2,
-  ShieldCheck,
-  Wrench,
-} from "lucide-react";
+import { CircleAlert, History, Info, MessageSquareText, Wrench } from "lucide-react";
 import "./App.css";
-import { AboutPanel } from "./components/AboutPanel";
-import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
-import { ExportConfigurator } from "./components/ExportConfigurator";
-import { type LogEntry, LogTimeline } from "./components/LogTimeline";
-import { RunProgressPanel } from "./components/RunProgressPanel";
-import { RunResultPanel } from "./components/RunResultPanel";
-import { SourceGuideDialog } from "./components/SourceGuideDialog";
-import { StatusPill } from "./components/StatusPill";
-import { defaultExecutablePath, defaultExportOptions, initialLogEntries } from "./data/mockWorkspace";
+import { AboutDialog } from "./components/AboutDialog";
+import { ActivityDrawer } from "./components/drawers/ActivityDrawer";
+import { ToolDrawer } from "./components/drawers/ToolDrawer";
+import { AdvancedOptions } from "./components/flow/AdvancedOptions";
+import { ArchivePreviewCard, type ExportStage } from "./components/flow/ArchivePreviewCard";
+import { DestinationCard } from "./components/flow/DestinationCard";
+import { FormatCard } from "./components/flow/FormatCard";
+import { SourceCard } from "./components/flow/SourceCard";
+import { OnboardingScreen } from "./components/OnboardingScreen";
+import { SourcePickerDialog } from "./components/SourcePickerDialog";
+import { ToastStack, type ToastLevel, type ToastMessage } from "./components/Toast";
+import { defaultExecutablePath, defaultExportOptions } from "./data/mockWorkspace";
 import {
   buildDiagnosticCommand,
   buildExporterCommand,
@@ -40,14 +26,9 @@ import {
   shouldShowMacSourceChoice,
 } from "./domain/exporter/platformDefaults";
 import {
-  applyExportPreferences,
-  createExportPreferences,
-} from "./domain/exporter/preferences";
-import {
   normalizeLocalPathForDisplay,
   normalizeOptionalLocalPathForDisplay,
 } from "./domain/exporter/paths";
-import { buildPermissionGuide } from "./domain/exporter/permissions";
 import { buildExportPreflightSummary } from "./domain/exporter/preflight";
 import {
   appendProcessOutputEvent,
@@ -60,8 +41,6 @@ import {
   selectBestAsset,
 } from "./domain/exporter/release";
 import {
-  createManagedOperationErrorSummary,
-  createDryRunSummary,
   createRunBlockedSummary,
   summarizeManagedActivationResult,
   summarizeManagedInstallResult,
@@ -76,7 +55,7 @@ import {
   startRunProgress,
 } from "./domain/exporter/runProgress";
 import type { RunProgress } from "./domain/exporter/runProgress";
-import { groupValidationIssues } from "./domain/exporter/validation";
+import { groupValidationIssues, validationMessagesFor } from "./domain/exporter/validation";
 import type {
   ExportOptions,
   ExportPlatform,
@@ -124,94 +103,23 @@ import {
   enforceEditionOptions,
   isSpenlioEdition,
 } from "./appEdition";
+import {
+  applyExportPreferences,
+  createExportPreferences,
+} from "./domain/exporter/preferences";
+import { hasCompletedOnboarding, markOnboardingComplete } from "./onboardingState";
 
-type AppPage = "setup" | "export" | "diagnostics" | "history" | "about";
-
-const generalPageLabels: Record<AppPage, { title: string; kicker: string; description: string }> = {
-  setup: {
-    title: "Save your message history",
-    kicker: "Setup",
-    description: "Follow the steps in order to prepare a local backup and choose where the export files go.",
-  },
-  export: {
-    title: "Choose what to save",
-    kicker: "Export",
-    description: "Pick the file type and start the export after setup is complete.",
-  },
-  diagnostics: {
-    title: "Diagnostics",
-    kicker: "Health",
-    description: "Check helper setup, updates, permissions, and saved troubleshooting details.",
-  },
-  history: {
-    title: "Troubleshooting",
-    kicker: "Support",
-    description: "Review saved troubleshooting details and create a local support bundle when needed.",
-  },
-  about: {
-    title: "About ChatExportMate",
-    kicker: "Privacy and license",
-    description: "Local-first desktop companion details, attribution, and license information.",
-  },
-};
-
-const spenlioPageLabels: Record<AppPage, { title: string; kicker: string; description: string }> = {
-  setup: {
-    title: "Create your Spenlio CSV",
-    kicker: "Setup",
-    description: "Choose a local iPhone backup and where the finance SMS CSV should be saved.",
-  },
-  export: {
-    title: "Export finance SMS",
-    kicker: "Export",
-    description: "Save a Spenlio-ready CSV with business sender messages only.",
-  },
-  diagnostics: {
-    title: "Diagnostics",
-    kicker: "Health",
-    description: "Check local setup and saved troubleshooting details.",
-  },
-  history: {
-    title: "Support",
-    kicker: "Troubleshooting",
-    description: "Review saved local logs and create a support bundle when needed.",
-  },
-  about: {
-    title: "About Spenlio SMS Exporter",
-    kicker: "Privacy and license",
-    description: "Local-first finance SMS export details, attribution, and license information.",
-  },
-};
-
-const pageLabels = isSpenlioEdition ? spenlioPageLabels : generalPageLabels;
-const visiblePages: AppPage[] = isSpenlioEdition
-  ? ["setup", "export", "history", "about"]
-  : ["setup", "export", "diagnostics", "history", "about"];
-const pageIcons: Record<AppPage, typeof Settings2> = {
-  setup: Settings2,
-  export: Archive,
-  diagnostics: Wrench,
-  history: History,
-  about: Info,
-};
-const navLabels: Record<AppPage, string> = {
-  setup: "Setup",
-  export: "Export",
-  diagnostics: "Diagnostics",
-  history: "Support",
-  about: "About",
-};
 const editionDefaultExportOptions = applyEditionDefaults(defaultExportOptions);
-const editionInitialLogEntries = isSpenlioEdition
-  ? initialLogEntries.filter((entry) => !entry.message.includes("Exporter detection"))
-  : initialLogEntries;
 
 function App() {
-  const [activePage, setActivePage] = useState<AppPage>("setup");
+  const [onboarded, setOnboarded] = useState(hasCompletedOnboarding);
   const [options, setOptions] = useState(editionDefaultExportOptions);
   const [backupPassword, setBackupPassword] = useState("");
-  const [sourceGuideOpen, setSourceGuideOpen] = useState(false);
-  const [dryRun] = useState(false);
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [toolDrawerOpen, setToolDrawerOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [exportStage, setExportStage] = useState<ExportStage>("configure");
   const [checkingRelease, setCheckingRelease] = useState(false);
   const [installingExporter, setInstallingExporter] = useState(false);
   const [checkingOutputAccess, setCheckingOutputAccess] = useState(false);
@@ -219,7 +127,6 @@ function App() {
   const [activatingManagedVersion, setActivatingManagedVersion] = useState<string | null>(null);
   const [selectingCustomExporter, setSelectingCustomExporter] = useState(false);
   const [clearingCustomExporter, setClearingCustomExporter] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [creatingSupportBundle, setCreatingSupportBundle] = useState(false);
   const [loadingStoredLogs, setLoadingStoredLogs] = useState(false);
   const [loadingLogDetail, setLoadingLogDetail] = useState(false);
@@ -248,11 +155,11 @@ function App() {
     managed: false,
     source: "initial",
   });
-  const [logs, setLogs] = useState<LogEntry[]>([...editionInitialLogEntries]);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
   const [backupCandidates, setBackupCandidates] = useState<IphoneBackupCandidate[]>([]);
   const [selectedLogDetail, setSelectedLogDetail] = useState<StoredLogDetail | null>(null);
-  const [latestRunSummary, setLatestRunSummary] = useState<RunSummary | null>(null);
+  const [exportSummary, setExportSummary] = useState<RunSummary | null>(null);
   const [runProgress, setRunProgress] = useState<RunProgress | null>(null);
   const [processOutputEvents, setProcessOutputEvents] = useState<ProcessOutputEvent[]>([]);
   const [outputAccess, setOutputAccess] = useState<OutputAccessCheck>(
@@ -260,9 +167,9 @@ function App() {
   );
   const lastPreferenceSaveError = useRef<string | null>(null);
   const activeProcessEventId = useRef<string | null>(null);
+  const toastId = useRef(0);
 
   const executablePath = probe.path ?? defaultExecutablePath;
-  const command = useMemo(() => buildExporterCommand(executablePath, options), [executablePath, options]);
   const structuredCsvExport = useMemo(() => usesStructuredCsvExport(options), [options]);
   const diagnosticCommand = useMemo(
     () => buildDiagnosticCommand(executablePath, options),
@@ -293,9 +200,9 @@ function App() {
   );
   const updateAvailable = release ? isUpdateAvailable(probe.version, release.version) : false;
   const installActionLabel = getInstallActionLabel(probe, updateAvailable);
-  const preflight = useMemo(
-    () => buildExportPreflightSummary(diagnostics, dryRun, !structuredCsvExport),
-    [diagnostics, dryRun, structuredCsvExport],
+  const preflightSansTool = useMemo(
+    () => buildExportPreflightSummary(diagnostics, false, false),
+    [diagnostics],
   );
   const fileManagerLabel = useMemo(() => getFileManagerLabel(snapshot), [snapshot]);
   const selectedSourcePath = normalizeOptionalLocalPathForDisplay(options.databasePath).trim();
@@ -303,28 +210,26 @@ function App() {
     outputAccess.path === options.outputPath
       ? normalizeLocalPathForDisplay(outputAccess.resolvedPath || options.outputPath)
       : normalizeLocalPathForDisplay(options.outputPath);
-  const permissionGuide = useMemo(
-    () => buildPermissionGuide(snapshot, options, outputAccess),
-    [options, outputAccess, snapshot],
-  );
-  const activePageLabel = pageLabels[activePage];
-  const setupItems = diagnostics.slice(0, 4);
-  const setupState = [...setupItems, ...permissionGuide.items].some((item) => item.state === "action")
-    ? "action"
-    : [...setupItems, ...permissionGuide.items].some((item) => item.state === "warning")
-      ? "warning"
-      : "passed";
-  const setupLabel = setupState === "passed" ? "Setup ready" : setupState === "action" ? "Setup needed" : "Review";
-  const sourceStatusLabel = selectedSourcePath ? "Selected" : "Missing";
-  const outputStatusLabel = outputAccess.writable ? "Ready" : selectedOutputPath ? "Needs check" : "Missing";
-  const workflowStepLabel = getWorkflowStepLabel({
-    appReady: structuredCsvExport || probe.found,
-    canRunExport: preflight.canRunExport,
-    outputReady: outputAccess.writable,
-    sourceSelected: Boolean(selectedSourcePath),
-    spenlioEdition: isSpenlioEdition,
-  });
   const showMacSourceChoice = !isSpenlioEdition && shouldShowMacSourceChoice(snapshot);
+
+  const toolInstallNeeded = !structuredCsvExport && !probe.found;
+  const canAutoInstallTool = Boolean(selectedAsset);
+  const canStartExport =
+    preflightSansTool.canRunExport && (!toolInstallNeeded || canAutoInstallTool);
+  const flowBlockers = useMemo(() => {
+    const blockers = [...preflightSansTool.blockingReasons];
+    if (toolInstallNeeded && !canAutoInstallTool) {
+      blockers.push(
+        "The export tool download is not available for this computer yet. Open Export tool for details.",
+      );
+    }
+    return blockers;
+  }, [canAutoInstallTool, preflightSansTool.blockingReasons, toolInstallNeeded]);
+  const startLabel = toolInstallNeeded
+    ? "Set up and export"
+    : isSpenlioEdition
+      ? "Create CSV"
+      : "Export messages";
 
   useEffect(() => {
     document.title = appName;
@@ -355,13 +260,8 @@ function App() {
 
         nextUnsubscribe();
       })
-      .catch((error) => {
-        if (mounted) {
-          addLog(
-            "warn",
-            error instanceof Error ? error.message : "Live process output is unavailable.",
-          );
-        }
+      .catch(() => {
+        // Live output is a nicety; exports still work without it.
       });
 
     return () => {
@@ -376,7 +276,8 @@ function App() {
     }
 
     const timeout = window.setTimeout(() => {
-      void refreshOutputAccess(options.outputPath);
+      setCheckingOutputAccess(true);
+      void refreshOutputAccess(options.outputPath).finally(() => setCheckingOutputAccess(false));
     }, 350);
 
     return () => window.clearTimeout(timeout);
@@ -392,7 +293,17 @@ function App() {
     }, 700);
 
     return () => window.clearTimeout(timeout);
-  }, [dryRun, options, preferencesLoaded]);
+  }, [options, preferencesLoaded]);
+
+  function notify(level: ToastLevel, message: string) {
+    const id = ++toastId.current;
+    setToasts((current) => [...current.slice(-2), { id, level, message }]);
+    window.setTimeout(() => dismissToast(id), 6500);
+  }
+
+  function dismissToast(id: number) {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }
 
   async function bootstrapWorkspace() {
     const startupSnapshot = await getSystemSnapshot();
@@ -411,7 +322,7 @@ function App() {
   }
 
   async function restoreExportPreferences(
-    hostSnapshot: SystemSnapshot = snapshot,
+    hostSnapshot: SystemSnapshot,
   ): Promise<typeof editionDefaultExportOptions> {
     try {
       const preferences = await loadExportPreferences();
@@ -420,16 +331,13 @@ function App() {
         alignSourcePlatformToHost(restored.options, hostSnapshot),
       ));
       setOptions(alignedOptions);
-      if (preferences) {
-        addLog("info", "Restored export preferences from local storage.");
-      }
       return alignedOptions;
     } catch (error) {
       const alignedOptions = normalizeExportOptionPaths(enforceEditionOptions(
         alignSourcePlatformToHost(editionDefaultExportOptions, hostSnapshot),
       ));
       setOptions(alignedOptions);
-      addLog("warn", error instanceof Error ? error.message : "Could not restore export preferences.");
+      notify("warn", error instanceof Error ? error.message : "Could not restore your last settings.");
       return alignedOptions;
     }
   }
@@ -439,10 +347,10 @@ function App() {
       await saveExportPreferences(createExportPreferences(options, false));
       lastPreferenceSaveError.current = null;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not save export preferences.";
+      const message = error instanceof Error ? error.message : "Could not save your settings.";
       if (lastPreferenceSaveError.current !== message) {
         lastPreferenceSaveError.current = message;
-        addLog("warn", message);
+        notify("warn", message);
       }
     }
   }
@@ -461,10 +369,17 @@ function App() {
     setProbe(nextProbe);
     setManagedState(nextManagedState);
     setOutputAccess(nextOutputAccess);
-    if (!structuredCsvExport) {
-      addLog(nextProbe.found ? "info" : "warn", nextProbe.found ? "Exporter detected." : "Exporter was not detected.");
-    }
     return nextProbe;
+  }
+
+  function announceStartupReleaseStatus(nextProbe: ExporterProbe, latest: ExporterRelease | null) {
+    if (isSpenlioEdition || !latest || !nextProbe.found) {
+      return;
+    }
+
+    if (isUpdateAvailable(nextProbe.version, latest.version)) {
+      notify("info", `A newer export tool (${latest.version}) is available in the Export tool panel.`);
+    }
   }
 
   async function runDiagnostics() {
@@ -478,17 +393,14 @@ function App() {
       setRunProgress(progress);
       const nextProbe = await refreshHealthChecks();
       if (!nextProbe.found) {
-        const summary = createRunBlockedSummary({
-          title: "Diagnostics need an exporter",
-          explanation: "ChatExportMate cannot run upstream diagnostics until an exporter binary is available.",
-          likelyCause: nextProbe.error ?? "imessage-exporter is not installed or was not found on PATH.",
-          suggestedFix: "Set up the managed exporter or select an existing exporter tool, then try again.",
-          rawDetails: nextProbe.error ?? undefined,
-          message: "Set up or select an exporter before running diagnostics.",
-        });
-        setLatestRunSummary(summary);
-        setRunProgress(failRunProgress(progress, "refresh-checks", summary.detail));
-        addLog("warn", summary.message);
+        setRunProgress(
+          failRunProgress(
+            progress,
+            "refresh-checks",
+            "The check-up needs the export tool. Install it first, then run the check-up again.",
+          ),
+        );
+        notify("warn", "Install the export tool before running a full check-up.");
         return;
       }
 
@@ -503,27 +415,17 @@ function App() {
       progress = advanceRunProgress(progress, "save-log");
       setRunProgress(progress);
       const summary = summarizeDiagnosticRunResult(result);
-      setLatestRunSummary(summary);
       setRunProgress(
         result.success
-          ? completeRunProgress(progress, "Diagnostics completed and the local log was saved.")
+          ? completeRunProgress(progress, "Check-up finished. Details were saved to Activity.")
           : failRunProgress(progress, "run-diagnostics", summary.detail),
       );
-      addLog(summary.level, summary.message);
+      notify(summary.level, summary.message);
       await refreshStoredLogs(false);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Diagnostics failed before they could start.";
-      const summary = createRunBlockedSummary({
-        title: "Diagnostics could not start",
-        explanation: "ChatExportMate could not start diagnostics from the desktop app.",
-        likelyCause: detail,
-        suggestedFix: "Refresh setup checks, confirm the exporter path, then run diagnostics again.",
-        rawDetails: detail,
-        message: detail,
-      });
-      setLatestRunSummary(summary);
-      setRunProgress(failRunProgress(progress, "run-diagnostics", summary.detail));
-      addLog("error", summary.message);
+      const detail = error instanceof Error ? error.message : "The check-up could not start.";
+      setRunProgress(failRunProgress(progress, "run-diagnostics", detail));
+      notify("error", detail);
     } finally {
       stopProcessOutput(eventId);
       setRunningDiagnostics(false);
@@ -540,36 +442,21 @@ function App() {
       const latest = await checkLatestExporterRelease();
       setRelease(latest);
       if (announce) {
-        addLog("info", `Release ${latest.version} checked from GitHub.`);
+        notify("info", `Latest export tool release: ${latest.version}.`);
       }
       return latest;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Release lookup failed.";
-      addLog(announce ? "error" : "warn", message);
+      const message = error instanceof Error ? error.message : "Could not check for a new version.";
+      if (announce) {
+        notify("error", message);
+      }
       return null;
     } finally {
       setCheckingRelease(false);
     }
   }
 
-  function announceStartupReleaseStatus(nextProbe: ExporterProbe, latest: ExporterRelease | null) {
-    if (structuredCsvExport) {
-      return;
-    }
-
-    if (!latest) {
-      return;
-    }
-
-    if (isUpdateAvailable(nextProbe.version, latest.version)) {
-      addLog("warn", `imessage-exporter ${latest.version} is available.`);
-      return;
-    }
-
-    addLog("info", `Release ${latest.version} checked from GitHub.`);
-  }
-
-  async function installOrUpdateExporter() {
+  async function installOrUpdateExporter(): Promise<ExporterProbe | null> {
     setInstallingExporter(true);
     clearProcessOutput();
     let progress = startRunProgress("managed-install");
@@ -584,19 +471,14 @@ function App() {
       setProbe(result.probe);
       setManagedState(result.state);
       const summary = summarizeManagedInstallResult(result);
-      setLatestRunSummary(summary);
       setRunProgress(completeRunProgress(progress, summary.detail));
-      addLog(summary.level, summary.message);
+      notify(summary.level, summary.message);
+      return result.probe;
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Exporter install failed.";
-      const summary = createManagedOperationErrorSummary({
-        title: "Exporter install failed",
-        rawDetails: detail,
-        suggestedFix: "Check the latest release, confirm network access, then try the managed install again.",
-      });
-      setLatestRunSummary(summary);
-      setRunProgress(failRunProgress(progress, "download", summary.detail));
-      addLog("error", summary.message);
+      const detail = error instanceof Error ? error.message : "The export tool could not be installed.";
+      setRunProgress(failRunProgress(progress, "download", detail));
+      notify("error", detail);
+      return null;
     } finally {
       setInstallingExporter(false);
     }
@@ -616,19 +498,12 @@ function App() {
       setProbe(result.probe);
       setManagedState(result.state);
       const summary = summarizeManagedActivationResult(version, result);
-      setLatestRunSummary(summary);
       setRunProgress(completeRunProgress(progress, summary.detail));
-      addLog(summary.level, summary.message);
+      notify(summary.level, summary.message);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Managed exporter rollback failed.";
-      const summary = createManagedOperationErrorSummary({
-        title: "Managed exporter rollback failed",
-        rawDetails: detail,
-        suggestedFix: "Choose another stored version or reinstall the latest managed exporter.",
-      });
-      setLatestRunSummary(summary);
-      setRunProgress(failRunProgress(progress, "verify", summary.detail));
-      addLog("error", summary.message);
+      const detail = error instanceof Error ? error.message : "Could not switch tool versions.";
+      setRunProgress(failRunProgress(progress, "verify", detail));
+      notify("error", detail);
     } finally {
       setActivatingManagedVersion(null);
     }
@@ -644,12 +519,12 @@ function App() {
 
       const nextProbe = await setCustomExporterPath(selectedPath);
       setProbe(nextProbe);
-      addLog(
+      notify(
         "info",
-        `Selected imessage-exporter ${nextProbe.version ?? "unknown version"} from ${nextProbe.path ?? selectedPath}.`,
+        `Using imessage-exporter ${nextProbe.version ?? "unknown version"} from your file.`,
       );
     } catch (error) {
-      addLog("error", error instanceof Error ? error.message : "Could not select an exporter binary.");
+      notify("error", error instanceof Error ? error.message : "Could not use that file.");
     } finally {
       setSelectingCustomExporter(false);
     }
@@ -660,31 +535,49 @@ function App() {
     try {
       const nextProbe = await clearCustomExporterPath();
       setProbe(nextProbe);
-      addLog(
+      notify(
         nextProbe.found ? "info" : "warn",
         nextProbe.found
-          ? `Cleared selected exporter. Detection now uses ${nextProbe.source ?? "available"} exporter.`
-          : "Cleared selected exporter. Set up or select an exporter before exporting.",
+          ? "Back to the app-managed export tool."
+          : "Selected tool forgotten. The tool will install automatically with the next export.",
       );
     } catch (error) {
-      addLog("error", error instanceof Error ? error.message : "Could not clear the selected exporter.");
+      notify("error", error instanceof Error ? error.message : "Could not forget the selected tool.");
     } finally {
       setClearingCustomExporter(false);
     }
   }
 
-  async function runExport() {
-    clearProcessOutput();
-    if (dryRun) {
-      const progress = startRunProgress("dry-run");
-      const summary = createDryRunSummary(command.args.length);
-      setLatestRunSummary(summary);
-      setRunProgress(completeRunProgress(progress, summary.detail));
-      addLog(summary.level, summary.message);
-      return;
+  async function startExportFlow() {
+    setExportSummary(null);
+    setExportStage("running");
+
+    let exporterPathForRun = executablePath;
+    if (toolInstallNeeded) {
+      const installedProbe = await installOrUpdateExporter();
+      if (!installedProbe?.found) {
+        setExportSummary(
+          createRunBlockedSummary({
+            title: "The export tool could not be set up",
+            explanation: "The export needs a small local helper tool, and setting it up did not finish.",
+            likelyCause: "The download failed or the downloaded tool could not be verified.",
+            suggestedFix: "Check your internet connection and try again. You can also manage the tool from the Export tool panel.",
+            message: "The export tool could not be set up.",
+          }),
+        );
+        setExportStage("failed");
+        return;
+      }
+      exporterPathForRun = installedProbe.path ?? exporterPathForRun;
     }
 
-    setIsExporting(true);
+    const succeeded = await runExport(exporterPathForRun);
+    setExportStage(succeeded ? "success" : "failed");
+  }
+
+  async function runExport(exporterPathForRun: string): Promise<boolean> {
+    clearProcessOutput();
+    const runCommand = buildExporterCommand(exporterPathForRun, options);
     let eventId: string | null = null;
     let progress = startRunProgress("export");
     setRunProgress(progress);
@@ -694,24 +587,23 @@ function App() {
       const nextOutputAccess = await refreshOutputAccess(options.outputPath);
       if (!nextOutputAccess.writable) {
         const summary = createRunBlockedSummary({
-          title: "Output folder is not writable",
-          explanation: "ChatExportMate could not verify write access before starting the exporter.",
+          title: "That folder cannot be written to",
+          explanation: "The save folder was checked right before exporting and files cannot be created there.",
           likelyCause: nextOutputAccess.detail,
-          suggestedFix: "Choose a writable output folder or grant file access, then start the export again.",
+          suggestedFix: "Choose a different save folder, or allow file access, then export again.",
           rawDetails: nextOutputAccess.error ?? nextOutputAccess.detail,
-          message: `Output access check failed. ${nextOutputAccess.detail}`,
+          message: `The save folder is not writable. ${nextOutputAccess.detail}`,
         });
-        setLatestRunSummary(summary);
+        setExportSummary(summary);
         setRunProgress(failRunProgress(progress, "output-access", summary.detail));
-        addLog(summary.level, summary.message);
-        return;
+        return false;
       }
 
       progress = advanceRunProgress(progress, "run-exporter");
       setRunProgress(progress);
       eventId = startProcessOutput("export");
       const result = await executeExporter({
-        ...command,
+        ...runCommand,
         eventId,
         outputPath: options.outputPath,
         platform: options.platform,
@@ -725,42 +617,46 @@ function App() {
       progress = advanceRunProgress(progress, "save-log");
       setRunProgress(progress);
       const summary = summarizeExportRunResult(result);
-      setLatestRunSummary(summary);
+      setExportSummary(summary);
       setRunProgress(
         result.success
-          ? completeRunProgress(progress, "Export completed and the local run log was saved.")
+          ? completeRunProgress(progress, "Your export is ready.")
           : failRunProgress(progress, "run-exporter", summary.detail),
       );
-      addLog(summary.level, summary.message);
       await refreshStoredLogs(false);
+      return result.success;
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Export failed before it could start.";
+      const detail = error instanceof Error ? error.message : "The export could not start.";
       const summary = createRunBlockedSummary({
-        title: "Export could not start",
-        explanation: "ChatExportMate could not start the export from the desktop app.",
+        title: "The export could not start",
+        explanation: "Something stopped the export before it began.",
         likelyCause: detail,
-        suggestedFix: "Refresh setup checks, confirm the exporter and output folder, then start the export again.",
+        suggestedFix: "Check the source and save folder, then export again.",
         rawDetails: detail,
         message: detail,
       });
-      setLatestRunSummary(summary);
+      setExportSummary(summary);
       setRunProgress(failRunProgress(progress, "run-exporter", summary.detail));
-      addLog("error", summary.message);
+      return false;
     } finally {
       stopProcessOutput(eventId);
       if (options.encryptedBackup) {
         setBackupPassword("");
       }
-      setIsExporting(false);
     }
+  }
+
+  function resetExportStage() {
+    setExportStage("configure");
+    setExportSummary(null);
+    setRunProgress(null);
   }
 
   async function openExportFolder() {
     try {
       await openOutputFolder(options.outputPath);
-      addLog("info", `Opened ${options.outputPath}.`);
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not open the output folder.");
+      notify("warn", error instanceof Error ? error.message : "Could not open the save folder.");
     }
   }
 
@@ -772,46 +668,43 @@ function App() {
 
     try {
       await openLocalPath(sourcePath);
-      addLog("info", "Opened the selected message source location.");
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not open the selected source location.");
+      notify("warn", error instanceof Error ? error.message : "Could not open the source location.");
     }
   }
 
   async function openLatestRunOutput(path: string) {
     try {
       await openOutputFolder(path);
-      addLog("info", `Opened ${path}.`);
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not open the exported folder.");
+      notify("warn", error instanceof Error ? error.message : "Could not open the exported folder.");
     }
   }
 
   async function openLatestRunLog(path: string) {
     try {
       await openLocalPath(path);
-      addLog("info", `Opened ${path}.`);
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not open the latest run log.");
+      notify("warn", error instanceof Error ? error.message : "Could not open the details file.");
     }
   }
 
   async function pickOutputFolder() {
-    await pickPath(selectOutputFolder, "outputPath", "Output folder selected.");
+    await pickPath(selectOutputFolder, "outputPath");
   }
 
-  function openSourceGuide() {
-    setSourceGuideOpen(true);
+  function openSourcePicker() {
+    setSourcePickerOpen(true);
     void refreshIphoneBackups(false);
   }
 
   async function pickIphoneBackupSource() {
-    setSourceGuideOpen(false);
+    setSourcePickerOpen(false);
     await pickSourcePath("iOS");
   }
 
   async function pickMacMessagesSource() {
-    setSourceGuideOpen(false);
+    setSourcePickerOpen(false);
     await pickSourcePath("macOS");
   }
 
@@ -819,7 +712,6 @@ function App() {
     await pickPath(
       platform === "iOS" ? selectBackupFolder : selectDatabaseFile,
       "databasePath",
-      platform === "iOS" ? "iPhone backup folder selected." : "Messages database selected.",
       (current) => ({
         ...current,
         platform,
@@ -830,31 +722,24 @@ function App() {
   }
 
   function chooseDetectedIphoneBackup(candidate: IphoneBackupCandidate) {
-      const selectedPath = candidate.resolvedPath ?? candidate.path;
-      setBackupPassword("");
-      setOptions((current) => ({
-        ...current,
-        platform: "iOS",
-        databasePath: normalizeLocalPathForDisplay(selectedPath),
-        attachmentRoot: "",
-      }));
-    setSourceGuideOpen(false);
-    addLog(
-      "info",
-      candidate.relocated
-        ? "iPhone backup selected from a relocated Apple backup folder."
-        : "iPhone backup selected from Apple's standard backup location.",
-    );
+    const selectedPath = candidate.resolvedPath ?? candidate.path;
+    setBackupPassword("");
+    setOptions((current) => ({
+      ...current,
+      platform: "iOS",
+      databasePath: normalizeLocalPathForDisplay(selectedPath),
+      attachmentRoot: "",
+    }));
+    setSourcePickerOpen(false);
   }
 
   async function pickAttachmentRoot() {
-    await pickPath(selectAttachmentFolder, "attachmentRoot", "Attachments folder selected.");
+    await pickPath(selectAttachmentFolder, "attachmentRoot");
   }
 
   async function pickPath(
     picker: () => Promise<string | null>,
     field: "attachmentRoot" | "databasePath" | "outputPath",
-    message: string,
     updateBeforeSave?: (current: ExportOptions) => ExportOptions,
   ) {
     try {
@@ -870,9 +755,8 @@ function App() {
         ...(updateBeforeSave ? updateBeforeSave(current) : current),
         [field]: normalizeLocalPathForDisplay(selectedPath),
       }));
-      addLog("info", message);
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not open the file picker.");
+      notify("warn", error instanceof Error ? error.message : "Could not open the folder picker.");
     }
   }
 
@@ -882,16 +766,16 @@ function App() {
       const nextCandidates = await listIphoneBackups();
       setBackupCandidates(nextCandidates);
       if (announce) {
-        addLog(
+        notify(
           nextCandidates.length > 0 ? "info" : "warn",
           nextCandidates.length > 0
-            ? `Found ${nextCandidates.length} local iPhone backup${nextCandidates.length === 1 ? "" : "s"}.`
-            : "No local iPhone backups were found in Apple's standard folders.",
+            ? `Found ${nextCandidates.length} iPhone backup${nextCandidates.length === 1 ? "" : "s"} on this computer.`
+            : "No iPhone backup was found in Apple's usual folders.",
         );
       }
     } catch (error) {
       if (announce) {
-        addLog("warn", error instanceof Error ? error.message : "Could not scan for iPhone backups.");
+        notify("warn", error instanceof Error ? error.message : "Could not scan for backups.");
       }
     } finally {
       setLoadingBackupCandidates(false);
@@ -907,10 +791,10 @@ function App() {
         current && nextLogs.some((log) => log.id === current.entry.id) ? current : null,
       );
       if (announce) {
-        addLog("info", `Loaded ${nextLogs.length} saved local log${nextLogs.length === 1 ? "" : "s"}.`);
+        notify("info", `Loaded ${nextLogs.length} saved run${nextLogs.length === 1 ? "" : "s"}.`);
       }
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not load saved local logs.");
+      notify("warn", error instanceof Error ? error.message : "Could not load past activity.");
     } finally {
       setLoadingStoredLogs(false);
     }
@@ -920,18 +804,6 @@ function App() {
     const nextOutputAccess = await checkOutputAccess(outputPath);
     setOutputAccess(nextOutputAccess);
     return nextOutputAccess;
-  }
-
-  async function checkCurrentOutputAccess() {
-    setCheckingOutputAccess(true);
-    try {
-      const nextOutputAccess = await refreshOutputAccess(options.outputPath);
-      addLog(nextOutputAccess.writable ? "info" : "warn", nextOutputAccess.detail);
-    } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not check output folder access.");
-    } finally {
-      setCheckingOutputAccess(false);
-    }
   }
 
   function handleOptionsChange(nextOptions: ExportOptions) {
@@ -952,9 +824,8 @@ function App() {
   async function openStoredLog(log: StoredLogEntry) {
     try {
       await openLocalPath(log.path);
-      addLog("info", `Opened ${log.fileName}.`);
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not open the selected log.");
+      notify("warn", error instanceof Error ? error.message : "Could not open that log.");
     }
   }
 
@@ -963,9 +834,8 @@ function App() {
     try {
       const detail = await getStoredLogDetail(log);
       setSelectedLogDetail(detail);
-      addLog("info", `Previewed ${log.fileName}.`);
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not preview the selected log.");
+      notify("warn", error instanceof Error ? error.message : "Could not preview that log.");
     } finally {
       setLoadingLogDetail(false);
     }
@@ -975,23 +845,13 @@ function App() {
     setCreatingSupportBundle(true);
     try {
       const bundle = await createSupportBundle();
-      addLog("info", `Created support bundle with ${bundle.logCount} log${bundle.logCount === 1 ? "" : "s"}.`);
+      notify("info", `Support bundle created with ${bundle.logCount} log${bundle.logCount === 1 ? "" : "s"}.`);
       await openLocalPath(bundle.bundlePath);
-      addLog("info", `Opened ${bundle.bundlePath}.`);
     } catch (error) {
-      addLog("warn", error instanceof Error ? error.message : "Could not create the support bundle.");
+      notify("warn", error instanceof Error ? error.message : "Could not create the support bundle.");
     } finally {
       setCreatingSupportBundle(false);
     }
-  }
-
-  function addLog(level: LogEntry["level"], message: string) {
-    const time = new Intl.DateTimeFormat(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date());
-    setLogs((current) => [{ time, level, message }, ...current].slice(0, 8));
   }
 
   function clearProcessOutput() {
@@ -1012,224 +872,220 @@ function App() {
     }
   }
 
+  function completeOnboarding() {
+    markOnboardingComplete();
+    setOnboarded(true);
+  }
+
+  if (!onboarded) {
+    return (
+      <>
+        <OnboardingScreen
+          appName={appName}
+          onStart={completeOnboarding}
+          spenlioEdition={isSpenlioEdition}
+        />
+        <ToastStack onDismiss={dismissToast} toasts={toasts} />
+      </>
+    );
+  }
+
   return (
     <>
-      <main className="app-shell">
-        <nav className="sidebar" aria-label="Primary navigation">
-          <div className="brand">
-            <div className="brand-mark">
-              <MessageSquareText aria-hidden="true" />
+      <div className="app-frame">
+        <header className="toolbar">
+          <div className="toolbar-brand">
+            <div aria-hidden="true" className="brand-mark">
+              <MessageSquareText />
             </div>
-            <div>
+            <div className="toolbar-brand-copy">
               <strong>{appName}</strong>
               <span>{appSubtitle}</span>
             </div>
           </div>
-
-          <div className="nav-group">
-            {visiblePages.map((page) => (
-              <NavButton
-                active={activePage === page}
-                icon={pageIcons[page]}
-                key={page}
-                label={navLabels[page]}
-                onClick={() => setActivePage(page)}
-              />
-            ))}
+          <div className="toolbar-actions">
+            <button
+              className="button button--ghost button--compact"
+              onClick={() => setActivityOpen(true)}
+              type="button"
+            >
+              <History aria-hidden="true" />
+              Activity
+            </button>
+            {!isSpenlioEdition ? (
+              <button
+                className="button button--ghost button--compact"
+                onClick={() => setToolDrawerOpen(true)}
+                type="button"
+              >
+                <Wrench aria-hidden="true" />
+                Export tool
+              </button>
+            ) : null}
+            <button
+              aria-label={`About ${appName}`}
+              className="button button--ghost button--icon"
+              onClick={() => setAboutOpen(true)}
+              title={`About ${appName}`}
+              type="button"
+            >
+              <Info aria-hidden="true" />
+            </button>
           </div>
+        </header>
 
-          <div className="sidebar-footer">
-            <ShieldCheck aria-hidden="true" />
-            <span>Local only</span>
-          </div>
-        </nav>
-
-        <div className="workspace">
-          <header className="topbar">
-            <div className="page-title">
-              <p className="section-kicker">{activePageLabel.kicker}</p>
-              <h1>{activePageLabel.title}</h1>
-              <p>{activePageLabel.description}</p>
-            </div>
-            <div className="topbar-status">
-              <div className="status-cluster">
-                <Lock aria-hidden="true" />
-                <span>Local only</span>
-              </div>
-              <div className="status-cluster">
-                <BadgeCheck aria-hidden="true" />
-                <span>{workflowStepLabel}</span>
-              </div>
-            </div>
-          </header>
-
-          <section className="status-strip" aria-label="Workspace status">
+        {snapshot.launch_warning ? (
+          <section aria-label="Portable app warning" className="runtime-warning">
+            <CircleAlert aria-hidden="true" />
             <div>
-              <span>{options.platform === "iOS" ? "iPhone backup" : "Message source"}</span>
-              <strong>{sourceStatusLabel}</strong>
-              <small title={selectedSourcePath || undefined}>
-                {selectedSourcePath || "Choose the backup that contains the messages."}
-              </small>
+              <strong>Extract the portable app first</strong>
+              <p>{snapshot.launch_warning}</p>
             </div>
-            <div>
-              <span>Save folder</span>
-              <strong>{outputStatusLabel}</strong>
-              <small title={selectedOutputPath || undefined}>
-                {selectedOutputPath || "Choose where the CSV should be saved."}
-              </small>
-            </div>
-            <div>
-              <span>{isSpenlioEdition ? "CSV output" : "Export"}</span>
-              <strong>{preflight.canRunExport ? "Ready" : setupLabel}</strong>
-              <small>
-                {preflight.canRunExport
-                  ? isSpenlioEdition
-                    ? "One local finance SMS CSV can be created now."
-                    : "The local export can be started now."
-                  : workflowStepLabel}
-              </small>
-            </div>
-            <StatusPill
-              label={preflight.canRunExport ? "Ready to export" : "Next step"}
-              state={preflight.canRunExport ? "passed" : "action"}
-            />
           </section>
+        ) : null}
 
-          {snapshot.launch_warning ? (
-            <section className="runtime-warning" aria-label="Portable app warning">
-              <CircleAlert aria-hidden="true" />
-              <div>
-                <strong>Extract the portable app first</strong>
-                <p>{snapshot.launch_warning}</p>
-              </div>
-            </section>
-          ) : null}
+        <main className="canvas">
+          <div className="canvas-heading">
+            <h1>{isSpenlioEdition ? "Create your Spenlio CSV" : "Save your messages"}</h1>
+            <p>
+              {isSpenlioEdition
+                ? "Turn a local iPhone backup into a finance SMS spreadsheet — all on this computer."
+                : "Turn an iPhone backup into files you can read and keep — all on this computer."}
+            </p>
+          </div>
 
-          <div className="page-body">
-          {activePage === "setup" ? (
-            <div className="page-grid page-grid--setup">
-              <div className="main-stack">
-                <QuickStartPanel
-                  appName={appName}
-                  canPrepareExporter={Boolean(selectedAsset)}
-                  exporterFound={probe.found}
-                  exporterRequired={!structuredCsvExport}
-                  installActionLabel={installActionLabel}
-                  installingExporter={installingExporter}
-                  onGoExport={() => setActivePage("export")}
-                  onInstallExporter={installOrUpdateExporter}
-                  onOpenOutput={openExportFolder}
-                  onOpenSource={openSelectedSourceLocation}
-                  onPickOutput={pickOutputFolder}
-                  onPickSource={openSourceGuide}
-                  outputReady={outputAccess.writable}
-                  outputPath={selectedOutputPath}
-                  canRunExport={preflight.canRunExport}
-                  fileManagerLabel={fileManagerLabel}
-                  platform={options.platform}
-                  spenlioEdition={isSpenlioEdition}
-                  sourcePath={selectedSourcePath}
-                  sourceSelected={Boolean(selectedSourcePath)}
+          <div className="flow-layout">
+            <div className={`flow-decisions ${exportStage === "running" ? "is-locked" : ""}`}>
+              <SourceCard
+                backupPassword={backupPassword}
+                candidates={backupCandidates}
+                encryptedBackup={options.encryptedBackup}
+                fileManagerLabel={fileManagerLabel}
+                issues={validationMessagesFor(issueMap, "databasePath")}
+                onBackupPasswordChange={setBackupPassword}
+                onEncryptedBackupChange={handleEncryptedBackupChange}
+                onOpenPicker={openSourcePicker}
+                onOpenSource={openSelectedSourceLocation}
+                onUseCandidate={chooseDetectedIphoneBackup}
+                passwordIssues={validationMessagesFor(issueMap, "backupPassword")}
+                platform={options.platform}
+                sourcePath={selectedSourcePath}
+                step={1}
+              />
+
+              {!isSpenlioEdition ? (
+                <FormatCard
+                  format={options.format}
+                  onFormatChange={(format) => handleOptionsChange({ ...options, format })}
+                  step={2}
                 />
-              </div>
+              ) : null}
+
+              <DestinationCard
+                checking={checkingOutputAccess}
+                detail={outputAccess.detail}
+                fileManagerLabel={fileManagerLabel}
+                issues={validationMessagesFor(issueMap, "outputPath")}
+                onOpen={openExportFolder}
+                onPick={pickOutputFolder}
+                outputPath={selectedOutputPath}
+                step={isSpenlioEdition ? 2 : 3}
+                writable={outputAccess.writable}
+              />
+
+              <AdvancedOptions
+                customNameIssues={validationMessagesFor(issueMap, "customName")}
+                endDateIssues={validationMessagesFor(issueMap, "endDate")}
+                onChange={handleOptionsChange}
+                onPickAttachmentRoot={pickAttachmentRoot}
+                options={options}
+                spenlioEdition={isSpenlioEdition}
+                startDateIssues={validationMessagesFor(issueMap, "startDate")}
+              />
             </div>
-          ) : null}
 
-          {activePage === "export" ? (
-            <div className="page-grid page-grid--export">
-              <div className="main-stack">
-                <ExportConfigurator
-                  checkingOutputAccess={checkingOutputAccess}
-                  backupPassword={backupPassword}
-                  isPreparingExporter={installingExporter}
-                  isRunning={isExporting}
-                  issueMap={issueMap}
-                  onBackupPasswordChange={setBackupPassword}
-                  onCheckOutputAccess={checkCurrentOutputAccess}
-                  onChange={handleOptionsChange}
-                  onOpenOutput={openExportFolder}
-                  onOpenSource={openSelectedSourceLocation}
-                  onPrepareExporter={installOrUpdateExporter}
-                  onPickAttachmentRoot={pickAttachmentRoot}
-                  onPickOutput={pickOutputFolder}
-                  onPickSource={openSourceGuide}
-                  onRun={runExport}
-                  options={options}
-                  preflight={preflight}
-                  spenlioEdition={isSpenlioEdition}
-                  appName={appName}
-                  showMacSourceChoice={showMacSourceChoice}
-                />
-              </div>
-              <div className="side-stack">
-                <RunProgressPanel outputEvents={processOutputEvents} progress={runProgress} />
-                <RunResultPanel
-                  onOpenLog={openLatestRunLog}
-                  onOpenOutput={openLatestRunOutput}
-                  summary={latestRunSummary}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {activePage === "diagnostics" ? (
-            <DiagnosticsPanel
-              activatingManagedVersion={activatingManagedVersion}
-              checkingRelease={checkingRelease}
-              diagnostics={diagnostics}
-              installActionLabel={installActionLabel}
-              installingExporter={installingExporter}
-              onActivateManagedVersion={activateManagedVersion}
-              clearingCustomExporter={clearingCustomExporter}
-              managedState={managedState}
-              onClearCustomExporter={forgetSelectedExporter}
-              onCheckRelease={checkRelease}
-              onInstallLatest={installOrUpdateExporter}
-              onRunDiagnostics={runDiagnostics}
-              onSelectCustomExporter={selectExistingExporter}
-              probe={probe}
-              release={release}
-              runningDiagnostics={runningDiagnostics}
-              selectingCustomExporter={selectingCustomExporter}
-              selectedAsset={selectedAsset}
+            <ArchivePreviewCard
+              blockers={flowBlockers}
+              canStart={canStartExport}
+              onOpenLog={openLatestRunLog}
+              onOpenOutput={openLatestRunOutput}
+              onReset={resetExportStage}
+              onStart={() => void startExportFlow()}
+              options={options}
+              outputEvents={processOutputEvents}
+              progress={runProgress}
+              stage={exportStage}
+              startLabel={startLabel}
+              summary={exportSummary}
             />
-          ) : null}
-
-          {activePage === "history" ? (
-            <LogTimeline
-              creatingSupportBundle={creatingSupportBundle}
-              entries={logs}
-              loadingLogDetail={loadingLogDetail}
-              loadingStoredLogs={loadingStoredLogs}
-              onCreateSupportBundle={exportSupportBundle}
-              onOpenStoredLog={openStoredLog}
-              onPreviewStoredLog={previewStoredLog}
-              onRefreshStoredLogs={() => void refreshStoredLogs()}
-              selectedLogDetail={selectedLogDetail}
-              storedLogs={storedLogs}
-            />
-          ) : null}
-
-          {activePage === "about" ? <AboutPanel appName={appName} spenlioEdition={isSpenlioEdition} /> : null}
-        </div>
+          </div>
+        </main>
       </div>
-      </main>
-      {sourceGuideOpen ? (
-        <SourceGuideDialog
+
+      {sourcePickerOpen ? (
+        <SourcePickerDialog
           appName={appName}
           backupCandidates={backupCandidates}
-          encryptedBackup={options.encryptedBackup}
           loadingBackupCandidates={loadingBackupCandidates}
           onChooseDetectedIphoneBackup={chooseDetectedIphoneBackup}
-          onChooseIphoneBackup={pickIphoneBackupSource}
-          onChooseMacDatabase={pickMacMessagesSource}
-          onClose={() => setSourceGuideOpen(false)}
-          onEncryptedBackupChange={handleEncryptedBackupChange}
-          onRefreshBackups={() => void refreshIphoneBackups()}
-          sourceSelected={Boolean(selectedSourcePath)}
+          onChooseIphoneBackup={() => void pickIphoneBackupSource()}
+          onChooseMacDatabase={() => void pickMacMessagesSource()}
+          onClose={() => setSourcePickerOpen(false)}
+          onRefreshBackups={() => void refreshIphoneBackups(false)}
           showMacSourceChoice={showMacSourceChoice}
         />
       ) : null}
+
+      {activityOpen ? (
+        <ActivityDrawer
+          creatingSupportBundle={creatingSupportBundle}
+          loadingLogDetail={loadingLogDetail}
+          loadingStoredLogs={loadingStoredLogs}
+          onClose={() => setActivityOpen(false)}
+          onCreateSupportBundle={() => void exportSupportBundle()}
+          onOpenStoredLog={(log) => void openStoredLog(log)}
+          onPreviewStoredLog={(log) => void previewStoredLog(log)}
+          onRefreshStoredLogs={() => void refreshStoredLogs(false)}
+          selectedLogDetail={selectedLogDetail}
+          storedLogs={storedLogs}
+        />
+      ) : null}
+
+      {toolDrawerOpen ? (
+        <ToolDrawer
+          activatingManagedVersion={activatingManagedVersion}
+          checkingRelease={checkingRelease}
+          clearingCustomExporter={clearingCustomExporter}
+          diagnostics={diagnostics}
+          installActionLabel={installActionLabel}
+          installingExporter={installingExporter}
+          managedState={managedState}
+          onActivateManagedVersion={(version) => void activateManagedVersion(version)}
+          onCheckRelease={() => void checkRelease()}
+          onClearCustomExporter={() => void forgetSelectedExporter()}
+          onClose={() => setToolDrawerOpen(false)}
+          onInstallLatest={() => void installOrUpdateExporter()}
+          onRunDiagnostics={() => void runDiagnostics()}
+          onSelectCustomExporter={() => void selectExistingExporter()}
+          outputEvents={processOutputEvents}
+          probe={probe}
+          progress={runProgress}
+          release={release}
+          runningDiagnostics={runningDiagnostics}
+          selectingCustomExporter={selectingCustomExporter}
+          updateAvailable={updateAvailable}
+        />
+      ) : null}
+
+      {aboutOpen ? (
+        <AboutDialog
+          appName={appName}
+          onClose={() => setAboutOpen(false)}
+          spenlioEdition={isSpenlioEdition}
+        />
+      ) : null}
+
+      <ToastStack onDismiss={dismissToast} toasts={toasts} />
     </>
   );
 }
@@ -1254,11 +1110,11 @@ function normalizeExportOptionPaths(options: ExportOptions): ExportOptions {
 function getFileManagerLabel(snapshot: Pick<SystemSnapshot, "os">): string {
   const os = snapshot.os.toLowerCase();
   if (os.includes("windows")) {
-    return "Open in Explorer";
+    return "Show in Explorer";
   }
 
   if (os.includes("mac") || os.includes("darwin")) {
-    return "Open in Finder";
+    return "Show in Finder";
   }
 
   return "Open folder";
@@ -1273,38 +1129,6 @@ function sourceLocationPathForOpen(options: ExportOptions): string {
   return parentPath(sourcePath);
 }
 
-function getWorkflowStepLabel({
-  appReady,
-  canRunExport,
-  outputReady,
-  sourceSelected,
-  spenlioEdition,
-}: {
-  appReady: boolean;
-  canRunExport: boolean;
-  outputReady: boolean;
-  sourceSelected: boolean;
-  spenlioEdition: boolean;
-}): string {
-  if (!appReady) {
-    return "Step 1 of 4: set up helper";
-  }
-
-  if (!sourceSelected) {
-    return "Step 2 of 4: choose iPhone backup";
-  }
-
-  if (!outputReady) {
-    return "Step 3 of 4: choose save folder";
-  }
-
-  if (canRunExport) {
-    return spenlioEdition ? "Step 4 of 4: create CSV" : "Step 4 of 4: export messages";
-  }
-
-  return "Step 4 of 4: review setup";
-}
-
 function parentPath(path: string): string {
   const lastForwardSlash = path.lastIndexOf("/");
   const lastBackSlash = path.lastIndexOf("\\");
@@ -1315,277 +1139,6 @@ function parentPath(path: string): string {
   }
 
   return path.slice(0, lastSeparator);
-}
-
-function NavButton({
-  active,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: typeof Settings2;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-current={active ? "page" : undefined}
-      className={`nav-item ${active ? "is-active" : ""}`}
-      onClick={onClick}
-      type="button"
-    >
-      <Icon aria-hidden="true" />
-      {label}
-    </button>
-  );
-}
-
-type QuickStartStepState = "passed" | "action" | "warning";
-
-interface QuickStartAction {
-  label: string;
-  icon: typeof Settings2;
-  onAction: () => void;
-  disabled?: boolean;
-  loading?: boolean;
-  variant?: "primary";
-}
-
-interface QuickStartLocation {
-  label: string;
-  value: string;
-}
-
-interface QuickStartStep {
-  number: number;
-  title: string;
-  detail: string;
-  state: QuickStartStepState;
-  icon: typeof Settings2;
-  location?: QuickStartLocation;
-  actions: QuickStartAction[];
-}
-
-function QuickStartPanel({
-  appName,
-  canPrepareExporter,
-  exporterFound,
-  exporterRequired,
-  fileManagerLabel,
-  installActionLabel,
-  installingExporter,
-  onGoExport,
-  onInstallExporter,
-  onOpenOutput,
-  onOpenSource,
-  onPickOutput,
-  onPickSource,
-  outputReady,
-  outputPath,
-  platform,
-  spenlioEdition,
-  sourcePath,
-  sourceSelected,
-  canRunExport,
-}: {
-  appName: string;
-  canPrepareExporter: boolean;
-  exporterFound: boolean;
-  exporterRequired: boolean;
-  fileManagerLabel: string;
-  installActionLabel: string;
-  installingExporter: boolean;
-  onGoExport: () => void;
-  onInstallExporter: () => void;
-  onOpenOutput: () => void;
-  onOpenSource: () => void;
-  onPickOutput: () => void;
-  onPickSource: () => void;
-  outputReady: boolean;
-  outputPath: string;
-  platform: string;
-  spenlioEdition: boolean;
-  sourcePath: string;
-  sourceSelected: boolean;
-  canRunExport: boolean;
-}) {
-  const sourceLabel = platform === "iOS" ? "iPhone backup" : "Messages source";
-  const builtInReaderReady = !exporterRequired;
-  const steps: QuickStartStep[] = [
-    {
-      number: 1,
-      title: exporterRequired
-        ? "Install export tool"
-        : spenlioEdition
-          ? "Spenlio CSV reader ready"
-          : "CSV reader ready",
-      detail: exporterFound
-        ? "The local export tool is ready."
-        : exporterRequired
-          ? `${appName} installs the local tool it uses to turn your backup into files.`
-          : spenlioEdition
-            ? "The built-in local reader is ready to create the finance CSV. No extra export tool is needed."
-            : `${appName}'s built-in local database reader is ready for finance CSV.`,
-      state: exporterFound || builtInReaderReady ? "passed" : "action",
-      icon: DownloadCloud,
-      actions:
-        exporterFound || builtInReaderReady
-          ? [{ label: "Ready", icon: CheckCircle2, onAction: onInstallExporter, disabled: true }]
-          : [
-              {
-                label: installingExporter ? "Setting up" : installActionLabel,
-                icon: installingExporter ? Loader2 : DownloadCloud,
-                loading: installingExporter,
-                onAction: onInstallExporter,
-                disabled: !canPrepareExporter || installingExporter,
-                variant: "primary",
-              },
-            ],
-    },
-    {
-      number: 2,
-      title: platform === "iOS" ? "Choose your iPhone backup" : "Choose message source",
-      detail: sourceSelected
-        ? `${sourceLabel} selected.`
-        : platform === "iOS"
-          ? "Create or choose the local iPhone backup that contains the messages you want to save."
-          : "Choose the local Messages database that contains the messages you want to save.",
-      state: sourceSelected ? "passed" : "action",
-      icon: Archive,
-      location: sourceSelected
-        ? {
-            label: platform === "iOS" ? "Current backup folder" : "Current source",
-            value: sourcePath,
-          }
-        : undefined,
-      actions: sourceSelected
-        ? [
-            { label: fileManagerLabel, icon: FolderOpen, onAction: onOpenSource },
-            { label: "Change", icon: Pencil, onAction: onPickSource },
-          ]
-        : [{ label: "Start guide", icon: Archive, onAction: onPickSource, variant: "primary" }],
-    },
-    {
-      number: 3,
-      title: "Choose export location",
-      detail: outputReady
-        ? "The selected export folder can accept saved files."
-        : outputPath
-          ? "Check or change this folder so the CSV can be saved there."
-        : `Pick where ${appName} should save the exported files.`,
-      state: outputReady ? "passed" : "action",
-      icon: ShieldCheck,
-      location: outputPath
-        ? {
-            label: "Current export folder",
-            value: outputPath,
-          }
-        : undefined,
-      actions: outputReady
-        ? [
-            { label: fileManagerLabel, icon: FolderOpen, onAction: onOpenOutput },
-            { label: "Change", icon: Pencil, onAction: onPickOutput },
-          ]
-        : [
-            {
-              label: outputPath ? "Change" : "Choose folder",
-              icon: outputPath ? Pencil : FolderOpen,
-              onAction: onPickOutput,
-              variant: "primary",
-            },
-          ],
-    },
-    {
-      number: 4,
-      title: spenlioEdition ? "Export Spenlio CSV" : "Export messages",
-      detail: spenlioEdition
-        ? "Review the source and save folder, then create the finance SMS CSV."
-        : "Review the source and save folder, then start the local export.",
-      state: canRunExport ? "action" : "warning",
-      icon: Play,
-      actions: [{ label: "Open export", icon: Play, onAction: onGoExport, variant: "primary" }],
-    },
-  ];
-  const currentStep = steps.find((step) => step.state !== "passed")?.number ?? 4;
-  const currentStepTitle = steps.find((step) => step.number === currentStep)?.title ?? "current step";
-
-  return (
-    <section className="panel quick-start-panel" aria-labelledby="quick-start-title">
-      <div className="quick-start-hero">
-        <div>
-          <p className="section-kicker">Guided setup</p>
-          <h2 id="quick-start-title">Follow these steps in order</h2>
-          <p>
-            {spenlioEdition
-              ? `${appName} guides you through choosing a local iPhone backup, then saves a finance SMS CSV on this computer.`
-              : `${appName} guides you through creating or choosing a local backup, then saves readable files on this computer.`}
-          </p>
-        </div>
-      </div>
-
-      <div className="quick-start-steps">
-        {steps.map((step) => {
-          const Icon = step.icon;
-          const StateIcon = step.state === "passed" ? CheckCircle2 : CircleAlert;
-          const isCurrent = step.number === currentStep;
-          const isLocked = step.number === 4 && step.number > currentStep;
-          return (
-            <article
-              className={`quick-step quick-step--${step.state} ${isCurrent ? "is-current" : ""} ${isLocked ? "is-locked" : ""}`}
-              key={step.title}
-            >
-              <div className="quick-step-number" aria-hidden="true">
-                {step.number}
-              </div>
-              <div className="quick-step-icon">
-                <Icon aria-hidden="true" />
-              </div>
-              <div className="quick-step-main">
-                <div className="quick-step-copy">
-                  <div className="quick-step-title">
-                    <StateIcon aria-hidden="true" />
-                    <h3>{step.title}</h3>
-                  </div>
-                  <p>{step.detail}</p>
-                </div>
-                {step.location ? (
-                  <div className="quick-step-location">
-                    <span>{step.location.label}</span>
-                    <code title={step.location.value}>{step.location.value}</code>
-                  </div>
-                ) : null}
-                <div className="quick-step-actions">
-                  {isLocked ? (
-                    <button className="button button--secondary button--compact" disabled type="button">
-                      {currentStepTitle} first
-                    </button>
-                  ) : (
-                    step.actions.map((action) => {
-                      const ActionIcon = action.icon;
-                      const isPrimary = action.variant === "primary" || (isCurrent && step.actions.length === 1);
-                      return (
-                        <button
-                          className={`button ${isPrimary ? "button--primary" : "button--secondary"} button--compact`}
-                          disabled={action.disabled}
-                          key={action.label}
-                          onClick={action.onAction}
-                          type="button"
-                        >
-                          <ActionIcon aria-hidden="true" className={action.loading ? "spin" : undefined} />
-                          {action.label}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
 }
 
 function previewOutputAccess(outputPath: string): OutputAccessCheck {
