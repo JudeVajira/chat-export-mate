@@ -148,6 +148,20 @@ describe("buildExporterCommand", () => {
     expect(command.args.slice(0, 2)).toEqual(["-f", "txt"]);
   });
 
+  it("normalizes Windows extended path prefixes in command args and previews", () => {
+    const command = buildExporterCommand("imessage-exporter", {
+      ...baseOptions,
+      outputPath: "\\\\?\\D:\\Exports",
+      databasePath: "\\\\?\\D:\\Messages\\chat.db",
+      attachmentRoot: "\\\\?\\D:\\Messages\\Attachments",
+    });
+
+    expect(command.args).toContain("D:\\Exports");
+    expect(command.args).toContain("D:\\Messages\\chat.db");
+    expect(command.args).toContain("D:\\Messages\\Attachments");
+    expect(command.displayCommand).not.toContain("\\\\?\\");
+  });
+
   it("does not require an exporter binary for structured finance CSV layouts", () => {
     const structuredCsvOptions: ExportOptions = {
       ...baseOptions,

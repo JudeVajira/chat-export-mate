@@ -60,7 +60,7 @@ describe("buildExportPreflightSummary", () => {
       title: "Command check available, export not ready",
       actionLabel: "Check command",
       canRunExport: false,
-      blockingReasons: ["Choose where ChatExportMate should save your exported messages."],
+      blockingReasons: ["Choose where the app should save your exported messages."],
     });
   });
 
@@ -89,7 +89,7 @@ describe("buildExportPreflightSummary", () => {
       actionLabel: "Finish setup",
       canRunExport: false,
       blockingReasons: [
-        "Install the export tool so ChatExportMate can read your local backup.",
+        "Install the export tool so the app can read your local backup.",
         "Choose an output folder for exported files.",
       ],
     });

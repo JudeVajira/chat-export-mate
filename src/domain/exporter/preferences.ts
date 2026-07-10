@@ -1,4 +1,5 @@
 import type { CsvExportLayout, ExportOptions, ExportPreferences } from "./types";
+import { normalizeLocalPathForDisplay } from "./paths";
 
 const defaultCsvLayout: CsvExportLayout = "spenlioCombined";
 
@@ -74,10 +75,10 @@ function normalizeExportOptions(options: ExportOptions): ExportOptions {
   return {
     format: options.format,
     platform: options.platform,
-    outputPath: options.outputPath,
-    databasePath: options.databasePath ?? "",
+    outputPath: normalizeLocalPathForDisplay(options.outputPath),
+    databasePath: normalizeLocalPathForDisplay(options.databasePath ?? ""),
     encryptedBackup: options.encryptedBackup ?? false,
-    attachmentRoot: options.attachmentRoot ?? "",
+    attachmentRoot: normalizeLocalPathForDisplay(options.attachmentRoot ?? ""),
     copyMethod: options.copyMethod,
     startDate: options.startDate ?? "",
     endDate: options.endDate ?? "",
@@ -121,10 +122,10 @@ function coerceExportOptions(value: Record<string, unknown>): ExportOptions | nu
   return {
     format: value.format,
     platform: value.platform,
-    outputPath: value.outputPath,
-    databasePath: optionalString(value.databasePath),
+    outputPath: normalizeLocalPathForDisplay(value.outputPath),
+    databasePath: normalizeLocalPathForDisplay(optionalString(value.databasePath)),
     encryptedBackup,
-    attachmentRoot: optionalString(value.attachmentRoot),
+    attachmentRoot: normalizeLocalPathForDisplay(optionalString(value.attachmentRoot)),
     copyMethod: value.copyMethod,
     startDate: optionalString(value.startDate),
     endDate: optionalString(value.endDate),

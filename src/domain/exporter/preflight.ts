@@ -79,7 +79,7 @@ export function buildExportPreflightSummary(
   return {
     state: "blocked",
     title: "Finish setup before exporting",
-    detail: "Complete the items below, then ChatExportMate can save your messages.",
+    detail: "Complete the items below, then the app can save your messages.",
     actionLabel: "Finish setup",
     canRunExport,
     blockingReasons,
@@ -92,7 +92,7 @@ function formatDiagnosticReason(item: DiagnosticItem): string {
   if (item.id === "exporter") {
     return item.state === "passed"
       ? "The export tool is ready."
-      : "Install the export tool so ChatExportMate can read your local backup.";
+      : "Install the export tool so the app can read your local backup.";
   }
 
   if (item.id === "configuration") {
@@ -102,13 +102,13 @@ function formatDiagnosticReason(item: DiagnosticItem): string {
   if (item.id === "output-access") {
     return item.state === "passed"
       ? "The export location is ready."
-      : "Choose where ChatExportMate should save your exported messages.";
+      : "Choose where the app should save your exported messages.";
   }
 
   if (item.id === "executable-access") {
     return item.state === "passed"
       ? "The export tool can run."
-      : "Install the export tool before ChatExportMate checks it.";
+      : "Install the export tool before the app checks it.";
   }
 
   if (item.id === "release") {
@@ -126,7 +126,7 @@ function findRecommendedAction(diagnostics: DiagnosticItem[]): ExportPreflightAc
     return {
       id: "install-exporter",
       label: "Install export tool",
-      detail: "ChatExportMate will download and verify the local tool it uses to read your backup.",
+      detail: "The app will download and verify the local tool it uses to read your backup.",
     };
   }
 

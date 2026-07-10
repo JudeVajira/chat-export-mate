@@ -9,10 +9,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:spenlio": "tsc && vite build --mode spenlio",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:build:spenlio": "tauri build --config src-tauri/tauri.spenlio.conf.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

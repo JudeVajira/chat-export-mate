@@ -21,6 +21,7 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 - This is a desktop-only Tauri app. Do not add web-app or mobile-app product surfaces, routes, packaging, or user-facing support language.
 - Vite/browser rendering is a developer harness for the Tauri frontend only. Keep it useful for layout and domain checks, but never treat it as a supported runtime.
 - Development-harness fallbacks may return mock or empty state, but should not persist user paths or app preferences in browser storage.
+- The Spenlio SMS Exporter edition is a build flavor, not a fork. It should keep the normal user path to local iPhone backup source, output folder, and Spenlio-compatible finance CSV export. Keep general ChatExportMate capabilities in the shared backend, but do not surface HTML/Text, transcript-line CSV, exporter setup, or upstream diagnostics as primary Spenlio-edition workflows.
 - Keep domain logic in TypeScript modules that can be tested without Tauri.
 - Keep Tauri commands small and focused on platform capabilities: filesystem, process execution, OS inspection, and opening paths.
 - Use interfaces/adapters for exporter binaries, GitHub release lookups, command execution, logging, and diagnostics.
@@ -52,7 +53,9 @@ ChatExportMate is a desktop companion for `ReagentX/imessage-exporter`, not a re
 
 - ChatExportMate is currently an experimental alpha. Keep package metadata, README language, and CI artifact names aligned with that alpha posture until the user decides it is stable enough for normal releases.
 - GitHub Actions publishes Windows x64 alpha artifacts from `.github/workflows/desktop-alpha-build.yml` in two forms: an unsigned NSIS setup installer and a portable app folder containing the release executable plus license/readme files.
-- The portable artifact should avoid system install integration, shortcuts, and uninstallers, but it still uses the normal ChatExportMate app data location for managed exporter binaries, preferences, and logs.
+- The same workflow publishes ChatExportMate and Spenlio SMS Exporter Windows installer artifacts, portable artifacts, and release-ready `.exe`/`.zip` assets. Spenlio artifacts must be named separately from ChatExportMate and use the Spenlio edition app identifier so local app data is kept separate.
+- Public GitHub releases are alpha prereleases only. The release job runs on pushed `v*-alpha.*` tags or an explicit manual publish input using an alpha semver tag, uploads the release-ready Windows assets, keeps alpha releases out of the stable "Latest" slot, and prepends commit-subject notes before GitHub's generated release notes.
+- Portable artifacts should avoid system install integration, shortcuts, and uninstallers, but they still use the normal app data location for their edition's identifier. General ChatExportMate app data may include managed exporter binaries; the Spenlio edition should not require managed exporter setup for its normal finance CSV flow.
 - If the portable executable appears to be running from a temporary compressed-folder location, the app should warn the user to extract the ZIP before continuing. This warning is about launch stability and is separate from export output-folder writability.
 - Keep the MSI target disabled while using human-readable alpha prerelease versions such as `0.1.0-alpha.0`; Tauri's MSI bundler rejects non-numeric prerelease identifiers.
 

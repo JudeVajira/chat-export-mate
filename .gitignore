@@ -18,6 +18,7 @@ AGENTS.user.md
 .codex-remote-attachments/
 .env
 .env.*
+!.env.spenlio
 
 # Editor directories and files
 .vscode/*

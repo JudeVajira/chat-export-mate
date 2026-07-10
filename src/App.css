@@ -2,7 +2,7 @@
 
 :root {
   color: #172033;
-  background: #eef2f6;
+  background: #f5f7fa;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
@@ -43,14 +43,27 @@ button:disabled {
   opacity: 0.52;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.spin {
+  animation: spin 0.75s linear infinite;
+}
+
 .app-shell {
   display: grid;
   height: 100vh;
   grid-template-columns: 226px minmax(0, 1fr);
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(210, 220, 231, 0.65), rgba(238, 242, 246, 0) 320px),
-    #eef2f6;
+    linear-gradient(180deg, rgba(214, 224, 236, 0.7), rgba(245, 247, 250, 0) 320px),
+    #f5f7fa;
 }
 
 .sidebar {
@@ -88,6 +101,12 @@ button:disabled {
   border-radius: 8px;
   background: #ffffff;
   color: #1f64d8;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.brand-mark:hover {
+  background: #f0f7ff;
+  border-color: #9ab8d8;
 }
 
 .brand strong,
@@ -128,7 +147,8 @@ dt,
   text-decoration: none;
   transition:
     background 140ms ease,
-    color 140ms ease;
+    color 140ms ease,
+    box-shadow 100ms ease;
 }
 
 .nav-item:hover,
@@ -160,7 +180,7 @@ dt,
   height: 100vh;
   gap: 12px;
   overflow: auto;
-  padding: 18px 20px 24px;
+  padding: 18px 24px 24px;
 }
 
 .topbar {
@@ -268,10 +288,17 @@ dt {
 }
 
 .status-strip strong,
+.status-strip small,
 dd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.status-strip small {
+  color: #65748a;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .runtime-warning {
@@ -317,7 +344,7 @@ dd {
 }
 
 .page-grid--export {
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .page-grid--setup {
@@ -336,6 +363,10 @@ dd {
   align-items: start;
 }
 
+.page-grid--export > .side-stack {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 1200px) {
   .topbar {
     display: grid;
@@ -350,6 +381,14 @@ dd {
   .page-grid--setup,
   .page-grid--export {
     grid-template-columns: 1fr;
+  }
+
+  .export-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .export-summary-card {
+    position: static;
   }
 
   .page-grid--setup > .side-stack,
@@ -566,6 +605,44 @@ dd {
   overflow: hidden;
 }
 
+.export-heading {
+  align-items: start;
+}
+
+.export-heading p {
+  max-width: 680px;
+  margin: 5px 0 0;
+  color: #526278;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.export-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.75fr);
+  gap: 16px;
+  align-items: start;
+  padding: 16px;
+}
+
+.export-form-column,
+.export-summary-card,
+.location-review-list {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.export-summary-card {
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
 .config-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 16px;
@@ -582,11 +659,78 @@ dd {
   padding: 10px 12px;
 }
 
+.source-summary--csv {
+  border-color: #d5efe3;
+  background: #f4fbf7;
+}
+
 .source-summary span {
   color: #66758a;
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.location-review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.location-review-row:focus-within {
+  border-color: #8eb8ff;
+  box-shadow: 0 0 0 3px rgba(31, 100, 216, 0.1);
+}
+
+.location-review-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.location-review-main .field-label {
+  margin: 0;
+}
+
+.location-review-path {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #172033;
+  font-family:
+    SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-review-path.is-empty {
+  color: #7b8797;
+  font-family: inherit;
+  font-weight: 620;
+}
+
+.location-review-actions,
+.export-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.export-summary-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.export-summary-actions .button {
+  width: 100%;
 }
 
 .source-summary strong {
@@ -616,12 +760,18 @@ dd {
   background: #ffffff;
   padding: 9px 10px;
   text-align: left;
+  transition: border-color 130ms ease, background 130ms ease, box-shadow 130ms ease;
 }
 
 .format-choice.is-selected {
   border-color: #8eb8ff;
   background: #f1f6ff;
   box-shadow: inset 0 0 0 1px #8eb8ff;
+}
+
+.format-choice:hover:not(.is-selected) {
+  border-color: #b5c7de;
+  background: #f8fbff;
 }
 
 .format-choice strong {
@@ -661,12 +811,18 @@ dd {
   background: #ffffff;
   padding: 10px;
   text-align: left;
+  transition: border-color 130ms ease, background 130ms ease, box-shadow 130ms ease;
 }
 
 .csv-layout-option.is-selected {
   border-color: #8eb8ff;
   background: #f1f6ff;
   box-shadow: inset 0 0 0 1px #8eb8ff;
+}
+
+.csv-layout-option:hover:not(.is-selected) {
+  border-color: #b5c7de;
+  background: #f8fbff;
 }
 
 .csv-layout-option strong {
@@ -689,6 +845,11 @@ dd {
   border-radius: 8px;
   background: #f4fbf7;
   padding: 12px;
+}
+
+.export-summary-card .output-preview {
+  grid-template-columns: 1fr;
+  border-color: #d5efe3;
 }
 
 .output-preview span {
@@ -727,6 +888,27 @@ dd {
   gap: 10px;
   border-top: 1px solid #e4eaf1;
   padding: 14px 16px;
+}
+
+.export-summary-card .preflight-summary {
+  border: 0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.export-summary-card .preflight-summary--ready {
+  background: #f4fbf7;
+}
+
+.export-summary-card .preflight-summary--blocked {
+  background: #fff7f7;
+}
+
+.export-summary-card .preflight-list,
+.export-summary-card .preflight-notes,
+.export-summary-card .preflight-action-detail {
+  padding-left: 32px;
 }
 
 .preflight-main {
@@ -830,8 +1012,10 @@ fieldset {
 .advanced-options {
   display: grid;
   gap: 12px;
-  border-top: 1px solid #edf1f5;
-  padding-top: 14px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
 }
 
 .advanced-options summary {
@@ -842,7 +1026,7 @@ fieldset {
 }
 
 .advanced-options:not([open]) {
-  padding-bottom: 0;
+  padding-bottom: 12px;
 }
 
 .advanced-options[open] summary {
@@ -853,6 +1037,28 @@ fieldset {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1.1fr);
   gap: 12px;
+}
+
+.advanced-option-grid--dates {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1160px) {
+  .export-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .export-summary-card {
+    position: static;
+  }
+
+  .location-review-row {
+    grid-template-columns: 1fr;
+  }
+
+  .location-review-actions {
+    justify-content: flex-start;
+  }
 }
 
 .checkbox-stack {
@@ -999,6 +1205,7 @@ select {
   color: #172033;
   padding: 0 10px;
   outline: none;
+  transition: border-color 130ms ease, box-shadow 130ms ease;
 }
 
 input:focus,
@@ -1043,11 +1250,17 @@ select:focus {
   border-radius: 8px;
   background: #ffffff;
   color: #40506a;
+  transition: background 130ms ease, border-color 130ms ease;
 }
 
 .field-action svg {
   width: 18px;
   height: 18px;
+}
+
+.field-action:hover:not(:disabled) {
+  background: #f3f6fa;
+  border-color: #b8c7d9;
 }
 
 .toggle {
@@ -1080,6 +1293,7 @@ select:focus {
   padding: 0 13px;
   font-size: 0.84rem;
   font-weight: 820;
+  transition: background 130ms ease, border-color 130ms ease, box-shadow 130ms ease, color 130ms ease, opacity 130ms ease;
 }
 
 .button svg {
@@ -1111,6 +1325,32 @@ select:focus {
   border: 1px solid #cdd8e5;
   background: #ffffff;
   color: #26364f;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: #1a57c4;
+  border-color: #1a57c4;
+  box-shadow: 0 1px 6px rgba(31, 100, 216, 0.28);
+}
+
+.button--primary:active:not(:disabled) {
+  background: #174fb8;
+  border-color: #174fb8;
+  box-shadow: none;
+}
+
+.button--secondary:hover:not(:disabled) {
+  background: #f3f6fa;
+  border-color: #b8c7d9;
+}
+
+.button--secondary:active:not(:disabled) {
+  background: #eaeff6;
+}
+
+.button:focus-visible {
+  outline: 2px solid #1f64d8;
+  outline-offset: 2px;
 }
 
 .modal-backdrop {
@@ -1186,11 +1426,17 @@ select:focus {
   color: #26364f;
   padding: 10px;
   text-align: left;
+  transition: border-color 130ms ease, background 130ms ease, box-shadow 130ms ease;
 }
 
 .source-choice.is-selected {
   border-color: #8eb8ff;
   background: #eef5ff;
+}
+
+.source-choice:hover:not(.is-selected) {
+  border-color: #b5c7de;
+  background: #f2f6fc;
 }
 
 .source-choice svg {
@@ -1537,23 +1783,30 @@ select:focus {
 
 .quick-step {
   display: grid;
-  grid-template-columns: 34px 42px minmax(0, 1fr) minmax(220px, auto);
+  grid-template-columns: 34px 42px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   min-width: 0;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
-  background: #f8fafc;
+  background: #ffffff;
   padding: 12px;
+  transition: box-shadow 140ms ease, border-color 140ms ease;
 }
 
 .quick-step.is-current {
   border-color: #8eb8ff;
   background: #f1f6ff;
+  box-shadow: inset 0 0 0 1px #8eb8ff;
 }
 
 .quick-step.is-locked {
   opacity: 0.72;
+}
+
+.quick-step:not(.is-locked):not(.is-current):hover {
+  box-shadow: 0 1px 8px rgba(29, 43, 68, 0.08);
+  border-color: #c4d3e3;
 }
 
 .quick-step-number {
@@ -1595,8 +1848,21 @@ select:focus {
 
 .quick-step-main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "copy actions"
+    "location actions";
   min-width: 0;
+  column-gap: 12px;
+  row-gap: 8px;
+  align-items: start;
+}
+
+.quick-step-copy {
+  display: grid;
+  grid-area: copy;
   gap: 3px;
+  min-width: 0;
 }
 
 .quick-step-title {
@@ -1616,7 +1882,10 @@ select:focus {
   color: #15845e;
 }
 
-.quick-step--action .quick-step-title svg,
+.quick-step--action .quick-step-title svg {
+  color: #1f64d8;
+}
+
 .quick-step--warning .quick-step-title svg {
   color: #bd7a14;
 }
@@ -1638,10 +1907,12 @@ select:focus {
 
 .quick-step-location {
   display: grid;
+  grid-area: location;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
-  margin-top: 6px;
+  width: 100%;
+  margin-top: 0;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   background: #ffffff;
@@ -1668,9 +1939,11 @@ select:focus {
 .quick-step-actions {
   display: flex;
   flex-wrap: wrap;
+  grid-area: actions;
   gap: 8px;
   justify-content: flex-end;
-  align-self: center;
+  align-self: start;
+  min-width: max-content;
 }
 
 .command-panel {
@@ -1727,6 +2000,7 @@ pre {
 .progress-state--active {
   background: #dceafe;
   color: #174ea6;
+  animation: pulse-badge 1.8s ease-in-out infinite;
 }
 
 .progress-state--completed {
@@ -1838,6 +2112,28 @@ pre {
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   background: #111827;
+}
+
+.live-output-list::-webkit-scrollbar,
+pre::-webkit-scrollbar {
+  width: 6px;
+}
+
+.live-output-list::-webkit-scrollbar-track,
+pre::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 0 8px 8px 0;
+}
+
+.live-output-list::-webkit-scrollbar-thumb,
+pre::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+.live-output-list::-webkit-scrollbar-thumb:hover,
+pre::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
 }
 
 .live-output-row {
@@ -2456,19 +2752,36 @@ dd {
   }
 
   .config-grid,
+  .export-workspace,
   .advanced-option-grid,
+  .advanced-option-grid--dates,
   .button-grid,
   .csv-layout-list,
+  .location-review-row,
   .quick-start-hero,
   .quick-start-steps,
   .quick-step,
+  .quick-step-main,
   .quick-step-location {
     grid-template-columns: 1fr;
+  }
+
+  .quick-step-main {
+    grid-template-areas:
+      "copy"
+      "location"
+      "actions";
   }
 
   .quick-step-actions {
     display: grid;
     justify-content: stretch;
+  }
+
+  .location-review-actions,
+  .location-review-actions .button {
+    display: grid;
+    width: 100%;
   }
 
   .quick-step-actions .button {

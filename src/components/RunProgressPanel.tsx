@@ -42,7 +42,7 @@ export function RunProgressPanel({
               const Icon = icons[step.state];
               return (
                 <li className={`progress-step progress-step--${step.state}`} key={step.id}>
-                  <Icon aria-hidden="true" />
+                  <Icon aria-hidden="true" className={step.state === "active" ? "spin" : undefined} />
                   <div>
                     <strong>{step.label}</strong>
                     <p>{step.detail}</p>

@@ -76,6 +76,30 @@ describe("export preferences", () => {
     });
   });
 
+  it("normalizes Windows extended path prefixes before saving or restoring", () => {
+    const preferences = createExportPreferences(
+      {
+        ...defaultOptions,
+        outputPath: "\\\\?\\D:\\Exports",
+        databasePath: "\\\\?\\D:\\Backups\\Device",
+        attachmentRoot: "\\\\?\\D:\\Attachments",
+      },
+      false,
+      "2026-06-27T09:00:00.000Z",
+    );
+
+    expect(preferences.options).toMatchObject({
+      outputPath: "D:\\Exports",
+      databasePath: "D:\\Backups\\Device",
+      attachmentRoot: "D:\\Attachments",
+    });
+    expect(parseExportPreferences(JSON.stringify(preferences))?.options).toMatchObject({
+      outputPath: "D:\\Exports",
+      databasePath: "D:\\Backups\\Device",
+      attachmentRoot: "D:\\Attachments",
+    });
+  });
+
   it("returns fallbacks when no preference payload exists", () => {
     expect(applyExportPreferences(defaultOptions, true, null)).toEqual({
       dryRun: true,

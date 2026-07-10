@@ -8,6 +8,7 @@ import {
   FolderOpen,
   History,
   Info,
+  Loader2,
   Lock,
   MessageSquareText,
   Pencil,
@@ -42,6 +43,10 @@ import {
   applyExportPreferences,
   createExportPreferences,
 } from "./domain/exporter/preferences";
+import {
+  normalizeLocalPathForDisplay,
+  normalizeOptionalLocalPathForDisplay,
+} from "./domain/exporter/paths";
 import { buildPermissionGuide } from "./domain/exporter/permissions";
 import { buildExportPreflightSummary } from "./domain/exporter/preflight";
 import {
@@ -112,10 +117,17 @@ import {
   setCustomExporterPath,
   subscribeToProcessOutput,
 } from "./services/tauriBridge";
+import {
+  appName,
+  appSubtitle,
+  applyEditionDefaults,
+  enforceEditionOptions,
+  isSpenlioEdition,
+} from "./appEdition";
 
 type AppPage = "setup" | "export" | "diagnostics" | "history" | "about";
 
-const pageLabels: Record<AppPage, { title: string; kicker: string; description: string }> = {
+const generalPageLabels: Record<AppPage, { title: string; kicker: string; description: string }> = {
   setup: {
     title: "Save your message history",
     kicker: "Setup",
@@ -143,9 +155,60 @@ const pageLabels: Record<AppPage, { title: string; kicker: string; description: 
   },
 };
 
+const spenlioPageLabels: Record<AppPage, { title: string; kicker: string; description: string }> = {
+  setup: {
+    title: "Create your Spenlio CSV",
+    kicker: "Setup",
+    description: "Choose a local iPhone backup and where the finance SMS CSV should be saved.",
+  },
+  export: {
+    title: "Export finance SMS",
+    kicker: "Export",
+    description: "Save a Spenlio-ready CSV with business sender messages only.",
+  },
+  diagnostics: {
+    title: "Diagnostics",
+    kicker: "Health",
+    description: "Check local setup and saved troubleshooting details.",
+  },
+  history: {
+    title: "Support",
+    kicker: "Troubleshooting",
+    description: "Review saved local logs and create a support bundle when needed.",
+  },
+  about: {
+    title: "About Spenlio SMS Exporter",
+    kicker: "Privacy and license",
+    description: "Local-first finance SMS export details, attribution, and license information.",
+  },
+};
+
+const pageLabels = isSpenlioEdition ? spenlioPageLabels : generalPageLabels;
+const visiblePages: AppPage[] = isSpenlioEdition
+  ? ["setup", "export", "history", "about"]
+  : ["setup", "export", "diagnostics", "history", "about"];
+const pageIcons: Record<AppPage, typeof Settings2> = {
+  setup: Settings2,
+  export: Archive,
+  diagnostics: Wrench,
+  history: History,
+  about: Info,
+};
+const navLabels: Record<AppPage, string> = {
+  setup: "Setup",
+  export: "Export",
+  diagnostics: "Diagnostics",
+  history: "Support",
+  about: "About",
+};
+const editionDefaultExportOptions = applyEditionDefaults(defaultExportOptions);
+const editionInitialLogEntries = isSpenlioEdition
+  ? initialLogEntries.filter((entry) => !entry.message.includes("Exporter detection"))
+  : initialLogEntries;
+
 function App() {
   const [activePage, setActivePage] = useState<AppPage>("setup");
-  const [options, setOptions] = useState(defaultExportOptions);
+  const [options, setOptions] = useState(editionDefaultExportOptions);
   const [backupPassword, setBackupPassword] = useState("");
   const [sourceGuideOpen, setSourceGuideOpen] = useState(false);
   const [dryRun] = useState(false);
@@ -185,7 +248,7 @@ function App() {
     managed: false,
     source: "initial",
   });
-  const [logs, setLogs] = useState<LogEntry[]>([...initialLogEntries]);
+  const [logs, setLogs] = useState<LogEntry[]>([...editionInitialLogEntries]);
   const [storedLogs, setStoredLogs] = useState<StoredLogEntry[]>([]);
   const [backupCandidates, setBackupCandidates] = useState<IphoneBackupCandidate[]>([]);
   const [selectedLogDetail, setSelectedLogDetail] = useState<StoredLogDetail | null>(null);
@@ -193,7 +256,7 @@ function App() {
   const [runProgress, setRunProgress] = useState<RunProgress | null>(null);
   const [processOutputEvents, setProcessOutputEvents] = useState<ProcessOutputEvent[]>([]);
   const [outputAccess, setOutputAccess] = useState<OutputAccessCheck>(
-    previewOutputAccess(defaultExportOptions.outputPath),
+    previewOutputAccess(editionDefaultExportOptions.outputPath),
   );
   const lastPreferenceSaveError = useRef<string | null>(null);
   const activeProcessEventId = useRef<string | null>(null);
@@ -235,9 +298,11 @@ function App() {
     [diagnostics, dryRun, structuredCsvExport],
   );
   const fileManagerLabel = useMemo(() => getFileManagerLabel(snapshot), [snapshot]);
-  const selectedSourcePath = options.databasePath?.trim() ?? "";
+  const selectedSourcePath = normalizeOptionalLocalPathForDisplay(options.databasePath).trim();
   const selectedOutputPath =
-    outputAccess.path === options.outputPath ? outputAccess.resolvedPath || options.outputPath : options.outputPath;
+    outputAccess.path === options.outputPath
+      ? normalizeLocalPathForDisplay(outputAccess.resolvedPath || options.outputPath)
+      : normalizeLocalPathForDisplay(options.outputPath);
   const permissionGuide = useMemo(
     () => buildPermissionGuide(snapshot, options, outputAccess),
     [options, outputAccess, snapshot],
@@ -250,8 +315,20 @@ function App() {
       ? "warning"
       : "passed";
   const setupLabel = setupState === "passed" ? "Setup ready" : setupState === "action" ? "Setup needed" : "Review";
-  const topbarReadinessLabel = preflight.canRunExport ? "Ready to export" : setupLabel;
-  const showMacSourceChoice = shouldShowMacSourceChoice(snapshot);
+  const sourceStatusLabel = selectedSourcePath ? "Selected" : "Missing";
+  const outputStatusLabel = outputAccess.writable ? "Ready" : selectedOutputPath ? "Needs check" : "Missing";
+  const workflowStepLabel = getWorkflowStepLabel({
+    appReady: structuredCsvExport || probe.found,
+    canRunExport: preflight.canRunExport,
+    outputReady: outputAccess.writable,
+    sourceSelected: Boolean(selectedSourcePath),
+    spenlioEdition: isSpenlioEdition,
+  });
+  const showMacSourceChoice = !isSpenlioEdition && shouldShowMacSourceChoice(snapshot);
+
+  useEffect(() => {
+    document.title = appName;
+  }, []);
 
   useEffect(() => {
     void bootstrapWorkspace();
@@ -335,18 +412,22 @@ function App() {
 
   async function restoreExportPreferences(
     hostSnapshot: SystemSnapshot = snapshot,
-  ): Promise<typeof defaultExportOptions> {
+  ): Promise<typeof editionDefaultExportOptions> {
     try {
       const preferences = await loadExportPreferences();
-      const restored = applyExportPreferences(defaultExportOptions, false, preferences);
-      const alignedOptions = alignSourcePlatformToHost(restored.options, hostSnapshot);
+      const restored = applyExportPreferences(editionDefaultExportOptions, false, preferences);
+      const alignedOptions = normalizeExportOptionPaths(enforceEditionOptions(
+        alignSourcePlatformToHost(restored.options, hostSnapshot),
+      ));
       setOptions(alignedOptions);
       if (preferences) {
         addLog("info", "Restored export preferences from local storage.");
       }
       return alignedOptions;
     } catch (error) {
-      const alignedOptions = alignSourcePlatformToHost(defaultExportOptions, hostSnapshot);
+      const alignedOptions = normalizeExportOptionPaths(enforceEditionOptions(
+        alignSourcePlatformToHost(editionDefaultExportOptions, hostSnapshot),
+      ));
       setOptions(alignedOptions);
       addLog("warn", error instanceof Error ? error.message : "Could not restore export preferences.");
       return alignedOptions;
@@ -380,7 +461,9 @@ function App() {
     setProbe(nextProbe);
     setManagedState(nextManagedState);
     setOutputAccess(nextOutputAccess);
-    addLog(nextProbe.found ? "info" : "warn", nextProbe.found ? "Exporter detected." : "Exporter was not detected.");
+    if (!structuredCsvExport) {
+      addLog(nextProbe.found ? "info" : "warn", nextProbe.found ? "Exporter detected." : "Exporter was not detected.");
+    }
     return nextProbe;
   }
 
@@ -470,6 +553,10 @@ function App() {
   }
 
   function announceStartupReleaseStatus(nextProbe: ExporterProbe, latest: ExporterRelease | null) {
+    if (structuredCsvExport) {
+      return;
+    }
+
     if (!latest) {
       return;
     }
@@ -743,14 +830,14 @@ function App() {
   }
 
   function chooseDetectedIphoneBackup(candidate: IphoneBackupCandidate) {
-    const selectedPath = candidate.resolvedPath ?? candidate.path;
-    setBackupPassword("");
-    setOptions((current) => ({
-      ...current,
-      platform: "iOS",
-      databasePath: selectedPath,
-      attachmentRoot: "",
-    }));
+      const selectedPath = candidate.resolvedPath ?? candidate.path;
+      setBackupPassword("");
+      setOptions((current) => ({
+        ...current,
+        platform: "iOS",
+        databasePath: normalizeLocalPathForDisplay(selectedPath),
+        attachmentRoot: "",
+      }));
     setSourceGuideOpen(false);
     addLog(
       "info",
@@ -781,7 +868,7 @@ function App() {
       }
       setOptions((current) => ({
         ...(updateBeforeSave ? updateBeforeSave(current) : current),
-        [field]: selectedPath,
+        [field]: normalizeLocalPathForDisplay(selectedPath),
       }));
       addLog("info", message);
     } catch (error) {
@@ -848,10 +935,11 @@ function App() {
   }
 
   function handleOptionsChange(nextOptions: ExportOptions) {
-    if (shouldClearBackupPassword(options, nextOptions)) {
+    const editionOptions = normalizeExportOptionPaths(enforceEditionOptions(nextOptions));
+    if (shouldClearBackupPassword(options, editionOptions)) {
       setBackupPassword("");
     }
-    setOptions(nextOptions);
+    setOptions(editionOptions);
   }
 
   function handleEncryptedBackupChange(encryptedBackup: boolean) {
@@ -933,17 +1021,21 @@ function App() {
               <MessageSquareText aria-hidden="true" />
             </div>
             <div>
-              <strong>ChatExportMate</strong>
-              <span>message archive</span>
+              <strong>{appName}</strong>
+              <span>{appSubtitle}</span>
             </div>
           </div>
 
           <div className="nav-group">
-            <NavButton active={activePage === "setup"} icon={Settings2} label="Setup" onClick={() => setActivePage("setup")} />
-            <NavButton active={activePage === "export"} icon={Archive} label="Export" onClick={() => setActivePage("export")} />
-            <NavButton active={activePage === "diagnostics"} icon={Wrench} label="Diagnostics" onClick={() => setActivePage("diagnostics")} />
-            <NavButton active={activePage === "history"} icon={History} label="Support" onClick={() => setActivePage("history")} />
-            <NavButton active={activePage === "about"} icon={Info} label="About" onClick={() => setActivePage("about")} />
+            {visiblePages.map((page) => (
+              <NavButton
+                active={activePage === page}
+                icon={pageIcons[page]}
+                key={page}
+                label={navLabels[page]}
+                onClick={() => setActivePage(page)}
+              />
+            ))}
           </div>
 
           <div className="sidebar-footer">
@@ -966,31 +1058,40 @@ function App() {
               </div>
               <div className="status-cluster">
                 <BadgeCheck aria-hidden="true" />
-                <span>{topbarReadinessLabel}</span>
+                <span>{workflowStepLabel}</span>
               </div>
             </div>
           </header>
 
           <section className="status-strip" aria-label="Workspace status">
             <div>
-              <span>Export tool</span>
-              <strong>{probe.found ? "Ready" : structuredCsvExport ? "Optional for CSV" : "Needs setup"}</strong>
+              <span>{options.platform === "iOS" ? "iPhone backup" : "Message source"}</span>
+              <strong>{sourceStatusLabel}</strong>
+              <small title={selectedSourcePath || undefined}>
+                {selectedSourcePath || "Choose the backup that contains the messages."}
+              </small>
             </div>
             <div>
-              <span>iPhone backup</span>
-              <strong title={selectedSourcePath || undefined}>
-                {selectedSourcePath || "Not selected"}
-              </strong>
+              <span>Save folder</span>
+              <strong>{outputStatusLabel}</strong>
+              <small title={selectedOutputPath || undefined}>
+                {selectedOutputPath || "Choose where the CSV should be saved."}
+              </small>
             </div>
             <div>
-              <span>Export location</span>
-              <strong title={selectedOutputPath || undefined}>
-                {selectedOutputPath || "Choose folder"}
-              </strong>
+              <span>{isSpenlioEdition ? "CSV output" : "Export"}</span>
+              <strong>{preflight.canRunExport ? "Ready" : setupLabel}</strong>
+              <small>
+                {preflight.canRunExport
+                  ? isSpenlioEdition
+                    ? "One local finance SMS CSV can be created now."
+                    : "The local export can be started now."
+                  : workflowStepLabel}
+              </small>
             </div>
             <StatusPill
               label={preflight.canRunExport ? "Ready to export" : "Next step"}
-              state={preflight.canRunExport ? "passed" : "warning"}
+              state={preflight.canRunExport ? "passed" : "action"}
             />
           </section>
 
@@ -1009,6 +1110,7 @@ function App() {
             <div className="page-grid page-grid--setup">
               <div className="main-stack">
                 <QuickStartPanel
+                  appName={appName}
                   canPrepareExporter={Boolean(selectedAsset)}
                   exporterFound={probe.found}
                   exporterRequired={!structuredCsvExport}
@@ -1022,8 +1124,10 @@ function App() {
                   onPickSource={openSourceGuide}
                   outputReady={outputAccess.writable}
                   outputPath={selectedOutputPath}
+                  canRunExport={preflight.canRunExport}
                   fileManagerLabel={fileManagerLabel}
                   platform={options.platform}
+                  spenlioEdition={isSpenlioEdition}
                   sourcePath={selectedSourcePath}
                   sourceSelected={Boolean(selectedSourcePath)}
                 />
@@ -1044,6 +1148,7 @@ function App() {
                   onCheckOutputAccess={checkCurrentOutputAccess}
                   onChange={handleOptionsChange}
                   onOpenOutput={openExportFolder}
+                  onOpenSource={openSelectedSourceLocation}
                   onPrepareExporter={installOrUpdateExporter}
                   onPickAttachmentRoot={pickAttachmentRoot}
                   onPickOutput={pickOutputFolder}
@@ -1051,6 +1156,8 @@ function App() {
                   onRun={runExport}
                   options={options}
                   preflight={preflight}
+                  spenlioEdition={isSpenlioEdition}
+                  appName={appName}
                   showMacSourceChoice={showMacSourceChoice}
                 />
               </div>
@@ -1103,12 +1210,13 @@ function App() {
             />
           ) : null}
 
-          {activePage === "about" ? <AboutPanel /> : null}
+          {activePage === "about" ? <AboutPanel appName={appName} spenlioEdition={isSpenlioEdition} /> : null}
         </div>
       </div>
       </main>
       {sourceGuideOpen ? (
         <SourceGuideDialog
+          appName={appName}
           backupCandidates={backupCandidates}
           encryptedBackup={options.encryptedBackup}
           loadingBackupCandidates={loadingBackupCandidates}
@@ -1118,6 +1226,7 @@ function App() {
           onClose={() => setSourceGuideOpen(false)}
           onEncryptedBackupChange={handleEncryptedBackupChange}
           onRefreshBackups={() => void refreshIphoneBackups()}
+          sourceSelected={Boolean(selectedSourcePath)}
           showMacSourceChoice={showMacSourceChoice}
         />
       ) : null}
@@ -1131,6 +1240,15 @@ function shouldClearBackupPassword(previousOptions: ExportOptions, nextOptions: 
     previousOptions.databasePath !== nextOptions.databasePath ||
     previousOptions.encryptedBackup !== nextOptions.encryptedBackup
   );
+}
+
+function normalizeExportOptionPaths(options: ExportOptions): ExportOptions {
+  return {
+    ...options,
+    outputPath: normalizeLocalPathForDisplay(options.outputPath),
+    databasePath: normalizeOptionalLocalPathForDisplay(options.databasePath),
+    attachmentRoot: normalizeOptionalLocalPathForDisplay(options.attachmentRoot),
+  };
 }
 
 function getFileManagerLabel(snapshot: Pick<SystemSnapshot, "os">): string {
@@ -1153,6 +1271,38 @@ function sourceLocationPathForOpen(options: ExportOptions): string {
   }
 
   return parentPath(sourcePath);
+}
+
+function getWorkflowStepLabel({
+  appReady,
+  canRunExport,
+  outputReady,
+  sourceSelected,
+  spenlioEdition,
+}: {
+  appReady: boolean;
+  canRunExport: boolean;
+  outputReady: boolean;
+  sourceSelected: boolean;
+  spenlioEdition: boolean;
+}): string {
+  if (!appReady) {
+    return "Step 1 of 4: set up helper";
+  }
+
+  if (!sourceSelected) {
+    return "Step 2 of 4: choose iPhone backup";
+  }
+
+  if (!outputReady) {
+    return "Step 3 of 4: choose save folder";
+  }
+
+  if (canRunExport) {
+    return spenlioEdition ? "Step 4 of 4: create CSV" : "Step 4 of 4: export messages";
+  }
+
+  return "Step 4 of 4: review setup";
 }
 
 function parentPath(path: string): string {
@@ -1198,6 +1348,7 @@ interface QuickStartAction {
   icon: typeof Settings2;
   onAction: () => void;
   disabled?: boolean;
+  loading?: boolean;
   variant?: "primary";
 }
 
@@ -1217,6 +1368,7 @@ interface QuickStartStep {
 }
 
 function QuickStartPanel({
+  appName,
   canPrepareExporter,
   exporterFound,
   exporterRequired,
@@ -1232,9 +1384,12 @@ function QuickStartPanel({
   outputReady,
   outputPath,
   platform,
+  spenlioEdition,
   sourcePath,
   sourceSelected,
+  canRunExport,
 }: {
+  appName: string;
   canPrepareExporter: boolean;
   exporterFound: boolean;
   exporterRequired: boolean;
@@ -1250,28 +1405,38 @@ function QuickStartPanel({
   outputReady: boolean;
   outputPath: string;
   platform: string;
+  spenlioEdition: boolean;
   sourcePath: string;
   sourceSelected: boolean;
+  canRunExport: boolean;
 }) {
   const sourceLabel = platform === "iOS" ? "iPhone backup" : "Messages source";
+  const builtInReaderReady = !exporterRequired;
   const steps: QuickStartStep[] = [
     {
       number: 1,
-      title: exporterRequired ? "Install export tool" : "CSV reader ready",
+      title: exporterRequired
+        ? "Install export tool"
+        : spenlioEdition
+          ? "Spenlio CSV reader ready"
+          : "CSV reader ready",
       detail: exporterFound
         ? "The local export tool is ready."
         : exporterRequired
-          ? "ChatExportMate installs the local tool it uses to turn your backup into files."
-          : "Finance CSV uses ChatExportMate's built-in local database reader. Install the export tool later for HTML, text, or transcript-line CSV.",
-      state: exporterFound || !exporterRequired ? "passed" : "action",
+          ? `${appName} installs the local tool it uses to turn your backup into files.`
+          : spenlioEdition
+            ? "The built-in local reader is ready to create the finance CSV. No extra export tool is needed."
+            : `${appName}'s built-in local database reader is ready for finance CSV.`,
+      state: exporterFound || builtInReaderReady ? "passed" : "action",
       icon: DownloadCloud,
       actions:
-        exporterFound || !exporterRequired
+        exporterFound || builtInReaderReady
           ? [{ label: "Ready", icon: CheckCircle2, onAction: onInstallExporter, disabled: true }]
           : [
               {
                 label: installingExporter ? "Setting up" : installActionLabel,
-                icon: DownloadCloud,
+                icon: installingExporter ? Loader2 : DownloadCloud,
+                loading: installingExporter,
                 onAction: onInstallExporter,
                 disabled: !canPrepareExporter || installingExporter,
                 variant: "primary",
@@ -1306,7 +1471,9 @@ function QuickStartPanel({
       title: "Choose export location",
       detail: outputReady
         ? "The selected export folder can accept saved files."
-        : "Pick where ChatExportMate should save the exported files.",
+        : outputPath
+          ? "Check or change this folder so the CSV can be saved there."
+        : `Pick where ${appName} should save the exported files.`,
       state: outputReady ? "passed" : "action",
       icon: ShieldCheck,
       location: outputPath
@@ -1331,9 +1498,11 @@ function QuickStartPanel({
     },
     {
       number: 4,
-      title: "Export messages",
-      detail: "When the first three steps are ready, choose a format and start the local export.",
-      state: "warning",
+      title: spenlioEdition ? "Export Spenlio CSV" : "Export messages",
+      detail: spenlioEdition
+        ? "Review the source and save folder, then create the finance SMS CSV."
+        : "Review the source and save folder, then start the local export.",
+      state: canRunExport ? "action" : "warning",
       icon: Play,
       actions: [{ label: "Open export", icon: Play, onAction: onGoExport, variant: "primary" }],
     },
@@ -1348,8 +1517,9 @@ function QuickStartPanel({
           <p className="section-kicker">Guided setup</p>
           <h2 id="quick-start-title">Follow these steps in order</h2>
           <p>
-            ChatExportMate guides you through creating or choosing a local backup, then saves
-            readable files on this computer.
+            {spenlioEdition
+              ? `${appName} guides you through choosing a local iPhone backup, then saves a finance SMS CSV on this computer.`
+              : `${appName} guides you through creating or choosing a local backup, then saves readable files on this computer.`}
           </p>
         </div>
       </div>
@@ -1372,41 +1542,43 @@ function QuickStartPanel({
                 <Icon aria-hidden="true" />
               </div>
               <div className="quick-step-main">
-                <div className="quick-step-title">
-                  <StateIcon aria-hidden="true" />
-                  <h3>{step.title}</h3>
+                <div className="quick-step-copy">
+                  <div className="quick-step-title">
+                    <StateIcon aria-hidden="true" />
+                    <h3>{step.title}</h3>
+                  </div>
+                  <p>{step.detail}</p>
                 </div>
-                <p>{step.detail}</p>
                 {step.location ? (
                   <div className="quick-step-location">
                     <span>{step.location.label}</span>
                     <code title={step.location.value}>{step.location.value}</code>
                   </div>
                 ) : null}
-              </div>
-              <div className="quick-step-actions">
-                {isLocked ? (
-                  <button className="button button--secondary button--compact" disabled type="button">
-                    {currentStepTitle} first
-                  </button>
-                ) : (
-                  step.actions.map((action) => {
-                    const ActionIcon = action.icon;
-                    const isPrimary = action.variant === "primary" || (isCurrent && step.actions.length === 1);
-                    return (
-                      <button
-                        className={`button ${isPrimary ? "button--primary" : "button--secondary"} button--compact`}
-                        disabled={action.disabled}
-                        key={action.label}
-                        onClick={action.onAction}
-                        type="button"
-                      >
-                        <ActionIcon aria-hidden="true" />
-                        {action.label}
-                      </button>
-                    );
-                  })
-                )}
+                <div className="quick-step-actions">
+                  {isLocked ? (
+                    <button className="button button--secondary button--compact" disabled type="button">
+                      {currentStepTitle} first
+                    </button>
+                  ) : (
+                    step.actions.map((action) => {
+                      const ActionIcon = action.icon;
+                      const isPrimary = action.variant === "primary" || (isCurrent && step.actions.length === 1);
+                      return (
+                        <button
+                          className={`button ${isPrimary ? "button--primary" : "button--secondary"} button--compact`}
+                          disabled={action.disabled}
+                          key={action.label}
+                          onClick={action.onAction}
+                          type="button"
+                        >
+                          <ActionIcon aria-hidden="true" className={action.loading ? "spin" : undefined} />
+                          {action.label}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </article>
           );
@@ -1417,9 +1589,10 @@ function QuickStartPanel({
 }
 
 function previewOutputAccess(outputPath: string): OutputAccessCheck {
+  const normalizedOutputPath = normalizeLocalPathForDisplay(outputPath);
   return {
-    path: outputPath,
-    resolvedPath: outputPath,
+    path: normalizedOutputPath,
+    resolvedPath: normalizedOutputPath,
     writable: false,
     checkedAt: "",
     detail: "Desktop write access check has not run.",

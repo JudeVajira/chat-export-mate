@@ -12,22 +12,39 @@ This repository currently contains the initial Tauri + React + TypeScript applic
 
 ## Alpha Downloads
 
-Windows x64 alpha builds are published by GitHub Actions in two forms:
+Windows x64 alpha builds are published from the GitHub **Releases** page when an alpha release is tagged. Each public alpha release includes:
 
-- **Installer**: runs the unsigned `-setup.exe` installer and adds normal Windows install integration.
-- **Portable app**: extract the artifact and run `ChatExportMate.exe` without installing. It does not create Start Menu entries, desktop shortcuts, or an uninstaller.
+- **ChatExportMate installer**: runs the unsigned `-setup.exe` installer and adds normal Windows install integration.
+- **ChatExportMate portable app**: extract the ZIP and run `ChatExportMate.exe` without installing. It does not create Start Menu entries, desktop shortcuts, or an uninstaller.
+- **Spenlio SMS Exporter installer**: runs the unsigned `-setup.exe` installer for the focused Spenlio CSV edition.
+- **Spenlio SMS Exporter portable app**: extract the ZIP and run `SpenlioSmsExporter.exe`. This edition is focused on local iPhone backup to Spenlio-compatible finance CSV export.
 
-To test the latest build:
+Release notes are generated during the release workflow. They include an alpha warning, download guidance, recent commit subjects, and GitHub's generated changelog when pull request metadata is available.
+
+To download the latest public alpha:
+
+1. Open the repository **Releases** page.
+2. Choose the newest prerelease.
+3. Download either the installer `.exe` or the portable `.zip` for the edition you want to test.
+4. For portable builds, extract the ZIP into a normal folder before running the `.exe`; do not run the app from inside Windows' ZIP/compressed-folder view.
+
+To test a branch build before it is promoted to a public release:
 
 1. Open the repository **Actions** tab.
 2. Choose the latest **Desktop alpha build** run for the branch you want to test.
-3. Download either `ChatExportMate-alpha-windows-x64-installer-<run number>` or `ChatExportMate-alpha-windows-x64-portable-<run number>`.
-4. Extract the artifact. For the portable build, also extract the portable ZIP contents into a normal folder before running `ChatExportMate.exe`; do not run the app from inside Windows' ZIP/compressed-folder view.
-5. For the installer build, run the `-setup.exe` installer. For the portable build, run `ChatExportMate.exe` from the extracted folder.
+3. Download one of the short-lived workflow artifacts for ChatExportMate or Spenlio SMS Exporter.
+4. Extract the artifact. For portable builds, also extract the portable ZIP contents into a normal folder before running the `.exe`; do not run the app from inside Windows' ZIP/compressed-folder view.
+5. For installer builds, run the `-setup.exe` installer. For portable builds, run `ChatExportMate.exe` or `SpenlioSmsExporter.exe` from the extracted folder.
 
-These alpha builds are unsigned, experimental, and retained as GitHub Actions artifacts for 14 days. Windows may show an unknown-publisher warning. Review the source and build logs before installing or running a portable build from a public run.
+These alpha builds are unsigned and experimental. Windows may show an unknown-publisher warning. Review the source and build logs before installing or running a portable build from a public run.
 
-The portable app avoids system installation, but it still stores ChatExportMate app data, managed `imessage-exporter` binaries, preferences, and logs in the normal local app data directory. If ChatExportMate detects that it was launched from a temporary compressed-folder location, it shows an in-app warning to extract the portable ZIP first.
+The portable app avoids system installation, but it still stores app data, preferences, and logs in the normal local app data directory for that edition. ChatExportMate also stores managed `imessage-exporter` binaries there when needed. If a portable build detects that it was launched from a temporary compressed-folder location, it shows an in-app warning to extract the portable ZIP first.
+
+## Spenlio SMS Exporter Edition
+
+The Spenlio SMS Exporter edition is built from this same codebase as a focused alpha portable app. It starts in the iPhone-backup flow, defaults to app-owned CSV export, hides HTML/Text and transcript-line choices, and keeps the normal output to finance/business sender rows with `sender`, `received_at`, `message_id`, and `message` columns.
+
+Use the Spenlio edition when the goal is to create a Spenlio-compatible SMS CSV from a local iPhone backup. Use the general ChatExportMate build when you need HTML/Text export, transcript-line CSV, upstream diagnostics, or broader `imessage-exporter` setup and troubleshooting.
 
 ## Prerequisites
 
@@ -191,9 +208,32 @@ Desktop health checks probe the selected output folder, or its existing parent f
 ```powershell
 pnpm test
 pnpm build
+pnpm build:spenlio
 ```
 
 `pnpm build` runs TypeScript checks and creates the Vite production bundle. A full desktop package requires Rust/Cargo through the Tauri CLI.
+
+The Spenlio portable frontend can be built with `pnpm build:spenlio`. A full desktop Spenlio package uses:
+
+```powershell
+pnpm tauri:build:spenlio
+```
+
+## Publishing Alpha Releases
+
+The **Desktop alpha build** GitHub Actions workflow always builds Windows x64 artifacts for pushed branches. It publishes a public GitHub prerelease only when one of these is true:
+
+- A tag matching `v*-alpha.*` is pushed, for example `v0.1.0-alpha.1`.
+- The workflow is run manually with **Publish release** enabled and a release tag such as `v0.1.0-alpha.1`.
+
+While the app is experimental, use alpha semver tags such as:
+
+```powershell
+git tag v0.1.0-alpha.1
+git push origin v0.1.0-alpha.1
+```
+
+The release job uploads release-ready Windows assets, marks the GitHub release as a prerelease, keeps it out of the "Latest" stable slot, and generates release notes from recent commits plus GitHub's generated changelog when pull request metadata exists.
 
 Rust tests can be run with:
 

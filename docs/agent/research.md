@@ -23,6 +23,8 @@ sources:
   - https://crates.io/crates/imessage-database/4.2.0
   - https://docs.rs/crabapple/0.4.7
   - https://crates.io/crates/crabapple/0.4.7
+  - https://cli.github.com/manual/gh_release_create
+  - https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
 related:
   - ./product-architecture.md
 ---
@@ -111,3 +113,13 @@ related:
   URL: https://crates.io/crates/crabapple/0.4.7
   Why it matters: Confirms the packaged crate metadata used by Cargo for encrypted iOS backup handling.
   Last checked: 2026-06-29 20:25 +05:30
+
+- Title: GitHub CLI - `gh release create`
+  URL: https://cli.github.com/manual/gh_release_create
+  Why it matters: ChatExportMate's release workflow uses GitHub CLI to publish alpha prereleases, upload build assets, keep alpha releases out of the Latest slot, and request generated release notes.
+  Last checked: 2026-07-04 19:30 +05:30
+
+- Title: GitHub Docs - Automatically generated release notes
+  URL: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+  Why it matters: Confirms the `.github/release.yml` customization model used to categorize generated release notes for public alpha releases.
+  Last checked: 2026-07-04 19:30 +05:30
